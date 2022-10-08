@@ -1,0 +1,96 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        // {
+        //     "name": "Python: ruler_process.py",
+        //     "type": "python",
+        //     "request": "launch",
+        //     "program": "D:/Dropbox/LeafMachine2/leafmachine2/machine/ruler_process.py",
+            
+            
+        //     "args": [
+        //         "--dir-images", "D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_CroppedAnnotations_Group1_Partial/PREP/Ruler/Ruler__BHSC_2512328797_Vitaceae_Vitis_riparia__2.jpg",
+        //         "--dir-overlay", "E:/TEMP_ruler/TEST_newLMstructure",
+        //         "--print", "True",
+        //         "--save-overlay", "True",
+        //         "--model-path", "D:/Dropbox/LM2_Env/LeafMachine2/data/ruler_classifier/model",
+        //         "--model-name","model_scripted_resnet.pt",
+        //     ]
+        // }
+        // {
+        //     "name": "Python: ruler_process.py",
+        //     "type": "python",
+        //     "request": "launch",
+        //     "program": "D:/Dropbox/LeafMachine2/leafmachine2/machine/ruler_process.py",
+            
+            
+        //     "args": [
+        //         "--dir-images", "D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_CroppedAnnotations_Group1_Partial/PREP/Ruler",
+        //         "--dir-overlay", "E:/TEMP_ruler/TEST_newLMstructure",
+        //         "--print", "True",
+        //         "--save-overlay", "True",
+        //         "--model-path", "D:/Dropbox/LM2_Env/LeafMachine2/data/ruler_classifier/model",
+        //         "--model-name","model_scripted_resnet.pt",
+        //     ]
+        // }
+
+        // Test ruler.py
+        // {
+        //     "name": "Python: ruler.py",
+        //     "type": "python",
+        //     "request": "launch",
+        //     "program": "D:/Dropbox/LeafMachine2/leafmachine2/machine/ruler.py",
+            
+            
+        //     "args": [
+        //         "--dir-images", "D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_CroppedAnnotations_Group1_Partial/PREP/Ruler",
+        //     ]
+        // }
+
+        // Test squarify_imgs_in_dirs.py
+        // {
+        //     "name": "Python: squarify_imgs_in_dir.py",
+        //     "type": "python",
+        //     "request": "launch",
+        //     "program": "D:/Dropbox/LeafMachine2/leafmachine2/machine/squarify_imgs_in_dir.py",
+            
+            
+        //     "args": [
+        //         "--dir-images", "E:/TEMP_ruler/Rulers_ByType",
+        //         "--dir-out", "E:/TEMP_ruler/Rulers_ByType_Squarify_720px",
+        //         "--make-square", "True",
+        //         "--size", "360",
+        //     ]
+        // }
+
+        // Test train_ruler_classifier.py
+        {
+            "name": "Python: train_ruler_classifier.py",
+            "type": "python",
+            "request": "launch",
+            "program": "D:/Dropbox/LeafMachine2/leafmachine2/machine/train_ruler_classifier.py",
+            
+            
+            // "args": [
+            //     "--dir-train", "E:/TEMP_ruler/Rulers_ByType",
+            //     "--dir-val", "null",
+            //     "--model-name", "null",
+            //     "--ruler-class-names", "null",
+            //     "--do-overwrite-model", "null",
+            //     "--split-train_dir-automatically", "null",
+            //     "--split-train-dir-consistently", "null",
+            //     "--seed-for-random-split", "null",
+            //     "--img-size", "null",
+            //     "--use-cuda", "null",
+            //     "--batch-size", "null",
+            //     "--learning-rate", "null",
+            //     "--n-epochs", "1",
+            //     "--print-every", "null",
+            //     "--num-classes", "null",
+            // ]
+        }
+    ]
+}

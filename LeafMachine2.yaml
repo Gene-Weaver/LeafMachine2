@@ -1,0 +1,74 @@
+# To use default value, set to null
+leafmachine:
+    model:
+        ruler_detector: 'model_scripted_resnet_720.pt'
+    do:
+        detect_ruler_type: True
+    print:
+        verbose: True
+        optional_warnings: True
+    save:
+        ruler_overlay: True
+        ruler_processed: True
+        ruler_type_overlay: True
+        ruler_data: True
+    save_dirs:
+        #ruler_correction: 'E:/TEMP_ruler/rulerAngleCorrection'
+        path_ruler_output_parent: 'E:/TEST__LM2_Output2/Ruler_Output'
+        dir_ruler_overlay: 'Ruler_Overlay' 
+        dir_ruler_processed: 'Ruler_Processed'
+        dir_ruler_data: 'Ruler_Data' 
+    images_to_process:
+        ruler_directory: 'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_CroppedAnnotations_Group1_Partial/PREP/Ruler' 
+    ruler_train:
+        model_name: 'model_scripted_resnet_720_40' # end in .pt
+        do_overwrite_model: False # bool 
+        dir_train: /home/brlab/Dropbox/LeafMachine2/data/ruler_classifier_training_data/Rulers_ByType_Squarify_720px #'E:/TEMP_ruler/Rulers_ByType_Squarify_720px'
+        dir_val: null
+        split_train_dir_automatically: null # bool True
+        split_train_dir_consistently: null # bool True
+        save_all_checkpoints: null # False
+        seed_for_random_split: null # int 2022
+        n_gpus: 2 # int 1 
+        n_machines: null # int 1 -- changing this will require effort
+        default_timeout_minutes: null # int 30
+        img_size: null # int 720
+        use_cuda: null # bool True
+        batch_size: 84 # int 18
+        learning_rate: null # float 0.001
+        n_epochs: 40 # int 20
+        print_every: null # int 5
+        num_classes: null # int 22
+    segmentation_train:
+        dir_images_train: "/home/brlab/Dropbox/LeafMachine2/data/segmentation_training_data/small_batch/train/images" #"D:/Dropbox/LeafMachine2/leafmachine2/segmentation/detectron2/LM2_data/leaf_whole_part1/train/images"
+        dir_images_val: "/home/brlab/Dropbox/LeafMachine2/data/segmentation_training_data/small_batch/val/images" #"D:/Dropbox/LeafMachine2/leafmachine2/segmentation/detectron2/LM2_data/leaf_whole_part1/val/images"
+        dir_images_test: "/home/brlab/Dropbox/LM2_ENV/Image_Datasets/GroundTruth_CroppedAnnotations_Group1_Partial/PLANT/Leaf_WHOLE" #"D:/Dropbox/LM2_ENV/Image_Datasets/GroundTruth_CroppedAnnotations_Group1_Partial/PLANT/Leaf_WHOLE"
+        dir_out: null # str -- null saves output in default location ./dectron2/models/
+        filename_train_json: null # str 'POLYGONS_train.json'
+        filename_val_json: null # str 'POLYGONS_val.json'
+        model_options:
+            model_name: null # str 'POC_Dataset_10000_Iter_784PTS_CIOU_WK2'
+            base_architecture: null # str "PR_mask_rcnn_R_50_FPN_3x" from normally from detectron2 model zoo
+            do_validate_in_training: null # bool True
+            batch_size: null # int 32
+            iterations: null # int 10000
+            checkpoint_freq: null # int 1000
+            warmup: null # int 1000
+            n_gpus: null # int 1 
+            n_workers: null # int 8
+            n_machines: null # int 1 -- changing this will require effort
+            default_timeout_minutes: null # int 30   
+    segmentation_eval:
+        model_name: "leaf_seg__2022_09_23__13-07-23__POC_Dataset_10000_Iter_784PTS_CIOU_WK2__PR_mask_rcnn_R_50_FPN_3x"
+        show_image: False # bool False
+        thresh: 0.70 # float
+        do_eval_training_images: True # bool True
+        do_eval_val_images: True # bool True
+        do_eval_check_directory: True # bool True
+labelbox:
+    LB_API_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJja3l4dHk1bXowMzZyMHo2dzUyNzllZHBnIiwib3JnYW5pemF0aW9uSWQiOiJja3l4dHk1bWgwMzZxMHo2dzI2bnNmaDlqIiwiYXBpS2V5SWQiOiJja3pnOXRydmswd3FwMHpkMGJ2bmxhcHo1Iiwic2VjcmV0IjoiOTk5MDEwMzAyMzJhYmExNzM0NDg3NGY3NmExMGUyZDkiLCJpYXQiOjE2NDQ0NTQ2MjgsImV4cCI6MjI3NTYwNjYyOH0.YV2z1lLh1aUgufjGMBr_TOsVUrrTfHFpd0yFBNaSTrQ'
+w_and_b:
+    w_and_b_key: '3008319cb8a8fe9b3cd5181c473d5c11df441632'
+    entity: 'phyloforfun'
+    leaf_segmentation_project: 'Leaf_Segmentation'
+    ruler_classifier_project: 'Ruler_Classifier'

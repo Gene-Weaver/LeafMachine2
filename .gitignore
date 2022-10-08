@@ -1,3 +1,11 @@
+# Files
+requirements-d2.txt
+
+# Dirs
+data/
+leafmachine2/machine/ruler_classifier/
+leafmachine2/machine/ruler_classifier/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -106,6 +114,8 @@ celerybeat.pid
 .venv
 env/
 venv/
+venv_LM2/
+venv_LM2_linux/
 ENV/
 env.bak/
 venv.bak/

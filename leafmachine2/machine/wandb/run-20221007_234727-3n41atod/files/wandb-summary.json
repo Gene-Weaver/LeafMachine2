@@ -1,0 +1,1 @@
+{"batch-index": 65, "loss": 0.5721096992492676, "_timestamp": 1665202114.2035139, "_runtime": 1267.0554549694061, "_step": 36, "training-accuracy": [51.21836374337846], "training-loss": [1.8894173386050206], "validation-accuracy": 80.9322033898305, "validation-loss": [0.8884564500588638]}
