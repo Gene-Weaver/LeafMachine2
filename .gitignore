@@ -4,7 +4,11 @@ requirements-d2.txt
 # Dirs
 data/
 leafmachine2/machine/ruler_classifier/
-leafmachine2/machine/ruler_classifier/
+leafmachine2/machine/wandb/
+leafmachine2/segmentation/wandb/
+leafmachine2/segmentation/models/
+.vscode/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
