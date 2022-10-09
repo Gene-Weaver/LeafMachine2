@@ -7,6 +7,10 @@ leafmachine2/machine/ruler_classifier/
 leafmachine2/machine/wandb/
 leafmachine2/segmentation/wandb/
 leafmachine2/segmentation/models/
+leafmachine2/component_detector/datasets/
+leafmachine2/component_detector/wandb/
+leafmachine2/component_detector/runs/
+leafmachine2/component_detector/architecture/
 .vscode/
 
 

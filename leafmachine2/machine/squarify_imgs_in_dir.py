@@ -1,7 +1,6 @@
 '''
 Intake a directory, or dir containing other dirs, and squarify all rulers inside
 '''
-
 import os, cv2, argparse
 from ruler_utils import validate_dir, squarify, squarify_quartiles, squarify_nine, squarify_tile_four_versions
 
