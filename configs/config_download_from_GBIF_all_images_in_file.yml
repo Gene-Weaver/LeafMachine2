@@ -1,0 +1,43 @@
+# config_download_from_GBIF_all_images_in_file.yml
+####################################################################################
+### Directories ###
+dir_home: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_GBIF_Fagaceae/DWC'
+dir_destination_images: '/media/brlab/e5827490-fff7-471f-a73d-e7ae3ea264bf1/LM2_TEST/SET_GBIF_Fagaceae/images_20MPplus'
+dir_destination_csv: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_GBIF_Fagaceae/DWC'
+
+####################################################################################
+### Exisitng Files ###
+# Darwin Core Occurance File
+filename_occ: 'occurrence.txt'
+
+####################################################################################
+# Darwin Core Images File
+filename_img: 'multimedia.txt' # 'spines_images.txt' 'prickles_images.txt'
+
+####################################################################################
+### Files that will be created ###
+# Set the filename of a new csv containing the merged records from images and occ
+#      filename_combined: 'combined_XXXXXXX.csv'
+filename_combined: 'combined_Fagaceae.csv' # appends to this file 
+# filename_combined: 'combined_spines.csv'
+
+####################################################################################
+### Set bounds ###
+MP_low: 20
+MP_high: 200
+do_resize: False
+
+####################################################################################
+### Parallelization ###
+n_threads: 16 # OR int in range 1:32, (usually 8-12) set to None to use number of local CPU cores + 4
+
+####################################################################################
+### Ignore Problematic Herbaria ###           download_all_images_in_images_csv(cfg) 
+# Some herbaria (MNHM, or Naturalis Biodiversity Center...) have server/broken link issues frequently
+# Set to True if you get long timeout errors
+# Recommend = True
+ignore_banned_herb: True 
+# You can add your own banned herbs here.
+# Add to the list based on the url stems from the 'identifier' column in the images.csv.
+# Eg. 'http://mediaphoto.mnhn.fr/media/144135118650898Vf4SNC2P5ot2SW'  -->  'mediaphoto.mnhn.fr'
+banned_url_stems: ['mediaphoto.mnhn.fr'] # ['mediaphoto.mnhn.fr', 'stock.images.gov'] etc....

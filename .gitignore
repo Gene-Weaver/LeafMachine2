@@ -1,17 +1,46 @@
 # Files
 requirements-d2.txt
+PRIVATE_DATA.yaml
+LeafMachine2_TRAINING_ONLY.yaml
+LeafMachine2_WW.yaml
 
 # Dirs
 data/
+wandb/
+venv_LM2_linux/
+venv_LM2_l/
+venv_LM2_310/
+venv_LM2_38/
+venv_LM2/
+tests/
+bin/
+.vscode/
+
+leafmachine2/*/.gitignore
+
 leafmachine2/machine/ruler_classifier/
 leafmachine2/machine/wandb/
+leafmachine2/machine/DocEnTR/model_zoo/
+leafmachine2/machine/DocEnTR/git_images/
+leafmachine2/machine/DocEnTR/demo/
+leafmachine2/machine/DocEnTR/.git/
+leafmachine2/machine/DocEnTR/__pycache__
+
 leafmachine2/segmentation/wandb/
 leafmachine2/segmentation/models/
+leafmachine2/segmentation/detectron2/detectron2/model_zoo/configs
+leafmachine2/segmentation/detectron2/datasets/*
+leafmachine2/segmentation/detectron2/models
+leafmachine2/segmentation/detectron2/.gitignore
+
 leafmachine2/component_detector/datasets/
 leafmachine2/component_detector/wandb/
 leafmachine2/component_detector/runs/
 leafmachine2/component_detector/architecture/
-.vscode/
+leafmachine2/component_detector/yolov5x6.pt
+
+
+
 
 
 # Byte-compiled / optimized / DLL files

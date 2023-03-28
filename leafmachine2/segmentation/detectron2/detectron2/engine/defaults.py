@@ -25,7 +25,7 @@ import detectron2.data.transforms as T
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import CfgNode, LazyConfig
 from detectron2.data import (
-    MetadataCatalog,
+    MetadataCatalog,DatasetMapper,
     build_detection_test_loader,
     build_detection_train_loader,
 )
@@ -43,7 +43,7 @@ from detectron2.utils.env import seed_all_rng
 from detectron2.utils.events import CommonMetricPrinter, JSONWriter, TensorboardXWriter
 from detectron2.utils.file_io import PathManager
 from detectron2.utils.logger import setup_logger
-
+from detectron2.data import DatasetMapper
 from . import hooks
 from .train_loop import AMPTrainer, SimpleTrainer, TrainerBase
 
@@ -171,6 +171,15 @@ def _highlight(code, filename):
     code = pygments.highlight(code, lexer, Terminal256Formatter(style="monokai"))
     return code
 
+def build_LM2_seg_train_aug(cfg):
+        augs = T.AugmentationList([
+            T.RandomApply(T.RandomBrightness(0.9, 1.1), 0.25),
+            T.RandomApply(T.RandomContrast(0.9, 1.1), 0.25),
+            T.RandomApply(T.RandomSaturation(0.9, 1.1), 0.25),
+            T.RandomApply(T.RandomFlip(prob=0.5), 0.25),
+        ]) 
+        return augs
+        
 
 def default_setup(cfg, args):
     """
@@ -544,7 +553,14 @@ class DefaultTrainer(TrainerBase):
         It now calls :func:`detectron2.data.build_detection_train_loader`.
         Overwrite it if you'd like a different data loader.
         """
+        # if "LM2" in cfg.AUG:
+        #     mapper = DatasetMapper(cfg, is_train=True, augmentations=build_LM2_seg_train_aug(cfg))
+        # else:
+        #     mapper = None
+        # return build_detection_train_loader(cfg, mapper=mapper)
+
         return build_detection_train_loader(cfg)
+    
 
     @classmethod
     def build_test_loader(cls, cfg, dataset_name):

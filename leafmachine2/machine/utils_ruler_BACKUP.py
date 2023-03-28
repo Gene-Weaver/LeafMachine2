@@ -1,4 +1,4 @@
-import os, cv2, yaml, math
+import os, cv2, yaml, math, sys, inspect, imutils
 import numpy as np
 from numpy import NAN, ndarray
 import pandas as pd
@@ -10,8 +10,64 @@ from skimage.measure import label, regionprops_table
 import torch
 from torchvision import transforms
 import matplotlib.pyplot as plt
-from general_utils import validate_dir, load_cfg, print_plain_to_console, print_blue_to_console, print_green_to_console, print_warning_to_console, print_cyan_to_console
-from general_utils import bcolors
+currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
+sys.path.append(currentdir)
+# from machine.general_utils import print_plain_to_console, print_blue_to_console, print_green_to_console, print_warning_to_console, print_cyan_to_console
+# from machine.general_utils import bcolors
+
+def convert_rulers(cfg, dir_home, Project, Dirs):
+    RulerCFG = RulerConfig(dir_home, Dirs, cfg)
+
+    for filename, analysis in Project.project_data.items():
+        Project.project_data[filename]['Ruler_Info'] = []
+        Project.project_data[filename]['Ruler_Data'] = []
+        print(filename)
+        try:
+            full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpg'])))
+        except:
+            full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpeg'])))
+
+        archival = analysis['Detections_Archival_Components']
+        height = analysis['height']
+        width = analysis['width']
+        ruler_list = [row for row in archival if row[0] == 0]
+        # print(ruler_list)
+        if len(ruler_list) < 1:
+            print('     MAKE THIS HAVE AN EMPTY PLACEHOLDER') # TODO ###################################################################################
+        else:
+            for ruler in ruler_list:
+                ruler_location = yolo_to_position_ruler(ruler, height, width)
+                ruler_polygon = [(ruler_location[1], ruler_location[2]), (ruler_location[3], ruler_location[2]), (ruler_location[3], ruler_location[4]), (ruler_location[1], ruler_location[4])]
+                print(ruler_polygon)
+                x_coords = [x for x, y in ruler_polygon]
+                y_coords = [y for x, y in ruler_polygon]
+
+                min_x, min_y = min(x_coords), min(y_coords)
+                max_x, max_y = max(x_coords), max(y_coords)
+
+                ruler_cropped = full_image[min_y:max_y, min_x:max_x]
+                # img_crop = img[min_y:max_y, min_x:max_x]
+                loc = '-'.join([str(min_x), str(min_y), str(max_x), str(max_y)])
+                ruler_crop_name = '__'.join([filename,'R',loc])
+
+                # Get the cropped image using cv2.getRectSubPix
+                # ruler_cropped = cv2.getRectSubPix(full_image, (int(ruler_location[3] - ruler_location[1]), int(ruler_location[4] - ruler_location[2])), (points[0][0][0], points[0][0][1]))
+
+                Ruler = setup_ruler(RulerCFG, ruler_cropped, ruler_crop_name)
+                                
+                Ruler, BlockCandidate = convert_pixels_to_metric(RulerCFG,Ruler,ruler_crop_name, Dirs)
+
+                Project = add_ruler_to_Project(Project, Ruler, BlockCandidate, filename, ruler_crop_name)
+                print('hi')
+    
+    
+    print('hi')
+    
+    return Project
+
+
 
 @dataclass
 class RulerConfig:
@@ -23,40 +79,33 @@ class RulerConfig:
     cfg: str = field(init=False)
 
     path_ruler_output_parent: str = field(init=False)
+    dir_ruler_class_overlay: str = field(init=False)
     dir_ruler_overlay: str = field(init=False)
     dir_ruler_processed: str = field(init=False)
     dir_ruler_data: str = field(init=False)
 
     net_ruler: object = field(init=False)
 
-    def __post_init__(self) -> None:
-        self.path_to_config = os.path.join(os.getcwd())
-        self.cfg = load_cfg(self.path_to_config)
+    def __init__(self, dir_home, Dirs, cfg) -> None:
+        self.path_to_config = dir_home
+        self.cfg = cfg
 
-        self.path_to_model = os.path.join(os.getcwd(),'leafmachine2','machine','ruler_classifier','model')
-        self.path_to_class_names = os.path.join('leafmachine2','machine','ruler_classifier','ruler_classes.txt')
+        self.path_to_model = os.path.join(dir_home,'leafmachine2','machine','ruler_classifier','model')
+        self.path_to_class_names = os.path.join(dir_home, 'leafmachine2','machine','ruler_classifier','ruler_classes.txt')
 
-        self.path_ruler_output_parent = self.cfg['leafmachine']['save_dirs']['path_ruler_output_parent']
-        self.dir_ruler_overlay = self.cfg['leafmachine']['save_dirs']['dir_ruler_overlay']
-        self.dir_ruler_processed = self.cfg['leafmachine']['save_dirs']['dir_ruler_processed']
-        self.dir_ruler_data = self.cfg['leafmachine']['save_dirs']['dir_ruler_data']
+        self.path_ruler_output_parent = Dirs.ruler_info
+        self.dir_ruler_class_overlay = Dirs.ruler_class_overlay
+        self.dir_ruler_overlay =  Dirs.ruler_overlay
+        self.dir_ruler_processed =  Dirs.ruler_processed
+        self.dir_ruler_data =  Dirs.ruler_data
 
-        validate_dir(self.path_ruler_output_parent)
-        if self.cfg['leafmachine']['save']['ruler_overlay']:
-            validate_dir(os.path.join(self.path_ruler_output_parent, self.dir_ruler_overlay))
-        if self.cfg['leafmachine']['save']['ruler_processed']:
-            validate_dir(os.path.join(self.path_ruler_output_parent, self.dir_ruler_processed))
-        if self.cfg['leafmachine']['save']['ruler_data']:
-            validate_dir(os.path.join(self.path_ruler_output_parent, self.dir_ruler_data))
-
-
-        if self.cfg['leafmachine']['do']['detect_ruler_type']:
-            try:
-                model_name = self.cfg['leafmachine']['model']['ruler_detector']
-                self.net_ruler = torch.jit.load(os.path.join(self.path_to_model,model_name))
-                self.net_ruler.eval()
-            except:
-                print("Could not load ruler classifier network")
+        # if self.cfg['leafmachine']['ruler_detection']['detect_ruler_type']:
+        try:
+            model_name = self.cfg['leafmachine']['ruler_detection']['ruler_detector']
+            self.net_ruler = torch.jit.load(os.path.join(self.path_to_model,model_name))
+            self.net_ruler.eval()
+        except:
+            print("Could not load ruler classifier network")
 
 @dataclass
 class ClassifyRulerImage:
@@ -67,12 +116,13 @@ class ClassifyRulerImage:
     img_tensor: object = field(init=False)
     transform: object = field(init=False)
 
-    def __post_init__(self) -> None:
+    def __init__(self, img) -> None:
         try:
-            self.img = cv2.imread(self.img_path)
+            self.img = img
         except:
-            self.img = self.img_path
+            self.img = cv2.imread(self.img_path)
         self.img_sq = squarify(self.img,showImg=False,makeSquare=True,sz=360)
+        # self.img_sq = squarify_tile_four_versions(self.img, showImg=False, makeSquare=True, sz=720) ### new 1-31-23
         self.transforms = transforms.Compose([transforms.ToTensor()])
         self.img_t = self.transforms(self.img_sq)
         self.img_tensor = torch.unsqueeze(self.img_t, 0).cuda()
@@ -81,7 +131,9 @@ class ClassifyRulerImage:
 class RulerImage:
     img_path: str
     img_fname: str
+
     img: ndarray = field(init=False)
+
     img_copy: ndarray = field(init=False)
     img_gray: ndarray = field(init=False)
     img_edges: ndarray = field(init=False)
@@ -93,15 +145,16 @@ class RulerImage:
     img_total_overlay: ndarray = field(init=False)
     img_block_overlay: ndarray = field(init=False)
 
-    avg_angle: float = field(init=False)
+    avg_angle: float = 0
     ruler_class: str = field(init=False)
     ruler_class_percentage: str = field(init=False)
     
 
-    def __post_init__(self) -> None:
-        self.img = make_img_hor(cv2.imread(self.img_path))
+    def __init__(self, img, img_fname) -> None:
+        self.img = make_img_hor(img)
         self.img_gray = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
         self.img_copy = self.img.copy()
+        self.img_fname = img_fname
 
 @dataclass
 class Block:
@@ -123,16 +176,20 @@ class Block:
     largest_blobs: list = field(init=False,default_factory=list)
     remaining_blobs: list = field(init=False,default_factory=list)
 
+    plot_points_1cm: list = field(init=False,default_factory=list)
+    plot_points_10cm: list = field(init=False,default_factory=list)
+    plot_points: list = field(init=False,default_factory=list)
+
     def __post_init__(self) -> None:
         self.img_bi_copy = self.img_bi
-        self.img_bi[self.img_bi <128] = 0
-        self.img_bi[self.img_bi >=128] = 255
-        self.img_bi_copy[self.img_bi_copy <40] = 0
-        self.img_bi_copy[self.img_bi_copy >=40] = 255
+        self.img_bi[self.img_bi < 128] = 0
+        self.img_bi[self.img_bi >= 128] = 255
+        self.img_bi_copy[self.img_bi_copy < 40] = 0
+        self.img_bi_copy[self.img_bi_copy >= 40] = 255
 
     def whiter_thresh(self) -> None:
-        self.img_bi_copy[self.img_bi_copy <240] = 0
-        self.img_bi_copy[self.img_bi_copy >=240] = 255
+        self.img_bi_copy[self.img_bi_copy < 240] = 0
+        self.img_bi_copy[self.img_bi_copy >= 240] = 255
 
 '''
 ####################################
@@ -141,6 +198,19 @@ class Block:
 ####################################
 ####################################
 '''
+def add_ruler_to_Project(Project, Ruler, BlockCandidate, filename, ruler_crop_name):
+    if 'block' in Ruler.ruler_class:
+        Project.project_data[filename]['Ruler_Info'].append({ruler_crop_name: Ruler})
+        Project.project_data[filename]['Ruler_Data'].append({ruler_crop_name: BlockCandidate})
+
+    return Project
+
+def yolo_to_position_ruler(annotation, height, width):
+    return ['ruler', 
+        int((annotation[1] * width) - ((annotation[3] * width) / 2)), 
+        int((annotation[2] * height) - ((annotation[4] * height) / 2)), 
+        int(annotation[3] * width) + int((annotation[1] * width) - ((annotation[3] * width) / 2)), 
+        int(annotation[4] * height) + int((annotation[2] * height) - ((annotation[4] * height) / 2))]
 
 def make_img_hor(img):
     # Make image horizontal
@@ -152,15 +222,26 @@ def make_img_hor(img):
         img = cv2.rotate(img,cv2.ROTATE_90_COUNTERCLOCKWISE)
     return img
 
-def create_overlay_bg(RulerCFG,img):
+def create_overlay_bg(RulerCFG, img):
     try:
-        h,w,_ = img.shape
-        imgBG = np.zeros([h+60,w,3], dtype=np.uint8)
-        imgBG[:] = 0
+        try:
+            h,w,_ = img.shape
+            imgBG = np.zeros([h+60,w,3], dtype=np.uint8)
+            imgBG[:] = 0
+        except:
+            img = binary_to_color(img)
+            h,w,_ = img.shape
+            imgBG = np.zeros([h+60,w,3], dtype=np.uint8)
+            imgBG[:] = 0
 
-        imgBG[60:img.shape[0]+60,:img.shape[1],:] = img
+        try:
+            imgBG[60:img.shape[0]+60, :img.shape[1],:] = img
+        except:
+            imgBG[60:img.shape[0]+60, :img.shape[1]] = img
+
     except Exception as e:
-        print_warning_to_console(RulerCFG,2,'create_overlay_bg() exception',e.args[0])
+        m = ''.join(['create_overlay_bg() exception: ',e.args[0]])
+        Print_Verbose(RulerCFG.cfg, 2, m).warning()
         img = np.stack((img,)*3, axis=-1)
         h,w,_ = img.shape
         imgBG = np.zeros([h+60,w,3], dtype=np.uint8)
@@ -168,6 +249,11 @@ def create_overlay_bg(RulerCFG,img):
 
         imgBG[60:img.shape[0]+60,:img.shape[1],:] = img
     return imgBG
+
+def binary_to_color(binary_image):
+    color_image = np.zeros((binary_image.shape[0], binary_image.shape[1], 3), dtype=np.uint8)
+    color_image[binary_image == 1] = (255, 255, 255)
+    return color_image
 
 def pad_binary_img(img,h,w,n):
     imgBG = np.zeros([h+n,w], dtype=np.uint8)
@@ -183,7 +269,10 @@ def stack_2_imgs(img1,img2):
     img3[:,:] = (255,255,255)
 
     img3[:h1, :w1,:3] = img1
-    img3[h1:h1+h2, :w2,:3] = img2
+    try:
+        img3[h1:h1+h2, :w2,:3] = img2
+    except:
+        img3[h1:h1+h2, :w2,:3] = binary_to_color(img2)
     return img3
 
 def check_ruler_type(ruler_class,option):
@@ -205,6 +294,46 @@ def create_white_bg(img,squarifyRatio,h,w):
     imgBG[:img.shape[0],:img.shape[1],:] = img
     # cv2.imshow('Single Channel Window', imgBG)
     # cv2.waitKey(0)
+    return imgBG
+
+def stack_image_quartile_rotate45(img, q_increment, h, w, showImg):
+    # cv2.imshow('Original', img)
+    # cv2.waitKey(0)
+
+    rotate_options = [-135, -45, 45, 135]
+
+    imgBG = np.zeros([h*2,h*2,3], dtype=np.uint8)
+    imgBG[:] = 255
+
+    increment = 0
+    for row in range(0,2):
+        for col in range(0,2):
+            ONE = (row * h)
+            TWO = ((row * h) + h)
+            THREE = (col * h)
+            FOUR = (col * h) + h
+
+            one = (q_increment*increment)
+            two = (q_increment*increment) + h
+
+            if (increment < 3) and (two < w):
+                # imgBG[ONE : TWO, THREE : FOUR] = img[:, one : two]
+                rotated = imutils.rotate_bound(img[:, one : two], rotate_options[increment])
+                add_dim1 = rotated.shape[0] - ONE
+                add_dim2 = rotated.shape[0] - TWO
+                add_dim3 = rotated.shape[0] - THREE
+                add_dim4 = rotated.shape[0] - FOUR
+                imgBG[ONE : TWO, THREE : FOUR] = cv2.resize(rotated,  (FOUR - THREE, TWO - ONE))
+            else:
+                # imgBG[ONE : TWO, THREE : FOUR] = img[:, w - h : w]
+                rotated = imutils.rotate_bound(img[:, w - h : w], rotate_options[increment])
+                imgBG[ONE : TWO, THREE : FOUR] = cv2.resize(rotated,  (FOUR - THREE, TWO - ONE))
+            increment += 1
+
+
+    if showImg:
+        cv2.imshow('squarify_quartile()', imgBG)
+        cv2.waitKey(0)
     return imgBG
 
 def stack_image_quartile(img, q_increment, h, w, showImg):
@@ -306,7 +435,7 @@ def stack_image(img,squarifyRatio,h,w_plus,showImg):
     return imgBG
 
 def add_text_to_stacked_img(angle,img):
-    addText1 = "Angle(deg):"+str(round(angle,3))+' Imgs:Orig,Binary,Edge,Rotated'
+    addText1 = "Angle(deg):"+str(round(angle,3))+' Imgs:Orig,Binary,Rotated'
     img = cv2.putText(img=img, text=addText1, org=(10, 20), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.6, color=(255, 255, 255),thickness=1)
     # cv2.imshow("img", img)
     # cv2.waitKey(0)
@@ -371,7 +500,23 @@ def squarify(imgSquarify,showImg,makeSquare,sz):
         imgSquarify = cv2.resize(imgSquarify, dim, interpolation = cv2.INTER_AREA)
 
     return imgSquarify
-        
+
+def squarify_rotate45(imgSquarify, showImg, makeSquare, sz, doFlip):
+    imgSquarify = make_img_hor(imgSquarify)
+    
+    # if doFlip:
+    #     imgSquarify = cv2.rotate(imgSquarify,cv2.ROTATE_180) 
+
+    q_increment,w,h = calc_squarify(imgSquarify,4)
+
+    # imgBG = create_white_bg(imgSquarify, None, h*2, h*2)
+    imgSquarify = stack_image_quartile_rotate45(imgSquarify, q_increment, h, w, showImg)
+
+    if makeSquare:
+        dim = (sz, sz)
+        imgSquarify = cv2.resize(imgSquarify, dim, interpolation = cv2.INTER_AREA)
+    return imgSquarify
+
 def squarify_quartiles(imgSquarify, showImg, makeSquare, sz, doFlip):
     imgSquarify = make_img_hor(imgSquarify)
     
@@ -407,7 +552,7 @@ def squarify_tile_four_versions(imgSquarify, showImg, makeSquare, sz):
     h2 = int(h/2)
     w2 = int(w/2)
     sq1 = squarify(imgSquarify,showImg,makeSquare,sz)
-    sq2 = squarify_quartiles(imgSquarify, showImg, makeSquare, sz, doFlip=False)
+    sq2 = squarify_rotate45(imgSquarify, showImg, makeSquare, sz, doFlip=False)
     sq3 = squarify_quartiles(imgSquarify, showImg, makeSquare, sz, doFlip=True)
     sq4 = squarify_nine(imgSquarify, showImg, makeSquare, sz)
 
@@ -452,7 +597,7 @@ def squarify_tile_four_versions(imgSquarify, showImg, makeSquare, sz):
 ####################################
 ####################################
 '''
-def straighten_img(RulerCFG,Ruler,useRegulerBinary,alternate_img):
+def straighten_img(RulerCFG, Ruler, useRegulerBinary, alternate_img, Dirs):
     # Ruler = RulerImage(img_path)
 
     # Ruler.ruler_class,Ruler.ruler_class_percentage,Ruler.img_type_overlay = detectRuler(Ruler.img,
@@ -485,6 +630,9 @@ def straighten_img(RulerCFG,Ruler,useRegulerBinary,alternate_img):
     # Ruler.img_bi_display = np.array(Ruler.img_bi)
     # Ruler.img_bi_display = np.stack((Ruler.img_bi_display,)*3, axis=-1)
 
+    image_rotated, angle = rotate_bi_image_hor(ruler_to_correct)
+    
+    '''old method of rotating
     # find edges
     Ruler.img_edges = cv2.Canny(ruler_to_correct, 100, 200, apertureSize=7)
 
@@ -510,16 +658,17 @@ def straighten_img(RulerCFG,Ruler,useRegulerBinary,alternate_img):
             angles.append(angleInDegrees)
             # print(angleInDegrees)
             # cv2.line(cdst, pt1, pt2, (0,0,255), 3, cv2.LINE_AA)
-
-    if len(angles) > 0:
+    '''
+    if angle > 1: # If the rotation was substantial
         Ruler.correction_success = True
+        Ruler.avg_angle = angle
     else:
         Ruler.correction_success = False
         Ruler.avg_angle = 0
         # Ruler.img_best = Ruler.img
         # Ruler.img_total_overlay = newImg
 
-
+    ''' exception for grid rulers, revisit
     # Grid rulers will NOT get roatate, assumption is that they are basically straight already
     if check_ruler_type(Ruler.ruler_class,'grid') == False:
         if len(angles) > 0:
@@ -532,22 +681,22 @@ def straighten_img(RulerCFG,Ruler,useRegulerBinary,alternate_img):
     else: 
         Ruler.avg_angle = 0
         imgRotate = Ruler.img
-
+    '''
     newImg = stack_2_imgs(Ruler.img,Ruler.img_bi_display)
-    newImg = stack_2_imgs(newImg,cdst)
-    newImg = stack_2_imgs(newImg,imgRotate)
+    # newImg = stack_2_imgs(newImg,cdst)
+    newImg = stack_2_imgs(newImg,image_rotated)
     newImg = create_overlay_bg(RulerCFG,newImg)
     newImg = add_text_to_stacked_img(Ruler.avg_angle,newImg)
-    if RulerCFG.cfg['leafmachine']['save']['ruler_type_overlay']:
+    if RulerCFG.cfg['leafmachine']['ruler_detection']['save_ruler_class_overlay']:
         newImg = stack_2_imgs(Ruler.img_type_overlay,newImg)
 
-    Ruler.img_best = imgRotate
+    Ruler.img_best = image_rotated
     Ruler.img_total_overlay = newImg
 
-    if RulerCFG.cfg['leafmachine']['save']['ruler_overlay']:
-        cv2.imwrite(os.path.join(RulerCFG.path_ruler_output_parent,RulerCFG.dir_ruler_overlay,Ruler.img_fname),Ruler.img_total_overlay)
-    if RulerCFG.cfg['leafmachine']['save']['ruler_processed']:
-        cv2.imwrite(os.path.join(RulerCFG.path_ruler_output_parent,RulerCFG.dir_ruler_processed,Ruler.img_fname),Ruler.img_best)
+    if RulerCFG.cfg['leafmachine']['ruler_detection']['save_ruler_overlay']:
+        cv2.imwrite(os.path.join(Dirs.ruler_overlay,'.'.join([Ruler.img_fname, 'jpg'])),Ruler.img_total_overlay)
+    if RulerCFG.cfg['leafmachine']['ruler_detection']['save_ruler_processed']:
+        cv2.imwrite(os.path.join(Dirs.ruler_processed,'.'.join([Ruler.img_fname, 'jpg'])),Ruler.img_best)
             # if cfg['leafmachine']['save']['ruler_type_overlay']:
             #     cv2.imwrite(os.path.join(dirSave,'ruler_type_overlay',fName),Ruler.img_type_overlay)
     # else: #len(angles) > 0: == False
@@ -570,11 +719,31 @@ def straighten_img(RulerCFG,Ruler,useRegulerBinary,alternate_img):
     # After saving the edges and imgBi to the compare file, flip for the class
     Ruler.img_bi = ndimage.rotate(Ruler.img_bi,Ruler.avg_angle)
     Ruler.img_bi = make_img_hor(Ruler.img_bi)
-    Ruler.img_edges = ndimage.rotate(Ruler.img_edges,Ruler.avg_angle)
-    Ruler.img_edges = make_img_hor(Ruler.img_edges)
+    # Ruler.img_edges = ndimage.rotate(Ruler.img_edges,Ruler.avg_angle)
+    # Ruler.img_edges = make_img_hor(Ruler.img_edges)
     Ruler.img_gray = ndimage.rotate(Ruler.img_gray,Ruler.avg_angle)
     Ruler.img_gray = make_img_hor(Ruler.img_gray)
     return Ruler
+
+def rotate_bi_image_hor(binary_img):
+    cv2.imshow('im',binary_img)
+    cv2.waitKey(0)
+    lines = cv2.HoughLinesP(binary_img, 1, np.pi/180, 50, minLineLength=30, maxLineGap=10)
+    angle = 0.0
+    if lines.size > 0:
+        for line in lines:
+            x1, y1, x2, y2 = line[0]
+            angle += np.arctan2(y2 - y1, x2 - x1)
+        angle /= len(lines)
+        (h, w) = binary_img.shape
+        center = (w // 2, h // 2)
+        M = cv2.getRotationMatrix2D(center, np.degrees(angle), 1.0)
+        rotated_img = cv2.warpAffine(binary_img, M, (w, h), flags=cv2.INTER_NEAREST)
+    else:
+        rotated_img = binary_img
+    cv2.imshow('im',rotated_img)
+    cv2.waitKey(0)
+    return rotated_img, angle
 
 def locate_ticks_centroid(chunkAdd,scanSize):
     props = regionprops_table(label(chunkAdd), properties=('centroid',
@@ -682,9 +851,9 @@ def scanlines(RulerCFG,img,scanSize):
                     print_npts = scanlineData.get("nPeaks")
                     print_distUse = scanlineData.get("gmean")
                     message = "gmean dist: " + str(print_distUse)
-                    print_plain_to_console(RulerCFG,2,message)
+                    Print_Verbose(RulerCFG.cfg,2,message).plain()
                     message = "sd/n: " + str(print_sd/print_npts)
-                    print_plain_to_console(RulerCFG,2,message)
+                    Print_Verbose(RulerCFG.cfg,2,message).plain()
                     # print(f'gmean: {gmean(distUse)}')
                     # print(f'mean: {np.mean(distUse)}')
                     # print(f'npts: {npts}')
@@ -692,7 +861,7 @@ def scanlines(RulerCFG,img,scanSize):
                     # print(f'sd/n: {(np.std(distUse)/(npts))}\n')
         except Exception as e:
             message = "Notice: Scanline size " + str(scanSize) + " iteration " + str(i) + " skipped:" 
-            print_warning_to_console(RulerCFG,2,message,e.args[0])
+            Print_Verbose(RulerCFG.cfg,2,message,e.args[0]).warning()
             continue
         
 
@@ -727,9 +896,9 @@ def scanlines(RulerCFG,img,scanSize):
                     print_npts = scanlineData.get("nPeaks")
                     print_distUse = scanlineData.get("gmean")
                     message = "gmean dist: " + str(print_distUse)
-                    print_plain_to_console(RulerCFG,2,message)
+                    Print_Verbose(RulerCFG.cfg,2,message).plain()
                     message = "sd/n: " + str(print_sd/print_npts)
-                    print_plain_to_console(RulerCFG,2,message)
+                    Print_Verbose(RulerCFG.cfg,2,message).plain()
                     # print(f'gmean: {gmean(distUse)}')
                     # print(f'mean: {np.mean(distUse)}')
                     # print(f'npts: {npts}')
@@ -737,7 +906,7 @@ def scanlines(RulerCFG,img,scanSize):
                     # print(f'sd/n: {(np.std(distUse)/(npts))}\n')
         except Exception as e: 
             message = "Notice: Scanline size " + str(scanSize) + " iteration " + str(j) + " skipped:" 
-            print_warning_to_console(RulerCFG,2,message,e.args[0])
+            Print_Verbose(RulerCFG.cfg,2,message,e.args[0]).warning()
             continue
         # print(f'gmean: {gmean(distUse)}')
         # print(f'sd/n: {(np.std(distUse)/npts)}')
@@ -750,12 +919,12 @@ def scanlines(RulerCFG,img,scanSize):
 
     try:
         message = "Best ==> distance-gmean: " + str(print_distUse)
-        print_blue_to_console(RulerCFG,1,message)
+        Print_Verbose(RulerCFG.cfg,1,message).blue()
         message = "Best ==> sd/n: " + str(print_sd/print_npts)
-        print_blue_to_console(RulerCFG,1,message)
+        Print_Verbose(RulerCFG.cfg,1,message).blue() 
 
     except Exception as e: 
-        print_warning_to_console(RulerCFG,2,'Pixel to Metric Conversion not possible. Exception: ',e.args[0])
+        Print_Verbose(RulerCFG.cfg,2,'Pixel to Metric Conversion not possible. Exception: ',e.args[0]).warning()
         pass
     return scanlineData
 
@@ -865,12 +1034,13 @@ def calculate_block_conversion_factor(BlockCandidate,nBlockCheck):
     BlockCandidate.conversion_location_options = location_options
     return BlockCandidate
 
-def sort_blobs_by_size(RulerCFG,Ruler,isStraighten):
+def sort_blobs_by_size(RulerCFG, Ruler, isStraighten):
     nBlockCheck = 4
     success = True
     tryErode = False
     if isStraighten == False:
-        img_best = Ruler.img_best
+        # img_best = Ruler.img_best # was causseing issues
+        img_best = Ruler.img_copy
     else:
         img_best = Ruler.img_copy
     BlockCandidate = Block(img_bi=Ruler.img_bi,img_bi_overlay=img_best)
@@ -890,7 +1060,7 @@ def sort_blobs_by_size(RulerCFG,Ruler,isStraighten):
             tryErode = True
             del BlockCandidate
             nBlockCheck = 3
-            BlockCandidate = Block(img_bi=Ruler.img_bi,img_bi_overlay=Ruler.img_best)
+            BlockCandidate = Block(img_bi=Ruler.img_bi,img_bi_overlay=img_best)
             BlockCandidate = remove_small_and_biggest_blobs(BlockCandidate,tryErode)
             for i in range(0,nBlockCheck):
                 BlockCandidate = get_biggest_blob(BlockCandidate)
@@ -912,7 +1082,7 @@ def sort_blobs_by_size(RulerCFG,Ruler,isStraighten):
 
         BlockCandidate = calculate_block_conversion_factor(BlockCandidate,nBlockCheck)  
     BlockCandidate.success_sort = success
-    return Ruler,BlockCandidate
+    return Ruler, BlockCandidate
 
 def convert_ticks(RulerCFG,Ruler,colorOption,img_fname):
     scanSize = 5
@@ -929,20 +1099,21 @@ def convert_ticks(RulerCFG,Ruler,colorOption,img_fname):
 
     Ruler.img_total_overlay = stack_2_imgs(Ruler.img_total_overlay,Ruler.img_ruler_overlay)
 
-    if RulerCFG.cfg['leafmachine']['save']['ruler_overlay']:
+    if RulerCFG.cfg['leafmachine']['ruler_detection']['save_ruler_overlay']:
         cv2.imwrite(os.path.join(RulerCFG.path_ruler_output_parent,RulerCFG.dir_ruler_overlay,img_fname),Ruler.img_total_overlay)
     # createOverlayBG(scanlineData['imgChunk'])
     # stack2Images(img1,img2)
     # addTextToImg(text,img)
 
-def convert_blocks(RulerCFG,Ruler,colorOption,img_fname):
+def convert_blocks(RulerCFG,Ruler,colorOption,img_fname, Dirs):
     if colorOption == 'invert':
         Ruler.img_bi = cv2.bitwise_not(Ruler.img_bi)
     
     # Straighten the image here using the BlockCandidate.remaining_blobs[0].values
-    Ruler,BlockCandidate = sort_blobs_by_size(RulerCFG,Ruler,isStraighten=True) 
+    Ruler,BlockCandidate = sort_blobs_by_size(RulerCFG, Ruler,isStraighten=True) 
     if BlockCandidate.success_sort:
-        Ruler = straighten_img(RulerCFG,Ruler,useRegulerBinary=False,alternate_img=BlockCandidate.remaining_blobs[0])
+        useRegulerBinary = True
+        Ruler = straighten_img(RulerCFG, Ruler, useRegulerBinary, BlockCandidate.remaining_blobs[0], Dirs)
         del BlockCandidate
         Ruler,BlockCandidate = sort_blobs_by_size(RulerCFG,Ruler,isStraighten=False) 
 
@@ -953,7 +1124,7 @@ def convert_blocks(RulerCFG,Ruler,colorOption,img_fname):
                 BlockCandidate = add_unit_marker_block(BlockCandidate,10)
 
     message = "Angle (deg): " + str(round(Ruler.avg_angle,2))
-    print_cyan_to_console(RulerCFG,1,message)
+    Print_Verbose(RulerCFG.cfg,1,message).cyan()
 
     BlockCandidate.img_bi_overlay = create_overlay_bg(RulerCFG,BlockCandidate.img_bi_overlay)
     if BlockCandidate.conversion_location in ['average','fallback']:
@@ -972,8 +1143,10 @@ def convert_blocks(RulerCFG,Ruler,colorOption,img_fname):
         Ruler.img_total_overlay = stack_2_imgs(Ruler.img_type_overlay,BlockCandidate.img_bi_overlay)
     Ruler.img_block_overlay = BlockCandidate.img_bi_overlay
 
-    if RulerCFG.cfg['leafmachine']['save']['ruler_overlay']:
-        cv2.imwrite(os.path.join(RulerCFG.path_ruler_output_parent,RulerCFG.dir_ruler_overlay,img_fname),Ruler.img_total_overlay)
+    if RulerCFG.cfg['leafmachine']['ruler_detection']['save_ruler_overlay']:
+        cv2.imwrite(os.path.join(RulerCFG.dir_ruler_overlay,'.'.join([img_fname, 'jpg'])),Ruler.img_total_overlay)
+
+    return Ruler, BlockCandidate
 
 
 def add_unit_marker(RulerCFG,imgBG,scanSize,dist,X,factor,index):
@@ -992,7 +1165,7 @@ def add_unit_marker(RulerCFG,imgBG,scanSize,dist,X,factor,index):
         start = [start_f,start_m,start_l]
         end = [end_f,end_m,end_l]
     except Exception as e:
-        print_warning_to_console(RulerCFG,2,'add_unit_marker(): plotting 1 of 3 unit markers. Exception: ',e.args[0])
+        Print_Verbose(RulerCFG.cfg,2,'add_unit_marker(): plotting 1 of 3 unit markers. Exception: ',e.args[0]).warning()
         # Get middle point
         start_m = int(X[int(X.size/2)])
         end_m = int(start_m+(dist*factor)) + 1
@@ -1016,58 +1189,97 @@ def add_unit_marker(RulerCFG,imgBG,scanSize,dist,X,factor,index):
                 continue
     return imgBG
 
-def add_unit_marker_block(BlockCandidate,multiple):
+def add_unit_marker_block(BlockCandidate, multiple):
     COLOR = {'10cm':[0,255,0],'cm':[255,0,255]}
-    if multiple == 1:
-        name = 'cm'
-        offest = 4
-    elif multiple == 10:
-        name = '10cm'
-        offest = 14
+    name = 'cm' if multiple == 1 else '10cm'
+    offset = 4 if multiple == 1 else 14
+    h, w, _ = BlockCandidate.img_bi_overlay.shape
 
-    img_bi_overlay = BlockCandidate.img_bi_overlay
-    h,w,_ = img_bi_overlay.shape
     if BlockCandidate.conversion_location in ['average','fallback']:
         X = int(round(w/40))
         Y = int(round(h/10))
-        # Get starting point
-        start = X
-        end = int(round(start+(BlockCandidate.conversion_factor*multiple))) + 1
     else:
         ind = BlockCandidate.point_types.index(BlockCandidate.conversion_location)
         X = int(round(min(BlockCandidate.x_points[ind].values)))
         Y = int(round(np.mean(BlockCandidate.y_points[ind].values)))
-        # Get starting point
-        start = X
-        end = int(round(start+(BlockCandidate.conversion_factor*multiple))) + 1
+
+    start = X
+    end = int(round(start+(BlockCandidate.conversion_factor*multiple))) + 1
     if end >= w:
         X = int(round(w/40))
         Y = int(round(h/10))
         start = X
         end = int(round(start+(BlockCandidate.conversion_factor*multiple))) + 1
 
-    for j in range(start,end,1):
+    plot_points = []
+    for j in range(start, end):
         try:
-            # 5 pixel thick line
-            img_bi_overlay[int(offest+Y-2),int(j),0] = 0#black
-            img_bi_overlay[int(offest+Y-2),int(j),1] = 0#black
-            img_bi_overlay[int(offest+Y-2),int(j),2] = 0#black
-            img_bi_overlay[int(offest+Y-1),int(j),0] = COLOR[name][0]
-            img_bi_overlay[int(offest+Y-1),int(j),1] = COLOR[name][1]
-            img_bi_overlay[int(offest+Y-1),int(j),2] = COLOR[name][2]
-            img_bi_overlay[int(offest+Y),int(j),0] = COLOR[name][0]
-            img_bi_overlay[int(offest+Y),int(j),1] = COLOR[name][1]
-            img_bi_overlay[int(offest+Y),int(j),2] = COLOR[name][2]
-            img_bi_overlay[int(offest+Y+1),int(j),0] = COLOR[name][0]
-            img_bi_overlay[int(offest+Y+1),int(j),1] = COLOR[name][1]
-            img_bi_overlay[int(offest+Y+1),int(j),2] = COLOR[name][2]
-            img_bi_overlay[int(offest+Y+2),int(j),0] = 0#black
-            img_bi_overlay[int(offest+Y+2),int(j),1] = 0#black
-            img_bi_overlay[int(offest+Y+2),int(j),2] = 0#black
+            img_bi_overlay = BlockCandidate.img_bi_overlay
+            img_bi_overlay[offset+Y-2:offset+Y+3, j, :] = 0
+            img_bi_overlay[offset+Y-1:offset+Y+2, j, :] = COLOR[name]
+            plot_points.append([j, offset+Y])
         except:
             continue
+
     BlockCandidate.img_bi_overlay = img_bi_overlay
+    if multiple == 1:
+        BlockCandidate.plot_points_1cm = plot_points
+    else:
+        BlockCandidate.plot_points_10cm = plot_points
     return BlockCandidate
+
+# def add_unit_marker_block(BlockCandidate,multiple):
+#     COLOR = {'10cm':[0,255,0],'cm':[255,0,255]}
+#     if multiple == 1:
+#         name = 'cm'
+#         offest = 4
+#     elif multiple == 10:
+#         name = '10cm'
+#         offest = 14
+
+#     img_bi_overlay = BlockCandidate.img_bi_overlay
+#     h,w,_ = img_bi_overlay.shape
+#     if BlockCandidate.conversion_location in ['average','fallback']:
+#         X = int(round(w/40))
+#         Y = int(round(h/10))
+#         # Get starting point
+#         start = X
+#         end = int(round(start+(BlockCandidate.conversion_factor*multiple))) + 1
+#     else:
+#         ind = BlockCandidate.point_types.index(BlockCandidate.conversion_location)
+#         X = int(round(min(BlockCandidate.x_points[ind].values)))
+#         Y = int(round(np.mean(BlockCandidate.y_points[ind].values)))
+#         # Get starting point
+#         start = X
+#         end = int(round(start+(BlockCandidate.conversion_factor*multiple))) + 1
+#     if end >= w:
+#         X = int(round(w/40))
+#         Y = int(round(h/10))
+#         start = X
+#         end = int(round(start+(BlockCandidate.conversion_factor*multiple))) + 1
+
+#     for j in range(start,end,1):
+#         try:
+#             # 5 pixel thick line
+#             img_bi_overlay[int(offest+Y-2),int(j),0] = 0#black
+#             img_bi_overlay[int(offest+Y-2),int(j),1] = 0#black
+#             img_bi_overlay[int(offest+Y-2),int(j),2] = 0#black
+#             img_bi_overlay[int(offest+Y-1),int(j),0] = COLOR[name][0]
+#             img_bi_overlay[int(offest+Y-1),int(j),1] = COLOR[name][1]
+#             img_bi_overlay[int(offest+Y-1),int(j),2] = COLOR[name][2]
+#             img_bi_overlay[int(offest+Y),int(j),0] = COLOR[name][0]
+#             img_bi_overlay[int(offest+Y),int(j),1] = COLOR[name][1]
+#             img_bi_overlay[int(offest+Y),int(j),2] = COLOR[name][2]
+#             img_bi_overlay[int(offest+Y+1),int(j),0] = COLOR[name][0]
+#             img_bi_overlay[int(offest+Y+1),int(j),1] = COLOR[name][1]
+#             img_bi_overlay[int(offest+Y+1),int(j),2] = COLOR[name][2]
+#             img_bi_overlay[int(offest+Y+2),int(j),0] = 0#black
+#             img_bi_overlay[int(offest+Y+2),int(j),1] = 0#black
+#             img_bi_overlay[int(offest+Y+2),int(j),2] = 0#black
+#         except:
+#             continue
+#     BlockCandidate.img_bi_overlay = img_bi_overlay
+#     return BlockCandidate
 
 def insert_scanline(RulerCFG,Ruler,chunk,index,scanSize,X,Y,dist):
     imgBG = Ruler.img_best
@@ -1174,27 +1386,46 @@ def remove_small_and_biggest_blobs(BlockCandidate,tryErode):
     BlockCandidate.img_result = img_result
     return BlockCandidate
 
-def add_centroid_to_block_img(imgBG,centoidX,centoidY,ptType):
-    COLOR = {'bigCM':[0,255,0],'smallCM':[255,255,0],'halfCM':[0,127,255],'mm':[255,0,127]}
-    for i in range(-3,4):
-        for j in range(-3,4):
-            # print(centoidX.values)
-            for x in range(0,centoidX.size):
-                # print(centoidX.values[x])
-                X = int(round(centoidX.values[x]))
-                Y = int(round(centoidY.values[x]))
-                # try:
+def add_centroid_to_block_img(imgBG, centroidX, centroidY, ptType):
+    COLOR = {'bigCM': [0, 255, 0], 'smallCM': [255, 255, 0], 'halfCM': [0, 127, 255], 'mm': [255, 0, 127]}
+    points = []
+    for i in range(-3, 4):
+        for j in range(-3, 4):
+            for x in range(0, centroidX.size):
+                X = int(round(centroidX.values[x]))
+                Y = int(round(centroidY.values[x]))
                 if (abs(i) == 3) | (abs(j) == 3):
-                    imgBG[int(Y+i),int(X+j),0] = 0
-                    imgBG[int(Y+i),int(X+j),1] = 0
-                    imgBG[int(Y+i),int(X+j),2] = 0
+                    imgBG[int(Y+i), int(X+j), 0] = 0
+                    imgBG[int(Y+i), int(X+j), 1] = 0
+                    imgBG[int(Y+i), int(X+j), 2] = 0
                 else:
-                    imgBG[int(Y+i),int(X+j),0] = COLOR[ptType][0]
-                    imgBG[int(Y+i),int(X+j),1] = COLOR[ptType][1]
-                    imgBG[int(Y+i),int(X+j),2] = COLOR[ptType][2]
-                # except:
-                    # continue
-    return imgBG
+                    imgBG[int(Y+i), int(X+j), 0] = COLOR[ptType][0]
+                    imgBG[int(Y+i), int(X+j), 1] = COLOR[ptType][1]
+                    imgBG[int(Y+i), int(X+j), 2] = COLOR[ptType][2]
+                    points.append([j + X, Y + i])
+    return imgBG, points
+
+# def add_centroid_to_block_img(imgBG,centoidX,centoidY,ptType):
+#     COLOR = {'bigCM':[0,255,0],'smallCM':[255,255,0],'halfCM':[0,127,255],'mm':[255,0,127]}
+#     for i in range(-3,4):
+#         for j in range(-3,4):
+#             # print(centoidX.values)
+#             for x in range(0,centoidX.size):
+#                 # print(centoidX.values[x])
+#                 X = int(round(centoidX.values[x]))
+#                 Y = int(round(centoidY.values[x]))
+#                 # try:
+#                 if (abs(i) == 3) | (abs(j) == 3):
+#                     imgBG[int(Y+i),int(X+j),0] = 0
+#                     imgBG[int(Y+i),int(X+j),1] = 0
+#                     imgBG[int(Y+i),int(X+j),2] = 0
+#                 else:
+#                     imgBG[int(Y+i),int(X+j),0] = COLOR[ptType][0]
+#                     imgBG[int(Y+i),int(X+j),1] = COLOR[ptType][1]
+#                     imgBG[int(Y+i),int(X+j),2] = COLOR[ptType][2]
+#                 # except:
+#                     # continue
+#     return imgBG
 
 def determine_block_blob_type(RulerCFG,BlockCandidate,ind):
     largestBlobs = BlockCandidate.largest_blobs[ind]
@@ -1203,6 +1434,7 @@ def determine_block_blob_type(RulerCFG,BlockCandidate,ind):
     RATIOS = {'bigCM':1.75,'smallCM':4.5,'halfCM':2.2,'mm':6.8}
     use_points = False
     point_types = 'NA'
+    points = []
 
     props = regionprops_table(label(largestBlobs), properties=('centroid','axis_major_length','axis_minor_length'))
     props = pd.DataFrame(props)
@@ -1216,24 +1448,25 @@ def determine_block_blob_type(RulerCFG,BlockCandidate,ind):
         if ((ratioM >= (0.9*RATIOS['bigCM'])) & (ratioM <= (1.1*RATIOS['bigCM']))):
             use_points = True
             point_types = 'bigCM'
-            img_bi_overlay = add_centroid_to_block_img(img_bi_overlay,centoidX,centoidY,point_types)
+            img_bi_overlay, points = add_centroid_to_block_img(img_bi_overlay,centoidX,centoidY,point_types)
         elif ((ratioM >= (0.75*RATIOS['smallCM'])) & (ratioM <= (1.25*RATIOS['smallCM']))):
             use_points = True
             point_types = 'smallCM'
-            img_bi_overlay = add_centroid_to_block_img(img_bi_overlay,centoidX,centoidY,point_types)
+            img_bi_overlay, points = add_centroid_to_block_img(img_bi_overlay,centoidX,centoidY,point_types)
         elif ((ratioM >= (0.9*RATIOS['halfCM'])) & (ratioM <= (1.1*RATIOS['halfCM']))):
             use_points = True
             point_types = 'halfCM'
-            img_bi_overlay = add_centroid_to_block_img(img_bi_overlay,centoidX,centoidY,point_types)
+            img_bi_overlay, points = add_centroid_to_block_img(img_bi_overlay,centoidX,centoidY,point_types)
         elif ((ratioM >= (0.9*RATIOS['mm'])) & (ratioM <= (1.1*RATIOS['mm']))):
             use_points = True
             point_types = 'mm'
-            img_bi_overlay = add_centroid_to_block_img(img_bi_overlay,centoidX,centoidY,point_types)
-        message = "ratio: " + str(round(ratioM,3)) + " use_points: " + str(use_points) + " point_types: " + str(point_types)
-        print_plain_to_console(RulerCFG,2,message)
+            img_bi_overlay, points = add_centroid_to_block_img(img_bi_overlay,centoidX,centoidY,point_types)
+        message = ''.join(["ratio: ", str(round(ratioM,3)), " use_points: ", str(use_points), " point_types: ", str(point_types)])
+        Print_Verbose(RulerCFG.cfg,2,message).plain()
     # plt.imshow(img_bi_overlay)
     BlockCandidate.img_bi_overlay = img_bi_overlay
     BlockCandidate.use_points.append(use_points)
+    BlockCandidate.plot_points.append(points)
     BlockCandidate.point_types.append(point_types)
     BlockCandidate.x_points.append(centoidX)
     BlockCandidate.y_points.append(centoidY)
@@ -1242,25 +1475,26 @@ def determine_block_blob_type(RulerCFG,BlockCandidate,ind):
     return BlockCandidate
 
 
-def convert_pixels_to_metric(RulerCFG,Ruler,img_fname):#cfg,Ruler,imgPath,fName,dirSave,dir_ruler_correction,pathToModel,labelNames):
+def convert_pixels_to_metric(RulerCFG, Ruler, img_fname, Dirs):#cfg,Ruler,imgPath,fName,dirSave,dir_ruler_correction,pathToModel,labelNames):
 
     if check_ruler_type(Ruler.ruler_class,'tick_black'):
         colorOption = 'black'
-        Ruler = straighten_img(RulerCFG,Ruler,useRegulerBinary=True,alternate_img=0)
-        convert_ticks(RulerCFG,Ruler,colorOption,img_fname)
+        Ruler = straighten_img(RulerCFG, Ruler, True, False, Dirs)
+        Ruler, BlockCandidate = convert_ticks(RulerCFG, Ruler, colorOption, img_fname)
     elif check_ruler_type(Ruler.ruler_class,'tick_white'):
         colorOption = 'white'
-        Ruler = straighten_img(RulerCFG,Ruler,useRegulerBinary=True,alternate_img=0)
-        convert_ticks(RulerCFG,Ruler,colorOption,img_fname)
+        Ruler = straighten_img(RulerCFG, Ruler, True, False, Dirs)
+        Ruler, BlockCandidate = convert_ticks(RulerCFG, Ruler,colorOption, img_fname)
 
 
     elif check_ruler_type(Ruler.ruler_class,'block_regular_cm'):
         colorOption = 'invert'
-        convert_blocks(RulerCFG,Ruler,colorOption,img_fname)
+        Ruler, BlockCandidate = convert_blocks(RulerCFG, Ruler, colorOption, img_fname, Dirs)
+        return Ruler, BlockCandidate
     elif check_ruler_type(Ruler.ruler_class,'block_invert_cm'):
         colorOption = 'noinvert'
-        convert_blocks(RulerCFG,Ruler,colorOption,img_fname)
-
+        Ruler, BlockCandidate = convert_blocks(RulerCFG, Ruler, colorOption, img_fname, Dirs)
+        return Ruler, BlockCandidate
 '''
 ####################################
 ####################################
@@ -1268,23 +1502,28 @@ def convert_pixels_to_metric(RulerCFG,Ruler,img_fname):#cfg,Ruler,imgPath,fName,
 ####################################
 ####################################
 '''
-def setup_ruler(RulerCFG,img_path,img_fname):
-    Ruler = RulerImage(img_path,img_fname=img_fname)
+def setup_ruler(RulerCFG, img, img_fname):
+    Ruler = RulerImage(img=img, img_fname=img_fname)
 
     print(f"{bcolors.BOLD}\nRuler: {img_fname}{bcolors.ENDC}")
 
-    Ruler.ruler_class,Ruler.ruler_class_percentage,Ruler.img_type_overlay = detect_ruler(RulerCFG, img_path)
+    Ruler.ruler_class,Ruler.ruler_class_percentage,Ruler.img_type_overlay = detect_ruler(RulerCFG, img, img_fname)
     
     if check_ruler_type(Ruler.ruler_class,'gray'):
         # For gray or tiffen rulers: use --> thresh, img_bi = cv2.threshold(gray, 50, 255, cv2.THRESH_BINARY)
-        Ruler.img_bi = cv2.adaptiveThreshold(Ruler.img_gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,51,19)#7,2)
+        Ruler.img_bi = cv2.adaptiveThreshold(Ruler.img_gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,51,19)#7,2)  ### Last used
         # thresh, img_bi = cv2.threshold(gray, 120, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C)
     #     cv2.imshow("img_bi", img_bi)
     #     cv2.waitKey(0)
     elif check_ruler_type(Ruler.ruler_class,'grid'):
         # kernel = np.ones((3,3),np.uint8)
-        Ruler.img_bi = cv2.adaptiveThreshold(Ruler.img_gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY_INV,51,9)
+        Ruler.img_bi = cv2.adaptiveThreshold(Ruler.img_gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY_INV,51,9) ### Last used
     elif check_ruler_type(Ruler.ruler_class,'tick_black'):
+
+        Ruler.img_bi = find_minimal_change_in_binarization(Ruler.img_gray)
+        # cv2.imshow("Dirty", Ruler.img_bi)
+        # cv2.waitKey(0)
+        '''
         Ruler.img_bi = cv2.adaptiveThreshold(Ruler.img_gray,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,51,9)
 
         ##### https://stackoverflow.com/questions/10316057/filling-holes-inside-a-binary-object
@@ -1303,8 +1542,10 @@ def setup_ruler(RulerCFG,img_path,img_fname):
         Ruler.img_bi = cv2.morphologyEx(Ruler.img_bi,cv2.MORPH_OPEN,kernel)
         # cv2.imshow("Clean2", Ruler.img_bi)
         # cv2.waitKey(0)
+        '''
     else:
-        thresh, Ruler.img_bi = cv2.threshold(Ruler.img_gray, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+        # thresh, Ruler.img_bi = cv2.threshold(Ruler.img_gray, 128, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
+        Ruler.img_bi = find_minimal_change_in_binarization(Ruler.img_gray)
 
     Ruler.img_bi_display = np.array(Ruler.img_bi)
     Ruler.img_bi_display = np.stack((Ruler.img_bi_display,)*3, axis=-1)
@@ -1312,10 +1553,92 @@ def setup_ruler(RulerCFG,img_path,img_fname):
 
     return Ruler
 
-def detect_ruler(RulerCFG,imgPath):
+def find_minimal_change_in_binarization(img_gray):
+    result_list = []
+
+    # fig, axs = plt.subplots(5, 5, figsize=(20, 20))
+    # axs = axs.ravel()
+
+    for idx, i in enumerate(range(0, 255, 10)):
+        threshold_value = i
+        img_bi = cv2.threshold(img_gray, threshold_value, 255, cv2.THRESH_BINARY)[1]
+        result = cv2.countNonZero(img_bi)
+        result_list.append((threshold_value, result))
+        
+        # axs[idx-1].imshow(img_bi, cmap='gray')
+        # axs[idx-1].set_title(f"Threshold: {threshold_value}")
+
+    x = [i[0] for i in result_list]
+    y = [i[1] for i in result_list]
+
+    diffs = [abs(y[i+5]-y[i]) for i in range(len(y)-5)]
+    min_index = diffs.index(min(diffs))
+    ''' Turn this and the commented lines above for testing
+    plt.tight_layout()
+    plt.show()
+    fig.savefig('bi_panel.pdf')
+    plt.close()
+
+    x = [i[0] for i in result_list]
+    y = [i[1] for i in result_list]
+
+    diffs = [abs(y[i+5]-y[i]) for i in range(len(y)-5)]
+    min_index = diffs.index(min(diffs))
+
+
+    fig = plt.figure()
+    plt.plot(x, y)
+    plt.xlabel("Threshold value")
+    plt.ylabel("Result")
+    plt.title("Result vs Threshold Value")
+    fig.savefig("bi_plot.pdf")
+    plt.close()
+    dy = np.gradient(y)
+    d2y = np.gradient(dy)
+
+    fig = plt.figure()
+    plt.plot(x, dy, label='Derivative')
+    plt.plot(x, d2y, label='Second Derivative')
+    plt.xlabel("Threshold value")
+    plt.ylabel("Result")
+    plt.title("Result vs Threshold Value")
+    plt.legend()
+    fig.savefig("bi_plot_derivative.pdf")
+    plt.close()
+
+    # find the median point of result_list where the change between results is the least
+    # median_index = 0
+    # min_diff = float('inf')
+    # diff_list = []
+    # for i in range(1, len(result_list) - 1):
+    #     diff = abs(result_list[i + 1][1] - result_list[i - 1][1])
+    #     diff_list.append(diff)
+    #     if diff < min_diff:
+    #         median_index = i
+    #         min_diff = diff
+
+    # x = [i[0] for i in result_list]
+    y = [i[1] for i in result_list]
+
+    # Calculate the first derivative
+    dy = np.diff(y)
+
+    # Calculate the second derivative
+    # ddy = np.diff(dy)
+    # min_index = np.argmin(dy)
+    # min_index = np.argmin(ddy)
+    '''
+    # Find the index of the minimum value of the first derivative
+    
+    best_threshold = result_list[min_index][0]
+    img_bi = cv2.threshold(img_gray, best_threshold, 255, cv2.THRESH_BINARY)[1]
+    return img_bi
+
+
+def detect_ruler(RulerCFG, ruler_cropped, ruler_name):
     net = RulerCFG.net_ruler
     
-    img = ClassifyRulerImage(img_path=imgPath)
+    img = ClassifyRulerImage(ruler_cropped)
 
     # net = torch.jit.load(os.path.join(modelPath,modelName))
     # net.eval()
@@ -1334,18 +1657,121 @@ def detect_ruler(RulerCFG,imgPath):
     percentage1 = round(percentage1[index[0]].item(),2)
     pred_class1 = classes[index[0]]
 
-    if RulerCFG.cfg['leafmachine']['save']['ruler_type_overlay']:
+    if RulerCFG.cfg['leafmachine']['ruler_detection']['save_ruler_class_overlay']:
         imgBG = create_overlay_bg(RulerCFG,img.img_sq)
         addText1 = "Class: "+str(pred_class1)
         addText2 = "Certainty: "+str(percentage1)
-        newName = os.path.split(imgPath)[1]
-        newName = newName.split(".")[0] + "__overlay.jpg"
+        newName = '.'.join([ruler_name ,'jpg'])
+        # newName = newName.split(".")[0] + "__overlay.jpg"
         imgOverlay = cv2.putText(img=imgBG, text=addText1, org=(10, 20), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.6, color=(155, 155, 155),thickness=1)
         imgOverlay = cv2.putText(img=imgOverlay, text=addText2, org=(10, 45), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.6, color=(155, 155, 155),thickness=1)
-        cv2.imwrite(os.path.abspath(os.path.join(os.path.join(RulerCFG.path_ruler_output_parent,RulerCFG.dir_ruler_overlay),newName)),imgOverlay)
+        cv2.imwrite(os.path.join(RulerCFG.dir_ruler_class_overlay,newName),imgOverlay)
 
     message = "Class: " + str(pred_class1) + " Certainty: " + str(percentage1) + "%"
-    print_green_to_console(RulerCFG,1,message)
+    Print_Verbose(RulerCFG.cfg,1,message).green()
 
     return pred_class1,percentage1,imgOverlay
 
+
+
+
+
+
+
+
+
+@dataclass
+class Print_Verbose():
+    cfg: str = ''
+    indent_level: int = 0
+    message: str = ''
+
+    def __init__(self, cfg, indent_level, message) -> None:
+        self.cfg = cfg
+        self.indent_level = indent_level
+        self.message = message
+
+    def bold(self):
+        white_space = " " * 5 * self.indent_level
+        if self.cfg['leafmachine']['print']['verbose']:
+            print(f"{bcolors.BOLD}{white_space}{self.message}{bcolors.ENDC}")
+
+    def green(self):
+        white_space = " " * 5 * self.indent_level
+        if self.cfg['leafmachine']['print']['verbose']:
+            print(f"{bcolors.OKGREEN}{white_space}{self.message}{bcolors.ENDC}")
+
+    def cyan(self):
+        white_space = " " * 5 * self.indent_level
+        if self.cfg['leafmachine']['print']['verbose']:
+            print(f"{bcolors.OKCYAN}{white_space}{self.message}{bcolors.ENDC}")
+
+    def blue(self):
+        white_space = " " * 5 * self.indent_level
+        if self.cfg['leafmachine']['print']['verbose']:
+            print(f"{bcolors.OKBLUE}{white_space}{self.message}{bcolors.ENDC}")
+
+    def warning(self):
+        white_space = " " * 5 * self.indent_level
+        if self.cfg['leafmachine']['print']['verbose']:
+            print(f"{bcolors.WARNING}{white_space}{self.message}{bcolors.ENDC}")
+
+    def plain(self):
+        white_space = " " * 5 * self.indent_level
+        if self.cfg['leafmachine']['print']['verbose']:
+            print(f"{white_space}{self.message}")
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    CEND      = '\33[0m'
+    CBOLD     = '\33[1m'
+    CITALIC   = '\33[3m'
+    CURL      = '\33[4m'
+    CBLINK    = '\33[5m'
+    CBLINK2   = '\33[6m'
+    CSELECTED = '\33[7m'
+
+    CBLACK  = '\33[30m'
+    CRED    = '\33[31m'
+    CGREEN  = '\33[32m'
+    CYELLOW = '\33[33m'
+    CBLUE   = '\33[34m'
+    CVIOLET = '\33[35m'
+    CBEIGE  = '\33[36m'
+    CWHITE  = '\33[37m'
+
+    CBLACKBG  = '\33[40m'
+    CREDBG    = '\33[41m'
+    CGREENBG  = '\33[42m'
+    CYELLOWBG = '\33[43m'
+    CBLUEBG   = '\33[44m'
+    CVIOLETBG = '\33[45m'
+    CBEIGEBG  = '\33[46m'
+    CWHITEBG  = '\33[47m'
+
+    CGREY    = '\33[90m'
+    CRED2    = '\33[91m'
+    CGREEN2  = '\33[92m'
+    CYELLOW2 = '\33[93m'
+    CBLUE2   = '\33[94m'
+    CVIOLET2 = '\33[95m'
+    CBEIGE2  = '\33[96m'
+    CWHITE2  = '\33[97m'
+
+    CGREYBG    = '\33[100m'
+    CREDBG2    = '\33[101m'
+    CGREENBG2  = '\33[102m'
+    CYELLOWBG2 = '\33[103m'
+    CBLUEBG2   = '\33[104m'
+    CVIOLETBG2 = '\33[105m'
+    CBEIGEBG2  = '\33[106m'
+    CWHITEBG2  = '\33[107m'
+    CBLUEBG3   = '\33[112m'

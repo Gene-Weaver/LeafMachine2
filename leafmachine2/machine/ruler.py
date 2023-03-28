@@ -4,7 +4,7 @@ Main function for analyzing the extracted ruler image
 '''
 import os, argparse
 
-from ruler_utils import RulerConfig, setup_ruler, convert_pixels_to_metric
+from utils_ruler import RulerConfig, setup_ruler, convert_pixels_to_metric
 
 # def ruler(img_dir):
 def ruler(RulerCFG,machine_or_dir):

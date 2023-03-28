@@ -1,0 +1,2 @@
+delete_projects: ['POINTS_Morton_Quercus_stellata'] #['Morton_PLANT_Field_QR-Code-Images','PREP_FieldPrism_Training_FS-Poor','PREP_REU_Field_QR-Code-Images','PREP_FieldPrism_Training_Sheets','PREP_FieldPrism_Training_Outside']
+delete_datasets: ['POINTS_Morton_Quercus_stellata'] #['PREP_FieldPrism_Training_FS-Poor','PREP_FieldPrism_Training_Sheets','PREP_FieldPrism_Training_Outside']

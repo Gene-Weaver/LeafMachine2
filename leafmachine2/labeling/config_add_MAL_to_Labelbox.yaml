@@ -1,0 +1,9 @@
+include_subdirs: False
+add_to_existing_project: True
+dir_containing_labels: 'D:/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/detect/MAL_BroadSample/GBIF_BroadSample_RandomizedSpp/GBIF_BroadSample_RandomizedSpp'
+dir_containing_original_images: 'D:/Dropbox/LM2_Env/Image_Datasets/GBIF_BroadSample_RandomizedSpp'
+dirs_to_include: ['GBIF_BroadSample_RandomizedSpp']
+ontology: 'PLANT' # 'PREP' or 'PLANT'
+
+# DELETE   WK: /home/brlab/  GBIF_BroadSample_3SppPerFamily
+# DELETE   PC: D:/  GBIF_BroadSample_RandomizedSpp

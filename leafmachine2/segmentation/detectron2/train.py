@@ -32,7 +32,7 @@ sys.path.insert(0, parentdir)
 parentdir = os.path.dirname(parentdir)
 sys.path.insert(0, parentdir) 
 
-from machine.general_utils import get_datetime, load_cfg, print_error_to_console
+from machine.general_utils import get_datetime, load_cfg, Print_Verbose_Error, get_cfg_from_full_path
 
 sys.path.insert(0, currentdir) 
 
@@ -73,8 +73,8 @@ def run(opts):
     register_coco_instances("dataset_train", {}, opts.path_to_train_json, opts.dir_images_train)
     register_coco_instances("dataset_val", {}, opts.path_to_val_json, opts.dir_images_val)
 
-    MetadataCatalog.get("dataset_train").set(thing_colors=[[0,255,118],[255,0,255],[255,0,0]])
-    MetadataCatalog.get("dataset_val").set(thing_colors=[[0,255,118],[255,0,255],[255,0,0]])
+    MetadataCatalog.get("dataset_train").set(thing_colors=[[0,255,46], [255,173,0],[255,0,209]])
+    MetadataCatalog.get("dataset_val").set(thing_colors=[[0,255,46], [255,173,0],[255,0,209]])
     MetadataCatalog.get("dataset_train").set(thing_classes=['leaf','petiole','hole'])
     MetadataCatalog.get("dataset_val").set(thing_classes=['leaf','petiole','hole'])
     metadata = MetadataCatalog.get("dataset_val")
@@ -82,11 +82,11 @@ def run(opts):
     # if "thing_colors" in metadata:
     #         pass
     # else:
-    #     metadata['thing_colors'] = [[0,255,118],[255,0,255],[255,0,0]]
+    #     metadata['thing_colors'] = [[0,255,46], [255,173,0],[255,0,209]]]
     #     metadata['thing_classes'] = ['Leaf','Petiole','Hole']
 
     # Create config 
-    cfg_leaf = leaf_config_pr(opts.base_architecture,opts.dir_out,opts.do_validate_in_training,"train",opts.batch_size,opts.iterations,opts.checkpoint_freq,opts.warmup,opts.n_workers)
+    cfg_leaf = leaf_config_pr(opts.model_name, opts.base_architecture,opts.dir_out,opts.do_validate_in_training,"train",opts.batch_size,opts.iterations,opts.checkpoint_freq,opts.warmup,opts.n_workers,opts.aug)
     print(cfg_leaf.dump())
 
     # Save metadata from the congig / dataset
@@ -142,6 +142,7 @@ class TrainOptions:
     default_timeout_minutes: int = 30
     base_architecture: str = 'PR_mask_rcnn_R_50_FPN_3x'
     do_validate_in_training: bool = True
+    # aug: bool = False # not functional
     filename_train_json: str = 'POLYGONS_train.json'
     filename_val_json: str = 'POLYGONS_val.json'
 
@@ -157,6 +158,7 @@ class TrainOptions:
     dir_images_val: str = field(init=False)
     dir_images_test: str = field(init=False)
     dir_out: str = field(init=False)
+    dir_root: str = field(init=False)
 
     model_name: str = field(init=False)
     
@@ -175,7 +177,11 @@ class TrainOptions:
         '''
         Configure names
         '''
-        self.path_to_config = os.path.dirname(os.path.dirname(os.getcwd()))
+        self.dir_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        path_cfg_private = os.path.join(self.dir_root,'PRIVATE_DATA.yaml')
+        self.cfg_private = get_cfg_from_full_path(path_cfg_private)
+
+        self.path_to_config = self.dir_root
         self.cfg = load_cfg(self.path_to_config)
         if self.cfg['leafmachine']['segmentation_train']['model_options']['model_name'] is not None:
             self.model_name = self.cfg['leafmachine']['segmentation_train']['model_options']['model_name']
@@ -196,19 +202,19 @@ class TrainOptions:
         Weights and Biases Info
         https://wandb.ai/site
         '''
-        if self.cfg['w_and_b']['w_and_b_key'] is not None:
-            self.w_and_b_key = self.cfg['w_and_b']['w_and_b_key']
-        if self.cfg['w_and_b']['leaf_segmentation_project'] is not None:
-            self.project = self.cfg['w_and_b']['leaf_segmentation_project']
-        if self.cfg['w_and_b']['entity'] is not None:
-            self.entity = self.cfg['w_and_b']['entity']
+        if self.cfg_private['w_and_b']['w_and_b_key'] is not None:
+            self.w_and_b_key = self.cfg_private['w_and_b']['w_and_b_key']
+        if self.cfg_private['w_and_b']['leaf_segmentation_project'] is not None:
+            self.project = self.cfg_private['w_and_b']['leaf_segmentation_project']   
+        if self.cfg_private['w_and_b']['entity'] is not None:
+            self.entity = self.cfg_private['w_and_b']['entity']
         '''
         Setup dirs
         '''
         if self.cfg['leafmachine']['segmentation_train']['dir_images_train'] is not None:
             self.dir_images_train = self.cfg['leafmachine']['segmentation_train']['dir_images_train']
         else: 
-            print_error_to_console(self.cfg,1,'ERROR: Training directory is missing')
+            Print_Verbose_Error(self.cfg,1,'ERROR: Training directory is missing').print_error_to_console()
         if self.cfg['leafmachine']['segmentation_train']['dir_images_val'] is not None:
             self.dir_images_val = self.cfg['leafmachine']['segmentation_train']['dir_images_val']
         if self.cfg['leafmachine']['segmentation_train']['dir_images_test'] is not None:
@@ -251,6 +257,8 @@ class TrainOptions:
             self.default_timeout_minutes = self.cfg['leafmachine']['segmentation_train']['model_options']['default_timeout_minutes']
         if self.cfg['leafmachine']['segmentation_train']['model_options']['do_validate_in_training'] is not None:
             self.do_validate_in_training = self.cfg['leafmachine']['segmentation_train']['model_options']['do_validate_in_training']
+        # if self.cfg['leafmachine']['segmentation_train']['model_options']['apply_augmentation'] is not None:
+            # self.aug = self.cfg['leafmachine']['segmentation_train']['model_options']['apply_augmentation']
         
 if __name__ == '__main__':
     opts = TrainOptions()
@@ -267,4 +275,4 @@ if __name__ == '__main__':
         timeout=opts.default_timeout_minutes,
     )
 
-    evaluate_model_to_pdf(opts.cfg)
+    evaluate_model_to_pdf(opts.cfg, opts.dir_root)

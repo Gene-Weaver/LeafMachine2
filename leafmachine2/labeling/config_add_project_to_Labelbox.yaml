@@ -1,0 +1,6 @@
+dataset_name: 'PLANT_Morton_QRcode_Corrected' # Quercus_stellata
+project_name: 'PLANT_Morton_QRcode_Corrected'
+ontology: 'PLANT' # 'PREP' or 'PLANT' or 'POINTS' or...
+dir_containing_original_images: 'D:\Dropbox\LM2_Env\Image_Datasets\SET_FieldPrism_Test\TESTING_OUTPUT\Images_Processed\REU_Field_QR-Code-Images\UPLOAD_TO_LABELBOX'
+do_randomly_sample_images: True
+sample_size: 1 # 1 = all # if int, will sample number, if float less than zero will take sample_size 

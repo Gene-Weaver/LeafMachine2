@@ -31,6 +31,12 @@ from matplotlib.backends.backend_pdf import PdfPages
 from tqdm import tqdm
 
 from detector import Detector
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.insert(0, parentdir) 
+parentdir = os.path.dirname(parentdir)
+sys.path.insert(0, parentdir) 
+from machine.general_utils import load_cfg
 
 class bcolors:
     HEADER = '\033[95m'
@@ -56,9 +62,9 @@ def save_predictions_to_pdf(instance_detector,DIR_MODEL,DATASET,SUBSAMPLE,PDF_NA
     print(f'{bcolors.OKGREEN}Done: {n} images with predictions saved to --> {os.path.join(DIR_MODEL,PDF_NAME)}{bcolors.ENDC}')
 
 
-def evaluate_model_to_pdf(cfg):
-    DIR_ROOT = os.getcwd()
-    DIR_MODEL = os.path.join(DIR_ROOT,'detectron2','models',cfg['leafmachine']['segmentation_eval']['model_name'])
+def evaluate_model_to_pdf(cfg, DIR_ROOT):
+    # DIR_ROOT = os.getcwd()
+    DIR_MODEL = os.path.join(DIR_ROOT,'leafmachine2','segmentation','models',cfg['leafmachine']['segmentation_eval']['model_name'])
 
     DIR_TRAIN = cfg['leafmachine']['segmentation_train']['dir_images_train']
     DIR_VAL = cfg['leafmachine']['segmentation_train']['dir_images_val']
@@ -82,14 +88,14 @@ def evaluate_model_to_pdf(cfg):
         save_predictions_to_pdf(instance_detector,DIR_MODEL,DATASET,SUBSAMPLE,PDF_NAME,SHOW_IMG)
     if EVAL_TRAIN:
         DATASET = DIR_TRAIN
-        SUBSAMPLE = 1
+        SUBSAMPLE = .05
         PDF_NAME = "__".join(['results_overlay_train',instance_detector.model_to_use_name.split(".")[0]])
         PDF_NAME = ".".join([PDF_NAME,"pdf"])
         SHOW_IMG = False
         save_predictions_to_pdf(instance_detector,DIR_MODEL,DATASET,SUBSAMPLE,PDF_NAME,SHOW_IMG)
     if EVAL_DIR:
         DATASET = DIR_TEST
-        SUBSAMPLE = 0.01
+        SUBSAMPLE = 0.1
         try:
             PDF_NAME = "".join(['results_overlay_leafwhole-sample',str(SUBSAMPLE).split(".")[1]])
         except:
@@ -98,3 +104,8 @@ def evaluate_model_to_pdf(cfg):
         PDF_NAME = ".".join([PDF_NAME,"pdf"])
         SHOW_IMG = False
         save_predictions_to_pdf(instance_detector,DIR_MODEL,DATASET,SUBSAMPLE,PDF_NAME,SHOW_IMG)
+
+if __name__ == '__main__':
+    cfg = load_cfg('D:/Dropbox/LeafMachine2')
+    dir_root = 'D:/Dropbox/LeafMachine2'
+    evaluate_model_to_pdf(cfg, dir_root)

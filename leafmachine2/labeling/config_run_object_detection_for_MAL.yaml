@@ -1,0 +1,18 @@
+### May error out if you have the output dir open while it's processing
+
+do_process_subdirectories: False
+dir_containing_original_images: 'D:\Dropbox\LM2_Env\Image_Datasets\GBIF_BroadSample_RandomizedSpp'
+do_save_prediction_overlay_images: True
+
+# ./leafmachine2/component_detector/runs/detect/name_project/name_iteration/name_run
+name_project: 'MAL_BroadSample'
+name_iteration: 'GBIF_BroadSample_RandomizedSpp'
+name_run: 'GBIF_BroadSample_RandomizedSpp' # if do_process_subdirectories: True, then name_run: '' 
+
+# ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
+detector_type: 'Plant_Detector' # 'Archival_Detector' or 'Plant_Detector'
+detector_version: 'PLANT_GroupAB_200'
+detector_iteration: 'PLANT_GroupAB_200'
+detector_weights: 'best.pt'
+
+minimum_confidence_threshold: 0.5
