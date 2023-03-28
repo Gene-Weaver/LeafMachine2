@@ -1,5 +1,10 @@
 # YOLOv5 🚀 by Ultralytics, GPL-3.0 license
 """
+venv requirements:
+pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113
+pip3 install cython
+pip3 install opencv-python
+
 Train a YOLOv5 model on a custom dataset.
 
 Models and datasets download automatically from the latest YOLOv5 release.
@@ -25,6 +30,8 @@ from torch.cuda import amp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import SGD, Adam, AdamW, lr_scheduler
 from tqdm.auto import tqdm
+import collections 
+import collections.abc
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLOv5 root directory
@@ -58,7 +65,7 @@ WORLD_SIZE = int(os.getenv('WORLD_SIZE', 1))
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
-from machine.general_utils import get_datetime, load_cfg, print_error_to_console
+from machine.general_utils import get_datetime, load_cfg, get_cfg_from_full_path
 
 def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictionary
     save_dir, epochs, batch_size, weights, single_cls, evolve, data, cfg_model, resume, noval, nosave, workers, freeze = \
@@ -497,14 +504,14 @@ class TrainOptions:
     epochs: int = 300  #', type=int, default=300)
     batch_size: int = 2 # 
     patience: int = 100  #', type=int, default=100, help='EarlyStopping patience (epochs without improvement)')
-    save_period: int = 1  #', type=int, default=-1, help='Save checkpoint every x epochs (disabled if < 1)')
-    imgsz: int = 512  #', '--img', '--img-size', type=int, default=640, help='train, val image size (pixels)')
+    save_period: int = 10  #', type=int, default=-1, help='Save checkpoint every x epochs (disabled if < 1)')
+    imgsz: int = 1024  #', '--img', '--img-size', type=int, default=640, help='train, val image size (pixels)')
     workers: int = 8  #', type=int, default=8, help='max dataloader workers (per RANK in DDP mode)')
     hyp: str = 'data/hyps/hyp.scratch-low.yaml' #', type=str, default=ROOT / 'data/hyps/hyp.scratch-low.yaml', help='hyperparameters path')
     resume: bool = False # ', nargs='?', const=True, default=False, help='resume most recent training')
     rect: bool = False #  ', action='store_true', help='rectangular training')
     cache: bool = True  #', type=str, nargs='?', const='ram', help='--cache images in "ram" (default) or "disk"')
-    freeze: list[int] = field(init=True,default_factory=list)  #', nargs='+', type=int, default=[0], help='Freeze layers: backbone=10, first3=0 1 2')
+    freeze: list = field(init=True,default_factory=list)  #', nargs='+', type=int, default=[0], help='Freeze layers: backbone=10, first3=0 1 2')
     evolve: int = 0  # 100 or 300 ish #', type=int, nargs='?', const=300, help='evolve hyperparameters for x generations')
     device: int = ''  #', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     upload_dataset: bool = False
@@ -559,7 +566,11 @@ class TrainOptions:
         '''
         Configure names
         '''
-        self.path_to_config = os.path.dirname(os.path.dirname(os.getcwd()))
+        dir_home = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        path_cfg_private = os.path.join(dir_home,'PRIVATE_DATA.yaml')
+        self.cfg_private = get_cfg_from_full_path(path_cfg_private)
+
+        self.path_to_config = dir_home
         self.cfg = load_cfg(self.path_to_config)
         if self.cfg['leafmachine']['component_detector_train']['model_options']['name'] is not None:
             self.name = self.cfg['leafmachine']['component_detector_train']['model_options']['name']
@@ -581,18 +592,21 @@ class TrainOptions:
         Weights and Biases Info
         https://wandb.ai/site
         '''
-        if self.cfg['w_and_b']['w_and_b_key'] is not None:
-            self.w_and_b_key = self.cfg['w_and_b']['w_and_b_key']
+        if self.cfg_private['w_and_b']['w_and_b_key'] is not None:
+            self.w_and_b_key = self.cfg_private['w_and_b']['w_and_b_key']
 
         if self.cfg['leafmachine']['component_detector_train']['plant_or_archival'] == 'PLANT':
-            if self.cfg['w_and_b']['plant_component_detector_project'] is not None:
-                self.w_and_b_project = self.cfg['w_and_b']['plant_component_detector_project']
+            if self.cfg_private['w_and_b']['plant_component_detector_project'] is not None:
+                self.w_and_b_project = self.cfg_private['w_and_b']['plant_component_detector_project']
         elif self.cfg['leafmachine']['component_detector_train']['plant_or_archival'] == 'ARCHIVAL':
-            if self.cfg['w_and_b']['archival_component_detector_project'] is not None:
-                self.w_and_b_project = self.cfg['w_and_b']['archival_component_detector_project']
+            if self.cfg_private['w_and_b']['archival_component_detector_project'] is not None:
+                self.w_and_b_project = self.cfg_private['w_and_b']['archival_component_detector_project']
+        elif self.cfg['leafmachine']['component_detector_train']['plant_or_archival'] == 'LANDMARK':
+            if self.cfg_private['w_and_b']['landmark_component_detector_project'] is not None:
+                self.w_and_b_project = self.cfg_private['w_and_b']['landmark_component_detector_project']
                 
-        if self.cfg['w_and_b']['entity'] is not None:
-            self.entity = self.cfg['w_and_b']['entity']
+        if self.cfg_private['w_and_b']['entity'] is not None:
+            self.entity = self.cfg_private['w_and_b']['entity']
         
         '''
         Model Options
@@ -873,20 +887,28 @@ def run(**kwargs):
 
 
 if __name__ == "__main__":
-    path_to_config = os.path.dirname(os.path.dirname(os.getcwd()))
+    dir_home = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    path_cfg_private = os.path.join(dir_home,'PRIVATE_DATA.yaml')
+    cfg_private = get_cfg_from_full_path(path_cfg_private)
+    if cfg_private['w_and_b']['w_and_b_key'] is not None:
+        w_and_b_key = cfg_private['w_and_b']['w_and_b_key']
+
+    path_to_config = dir_home
     cfg = load_cfg(path_to_config)
-    if cfg['w_and_b']['w_and_b_key'] is not None:
-        w_and_b_key = cfg['w_and_b']['w_and_b_key']
+    
 
     if cfg['leafmachine']['component_detector_train']['plant_or_archival'] == 'PLANT':
-        if cfg['w_and_b']['plant_component_detector_project'] is not None:
-            w_and_b_project = cfg['w_and_b']['plant_component_detector_project']
+        if cfg_private['w_and_b']['plant_component_detector_project'] is not None:
+            w_and_b_project = cfg_private['w_and_b']['plant_component_detector_project']
     elif cfg['leafmachine']['component_detector_train']['plant_or_archival'] == 'ARCHIVAL':
-        if cfg['w_and_b']['archival_component_detector_project'] is not None:
-            w_and_b_project = cfg['w_and_b']['archival_component_detector_project']
+        if cfg_private['w_and_b']['archival_component_detector_project'] is not None:
+            w_and_b_project = cfg_private['w_and_b']['archival_component_detector_project']
+    elif cfg['leafmachine']['component_detector_train']['plant_or_archival'] == 'LANDMARK':
+            if cfg_private['w_and_b']['landmark_component_detector_project'] is not None:
+                w_and_b_project = cfg_private['w_and_b']['landmark_component_detector_project']
             
-    if cfg['w_and_b']['entity'] is not None:
-        entity = cfg['w_and_b']['entity']
+    if cfg_private['w_and_b']['entity'] is not None:
+        entity = cfg_private['w_and_b']['entity']
     if cfg['leafmachine']['component_detector_train']['model_options']['name'] is not None:
         name = cfg['leafmachine']['component_detector_train']['model_options']['name']
     project = os.path.join(ROOT,w_and_b_project,w_and_b_project,name)

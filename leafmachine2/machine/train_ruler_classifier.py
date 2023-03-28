@@ -13,8 +13,8 @@ import matplotlib.pyplot as plt
 from dataclasses import dataclass, field
 from pyexpat import model
 from datetime import timedelta
-from general_utils import load_cfg, validate_dir, get_datetime, bcolors
-from general_utils import print_error_to_console, print_green_to_console
+from general_utils import load_cfg, get_cfg_from_full_path, get_datetime, bcolors
+from general_utils import Print_Verbose
 from launch_ruler import launch
 
 def imshow(inp, title=None):
@@ -66,7 +66,7 @@ class TrainOptions:
     learning_rate: float = 1e-3
     n_epochs: int  = 20
     print_every: int  = 5
-    num_classes: int  = 22
+    num_classes: int  = 38
     split_train_dir_automatically: bool = True
     split_train_dir_consistently: bool = True
     seed_for_random_split: int = 2022
@@ -92,29 +92,39 @@ class TrainOptions:
     entity: str = field(init=False)
 
     def __post_init__(self) -> None:
+        '''
+        Setup
+        '''
         self.new_time = get_datetime()
         self.default_timeout_minutes = timedelta(self.default_timeout_minutes)
-        self.path_to_config = os.path.join(os.getcwd())
+        '''
+        Configure names
+        '''
+        self.dir_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        path_cfg_private = os.path.join(self.dir_root,'PRIVATE_DATA.yaml')
+        self.cfg_private = get_cfg_from_full_path(path_cfg_private)
+
+        self.path_to_config = self.dir_root
         self.cfg = load_cfg(self.path_to_config)
 
-        self.path_to_model = os.path.join(os.getcwd(),'ruler_classifier','model')
+        self.path_to_model = os.path.join(self.path_to_config, 'leafmachine2','machine','ruler_classifier','model')
         self.path_to_ruler_class_names = os.path.join('ruler_classifier','ruler_classes.txt')
         
         '''
         Weights and Biases Info
         https://wandb.ai/site
         '''
-        if self.cfg['w_and_b']['w_and_b_key'] is not None:
-            self.w_and_b_key = self.cfg['w_and_b']['w_and_b_key']
-        if self.cfg['w_and_b']['ruler_classifier_project'] is not None:
-            self.project = self.cfg['w_and_b']['ruler_classifier_project']
-        if self.cfg['w_and_b']['entity'] is not None:
-            self.entity = self.cfg['w_and_b']['entity']
+        if self.cfg_private['w_and_b']['w_and_b_key'] is not None:
+            self.w_and_b_key = self.cfg_private['w_and_b']['w_and_b_key']
+        if self.cfg_private['w_and_b']['ruler_classifier_project'] is not None:
+            self.project = self.cfg_private['w_and_b']['ruler_classifier_project']
+        if self.cfg_private['w_and_b']['entity'] is not None:
+            self.entity = self.cfg_private['w_and_b']['entity']
         
         if self.cfg['leafmachine']['ruler_train']['dir_train'] is not None:
             self.dir_train = self.cfg['leafmachine']['ruler_train']['dir_train']
         else: 
-            print_error_to_console(self.cfg,1,'ERROR: Training directory is missing')
+            Print_Verbose(self.cfg,1,'ERROR: Training directory is missing').warning()
 
         if self.cfg['leafmachine']['ruler_train']['dir_val'] is not None:
             self.dir_val = self.cfg['leafmachine']['ruler_train']['dir_val']
@@ -181,7 +191,7 @@ class TrainOptions:
 def train(opts):
     # Setup W & B
     wandb.login(key=opts.w_and_b_key)
-    wandb.init(project=opts.project,name=opts.model_name, entity=opts.entity, sync_tensorboard=False)
+    wandb.init(project=opts.project,name=opts.model_name.split('.')[0], entity=opts.entity, sync_tensorboard=False)
 
     # Define transformers, can add data augmentation here
     transforms = torchvision.transforms.Compose(
@@ -191,8 +201,12 @@ def train(opts):
         torchvision.transforms.RandomHorizontalFlip(p=0.5),
         torchvision.transforms.RandomVerticalFlip(p=0.5),
         torchvision.transforms.RandomGrayscale(p=0.1),
-        torchvision.transforms.RandomRotation(45, resample=False,expand=False, center=None),
-        torchvision.transforms.RandomAffine(45, translate=None, scale=None,shear=None, resample=False, fillcolor=0),
+        torchvision.transforms.RandomAutocontrast(p=0.1),
+        torchvision.transforms.RandomAdjustSharpness(p=0.1,sharpness_factor=2),
+        torchvision.transforms.RandomAdjustSharpness(p=0.1,sharpness_factor=0),
+        # torchvision.transforms.RandomPerspective(distortion_scale=0.5, p=0.1),
+        torchvision.transforms.RandomRotation(degrees=(0, 180), resample=False,expand=False, center=None),
+        # torchvision.transforms.RandomAffine(degrees=(0, 90), translate=(0.1, 0.3), scale=(0.5, 0.75), p=0.1, translate=None, scale=None,shear=None, resample=False, fillcolor=0),
     ])
     scripted_transforms = transforms
 
@@ -210,7 +224,7 @@ def train(opts):
         test_dataset = datasets.ImageFolder(root=opts.dir_val, transform=scripted_transforms)
 
     if opts.split_train_dir_automatically or opts.dir_val is None:
-        tr = int(np.multiply(len(train_dataset.imgs),0.8))
+        tr = int(np.multiply(len(train_dataset.imgs),0.9))
         vr = len(train_dataset.imgs) - tr
         if opts.split_train_dir_consistently:
             train_dataset, test_dataset = random_split(train_dataset, [tr, vr], generator=torch.Generator().manual_seed(opts.seed_for_random_split))
@@ -241,6 +255,7 @@ def train(opts):
         message = "".join(["Using ",str(torch.cuda.device_count()), " CPU! Warning - very slow"])
         print(f"{bcolors.WARNING}{message}{bcolors.ENDC}")
     
+    # net = models.resnext50_32x4d(pretrained=True)
     net = models.resnet18(pretrained=True)
 
     criterion = nn.CrossEntropyLoss()
@@ -330,6 +345,8 @@ def train(opts):
 
     model_scripted = torch.jit.script(net) # Export to TorchScript
     model_scripted.save(os.path.join(opts.path_to_model,opts.model_name)) # Save
+    print(f'train_acc = {train_acc}')
+    print(f'train_acc = {val_acc}')
 
     fig = plt.figure(figsize=(20,10))
     plt.title("Train-Validation Accuracy")
@@ -343,6 +360,9 @@ def train(opts):
     # visualize_model(net)
     plt.pause(5)
     plt.ioff()
+    fig.savefig(os.path.join(opts.path_to_model,'.'.join([opts.model_name.split('.')[0], 'pdf'])),dpi=300, format='pdf')
+    print(f'train_acc = {train_acc}')
+    print(f'train_acc = {val_acc}')
 
 '''
 imgPath = os.path.join('E:','TEMP_ruler','Rulers_ByType_Squarify','block_alternate_cm','Ruler__Herbarium-of-Andalas-University_2609484175_Cannabaceae_Trema_cannabina__1.jpg')

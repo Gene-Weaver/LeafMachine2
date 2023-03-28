@@ -1,114 +1,176 @@
 # To use default value, set to null
 leafmachine:
-    # model:
-    #     ruler_detector: 'model_scripted_resnet_720.pt'
     do:
-        detect_ruler_type: True
+        check_for_illegal_filenames: True 
+        check_for_corrupt_images_make_vertical: True
     print:
         verbose: True
         optional_warnings: True
-    save:
-        ruler_overlay: True
-        ruler_processed: True
-        ruler_type_overlay: True
-        ruler_data: True
-    save_dirs:
-        #ruler_correction: 'E:/TEMP_ruler/rulerAngleCorrection'
-        path_ruler_output_parent: 'E:/TEST__LM2_Output2/Ruler_Output'
-        dir_ruler_overlay: 'Ruler_Overlay' 
-        dir_ruler_processed: 'Ruler_Processed'
-        dir_ruler_data: 'Ruler_Data' 
-    images_to_process:
-        ruler_directory: 'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_CroppedAnnotations_Group1_Partial/PREP/Ruler' 
-    component_detector_train:
-        plant_or_archival: 'PLANT' # str |FROM| 'PLANT' or 'ARCHIVAL'
-        model_options:
-            data: 'D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/PLANT_Botany_Small/PLANT_Botany_Small.yaml'
-            project: null # str |DEFAULT| 'runs/train'
-            name: 'default_values' # str |DEFAULT| 'exp'
-            weights: null # str |DEFAULT| yolov5x6.pt |FROM| small to big: yolov5n yolov5s yolov5m yolov5l yolov5x yolov5x6 
-            optimizer: null # str SGD |FROM| 'SGD', 'Adam', 'AdamW'
-            epochs: 10 # int |DEFAULT| 300
-            batch_size: 8 # int |DEAFULT| 8
-            patience: null # int |DEFAULT| 100
-            save_period: null # int |DEFAULT| 1
-            imgsz: null # int |DEFAULT| 512
-            workers: null # int |DEFAULT| 8
-            hyp: null # str |DEFAULT| 'data/hyps/hyp.scratch-low.yaml' |FROM| /data/hyps/
-            resume: null # bool |DEFAULT| False
-            rect: null # bool |DEFAULT| False
-            cache: null # bool |DEFAULT| True, disable if computer ram is too small
-            freeze: null # list[int] |DEFAULT| [0] |FORMAT| [0 1 2 3 4 5] to freeze first 6 layers, backbone=10, first3=0 1 2
-            evolve: null # int |DEFAULT| 0 # 100+ if evolving hyp
-            device: null # list[int] |DEFAULT| '' |FROM| cuda device, i.e. 0 or 0,1,2,3 or cpu
-            upload_dataset: null # bool |DEFAULT| False
-            # Recommend using defaults for below:
-            nosave: null # bool |DEFAULT| False
-            noval: null # bool |DEFAULT| False
-            cfg_model: null # str |DEFAULT|
-            noautoanchor: null # bool |DEFAULT| False
-            noplots: null # bool |DEFAULT| False
-            bucket: null # str |DEFAULT| ''
-            image_weights: null # bool |DEFAULT| False
-            single_cls: null # bool |DEFAULT| False
-            multi_scale: null # bool |DEFAULT| False
-            sync_bn: null # bool |DEFAULT| True
-            exist_ok: null # bool |DEFAULT| False
-            quad: null # bool |DEFAULT| False
-            cos_lr: null # bool |DEFAULT| False
-            label_smoothing: null # float |DEFAULT| 0.0
-            local_rank: null # int |DEFAULT| -1 |NOTICE| DDP parameter, do not modify
-    ruler_train:
-        model_name: 'model_scripted_resnet_720_40' # end in .pt
-        do_overwrite_model: False # bool 
-        dir_train: '/home/brlab/Dropbox/LeafMachine2/data/ruler_classifier_training_data/Rulers_ByType_Squarify_720px' #'E:/TEMP_ruler/Rulers_ByType_Squarify_720px'
-        dir_val: null
-        split_train_dir_automatically: null # bool |DEFAULT| True
-        split_train_dir_consistently: null # bool |DEFAULT| True
-        save_all_checkpoints: null # bool |DEFAULT| False
-        seed_for_random_split: null # int |DEFAULT| 2022
-        n_gpus: 2 # int |DEFAULT| 1 
-        n_machines: null # int |DEFAULT| 1 -- changing this will require effort
-        default_timeout_minutes: null # int |DEFAULT| 30
-        img_size: null # int |DEFAULT| 720
-        use_cuda: null # bool |DEFAULT| True
-        batch_size: 84 # int |DEFAULT| 18
-        learning_rate: null # float |DEFAULT| 0.001
-        n_epochs: 40 # int |DEFAULT| 20
-        print_every: null # int |DEFAULT| 5
-        num_classes: null # int |DEFAULT| 22
-    segmentation_train:
-        dir_images_train: '/home/brlab/Dropbox/LeafMachine2/data/segmentation_training_data/small_batch/train/images' #'D:/Dropbox/LeafMachine2/leafmachine2/segmentation/detectron2/LM2_data/leaf_whole_part1/train/images'
-        dir_images_val: '/home/brlab/Dropbox/LeafMachine2/data/segmentation_training_data/small_batch/val/images' #'D:/Dropbox/LeafMachine2/leafmachine2/segmentation/detectron2/LM2_data/leaf_whole_part1/val/images'
-        dir_images_test: '/home/brlab/Dropbox/LM2_ENV/Image_Datasets/GroundTruth_CroppedAnnotations_Group1_Partial/PLANT/Leaf_WHOLE' #'D:/Dropbox/LM2_ENV/Image_Datasets/GroundTruth_CroppedAnnotations_Group1_Partial/PLANT/Leaf_WHOLE'
-        dir_out: null # str -- null saves output in default location ./dectron2/models/
-        filename_train_json: null # str 'POLYGONS_train.json'
-        filename_val_json: null # str 'POLYGONS_val.json'
-        model_options:
-            model_name: null # str 'POC_Dataset_10000_Iter_784PTS_CIOU_WK2'
-            base_architecture: null # str "PR_mask_rcnn_R_50_FPN_3x" from normally from detectron2 model zoo
-            do_validate_in_training: null # bool |DEFAULT| True
-            batch_size: null # int |DEFAULT| 32
-            iterations: null # int |DEFAULT| 10000
-            checkpoint_freq: null # int |DEFAULT| 1000
-            warmup: null # int |DEFAULT| 1000
-            n_gpus: null # int |DEFAULT| 1 
-            n_workers: null # int |DEFAULT| 8
-            n_machines: null # int |DEFAULT| 1 -- changing this will require effort
-            default_timeout_minutes: null # int |DEFAULT| 30   
-    segmentation_eval:
-        model_name: 'leaf_seg__2022_09_23__13-07-23__POC_Dataset_10000_Iter_784PTS_CIOU_WK2__PR_mask_rcnn_R_50_FPN_3x'
-        show_image: False # bool |DEFAULT| False
-        thresh: 0.70 # float |DEFAULT| 0.70
-        do_eval_training_images: True # bool |DEFAULT| True
-        do_eval_val_images: True # bool |DEFAULT| True
-        do_eval_check_directory: True # bool |DEFAULT| True
-labelbox:
-    LB_API_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJja3l4dHk1bXowMzZyMHo2dzUyNzllZHBnIiwib3JnYW5pemF0aW9uSWQiOiJja3l4dHk1bWgwMzZxMHo2dzI2bnNmaDlqIiwiYXBpS2V5SWQiOiJja3pnOXRydmswd3FwMHpkMGJ2bmxhcHo1Iiwic2VjcmV0IjoiOTk5MDEwMzAyMzJhYmExNzM0NDg3NGY3NmExMGUyZDkiLCJpYXQiOjE2NDQ0NTQ2MjgsImV4cCI6MjI3NTYwNjYyOH0.YV2z1lLh1aUgufjGMBr_TOsVUrrTfHFpd0yFBNaSTrQ'
-w_and_b:
-    w_and_b_key: '3008319cb8a8fe9b3cd5181c473d5c11df441632'
-    entity: 'phyloforfun'
-    leaf_segmentation_project: 'Leaf_Segmentation'
-    ruler_classifier_project: 'Ruler_Classifier'
-    archival_component_detector_project: 'Archival_Detector'
-    plant_component_detector_project: 'Plant_Detector'
+
+    logging:
+        log_level: null
+
+    # Overall Project Input Settings
+    project:
+        # Project Output Dir
+        dir_output: ''
+        run_name: '' #'images_short_TEST' #'images_short_landmark'
+        # If location is GBIF, set the config in:
+        #       LeafMachine2/configs/config_download_from_GBIF_all_images_in_file OR
+        #       LeafMachine2/configs/config_download_from_GBIF_all_images_in_filter
+        image_location: 'local' # str |FROM| 'local' or 'GBIF'
+        GBIF_mode: 'all' # str |FROM| 'all' or 'filter'. All = config_download_from_GBIF_all_images_in_file.yml Filter = config_download_from_GBIF_all_images_in_filter.yml
+        batch_size: 50 #null # null = all
+        num_workers: 2 # int |DEFAULT| 4 # More is not always better. Most hardware loses performance after 4
+        # If *not* using local, set the following 4 to null
+        # If providing occ and img, then a combined will be generated
+        # If providing combined, then set images and occ to null
+        dir_images_local: '' # str | full path 
+        
+        path_combined_csv_local: null # str | full path 
+        path_occurrence_csv_local: null # 'D:\Dropbox\LM2_Env\Image_Datasets\SET_Acacia\armature_occurrence.csv'  # str | full path 
+        path_images_csv_local: null # 'D:\Dropbox\LM2_Env\Image_Datasets\SET_Acacia\prickles_images.csv'  # str | full 
+
+        use_existing_plant_component_detections: null # str | full path # null for unprocessed images
+        use_existing_archival_component_detections: null # str | full path # null for unprocessed images
+
+        process_subset_of_images: False
+        dir_images_subset: ''
+        n_images_per_species: 10
+        species_list: ''
+
+
+    cropped_components:
+        # empty list for all, add to list to IGNORE, lowercase, comma seperated
+        # archival |FROM| 
+        #           ruler, barcode, colorcard, label, map, envelope, photo, attached_item, weights
+        # plant |FROM| 
+        #           leaf_whole, leaf_partial, leaflet, seed_fruit_one, seed_fruit_many, flower_one, flower_many, bud, specimen, roots, wood
+        do_save_cropped_annotations: True
+        save_cropped_annotations: ['label','ruler'] # 'save_all' to save all classes
+        save_per_image: False # creates a folder for each image, saves crops into class-names folders
+        save_per_annotation_class: True # saves crops into class-names folders
+        binarize_labels: True
+        binarize_labels_skeletonize: False
+
+
+    data:
+        save_json_rulers: False
+        save_json_measurements: False
+        save_individual_csv_files_rulers: False
+        save_individual_csv_files_measurements: False
+        include_darwin_core_data_from_combined_file: False
+        do_apply_conversion_factor: True
+
+
+    overlay:
+        save_overlay_to_pdf: True
+        save_overlay_to_jpgs: True
+        overlay_dpi: 300 # int |FROM| 100 to 300
+        overlay_background_color: 'black' # str |FROM| 'white' or 'black'
+
+        show_archival_detections: True
+        ignore_archival_detections_classes: []
+        show_plant_detections: True
+        ignore_plant_detections_classes: ['leaf_whole', 'leaf_partial', 'specimen']
+        show_segmentations: True
+        show_landmarks: True
+        ignore_landmark_classes: []
+
+        line_width_archival: 2 # int
+        line_width_plant: 6 # int
+        line_width_seg: 12 # int # thick = 12
+        line_width_efd: 6 # int # thick = 3
+        alpha_transparency_archival: 0.3  # float between 0 and 1
+        alpha_transparency_plant: 0
+        alpha_transparency_seg_whole_leaf: 0.4
+        alpha_transparency_seg_partial_leaf: 0.3
+
+
+    # Configure Plant Component Detector
+    plant_component_detector:
+        # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
+        detector_type: 'Plant_Detector' 
+        detector_version: 'PLANT_GroupAB_200'
+        detector_iteration: 'PLANT_GroupAB_200'
+        detector_weights: 'best.pt'
+        minimum_confidence_threshold: 0.5 
+        do_save_prediction_overlay_images: True
+        ignore_objects_for_overlay: [] #['leaf_partial'] # list[str] # list of objects that can be excluded from the overlay # all = null
+    
+
+    # Configure Archival Component Detector
+    archival_component_detector:
+        # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
+        detector_type: 'Archival_Detector' 
+        detector_version: 'PREP_final'
+        detector_iteration: 'PREP_final'
+        detector_weights: 'best.pt'
+        minimum_confidence_threshold: 0.5
+        do_save_prediction_overlay_images: True
+        ignore_objects_for_overlay: [] # list[str] # list of objects that can be excluded from the overlay # all = null
+    
+
+    landmark_detector:
+        # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
+        landmark_whole_leaves: True
+        landmark_partial_leaves: False
+        
+        detector_type: 'Landmark_Detector_YOLO' 
+        detector_version: 'Landmarks'
+        detector_iteration: 'Landmarks'
+        detector_weights: 'last.pt'
+        minimum_confidence_threshold: 0.1
+        do_save_prediction_overlay_images: True
+        ignore_objects_for_overlay: [] # list[str] # list of objects that can be excluded from the overlay # all = null
+        use_existing_landmark_detections: null # null for unprocessed images
+
+        do_show_QC_images: False
+        do_save_QC_images: True
+
+        do_show_final_images: False
+        do_save_final_images: True
+    
+
+    ruler_detection:
+        detect_ruler_type: True # only True right now
+        ruler_detector: 'ruler_classifier_38classes_v-1.pt'  # MATCH THE SQUARIFY VERSIONS
+        ruler_binary_detector: 'model_scripted_resnet_720_withCompression.pt'  # MATCH THE SQUARIFY VERSIONS
+        minimum_confidence_threshold: 0.4
+        save_ruler_validation: True # save_ruler_class_overlay: True
+        save_ruler_validation_summary: True  # save_ruler_overlay: True 
+        save_ruler_processed: False # this is the angle-corrected rgb ruler
+
+
+    # Configure Archival Component Detector
+    leaf_segmentation:
+        segment_whole_leaves: True
+        segment_partial_leaves: True 
+
+        keep_only_best_one_leaf_one_petiole: True
+
+        save_segmentation_overlay_images_to_pdf: True
+        save_each_segmentation_overlay_image: True
+        save_individual_overlay_images: True # Not recommended, will create many files. Useful for QC or presentation
+        overlay_line_width: 1 # int |DEFAULT| 1 
+    
+        use_efds_for_png_masks: False # requires that you calculate efds --> calculate_elliptic_fourier_descriptors: True
+        save_masks_color: True
+        save_full_image_masks_color: True
+        save_rgb_cropped_images: True
+
+        find_minimum_bounding_box: True
+
+        calculate_elliptic_fourier_descriptors: True # bool |DEFAULT| True 
+        elliptic_fourier_descriptor_order: null # int |DEFAULT| 40
+        
+        segmentation_model: 'GroupB_Dataset_100000_Iter_1176PTS_512Batch_smooth_l1_LR00025_BGR'
+        minimum_confidence_threshold: 0.7 #0.7
+        generate_overlay: False
+        overlay_dpi: 300 # int |FROM| 100 to 300
+        overlay_background_color: 'black' # str |FROM| 'white' or 'black'
+
+
+    
+
+        

@@ -1,0 +1,12 @@
+dir_home: 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Acacia'
+dir_destination: 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Acacia/GBIF_Acacia_Armature'
+# Set the filename of a new csv containing the merged records from images and occ
+#      filename_combined: 'combined_XXXXXXX.csv'
+filename_occ: 'armature_occurrence.txt'
+# option 1
+filename_img: 'prickles_images.txt'
+filename_combined: 'combined_prickles.csv'
+# option 2
+# filename_img: 'spines_images.txt'
+# filename_combined: 'combined_spines.csv'
+sample_list: ''

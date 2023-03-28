@@ -6,6 +6,10 @@ import shutil
 import subprocess
 
 from detect import *
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
+from machine.general_utils import make_file_names_valid
 
 # pip install cython matplotlib tqdm scipy ipython ninja yacs opencv-python ffmpeg opencv-contrib-python Pillow scikit-image scikit-learn lmfit imutils pyyaml jupyterlab==3
 # pip install torch==1.7.1+cu101 torchvision==0.8.2+cu101 torchaudio==0.7.2 -f https://download.pytorch.org/whl/torch_stable.html
@@ -89,8 +93,8 @@ def runYOLOforDirOfFolders(dirDetailedBySpecies,dirOutBase,nosave,PROJECT,SET,AN
         species = os.path.basename(dirSource)
         # dirYOLO = os.path.abspath(os.path.join('yolov5','detect.py'))
         # dirWeights =  os.path.join('yolov5','runs','train',ANNO,VERSION,'weights','best.pt')
-        dirWeights =  os.path.abspath(os.path.join('YOLOv5','yolov5',ANNO,VERSION,'weights','best.pt'))
-        dirProject = os.path.abspath(os.path.join(dirOutBase,PROJECT,SET))
+        dirWeights =  os.path.join(dirOutBase,'runs','train','Archival_Detector','FieldPrism_Initial','FieldPrism_Initial7','weights','last.pt')
+        dirProject = os.path.join(dirOutBase,'runs','detect',PROJECT,SET)
         run(weights=dirWeights,source=dirSource,project=dirProject,name=species,imgsz=(1280, 1280),nosave=nosave,anno_type=ANNO_TYPE)
 
 
@@ -118,6 +122,7 @@ def runYOLOforDirOfFolders_PLANT_Botany(dirDetailedBySpecies,dirOutBase,nosave,P
         species = os.path.basename(dirSource)
         # dirYOLO = os.path.abspath(os.path.join('yolov5','detect.py'))
         # dirWeights =  os.path.join('yolov5','runs','train',ANNO,VERSION,'weights','best.pt')
+        # dirWeights =  os.path.abspath(os.path.join('YOLOv5','yolov5',ANNO,VERSION,'weights','best.pt'))
         dirWeights =  os.path.abspath(os.path.join('YOLOv5','yolov5',ANNO,VERSION,'weights','best.pt'))
         dirProject = os.path.abspath(os.path.join(dirOutBase,PROJECT,SET))
         run(weights=dirWeights,source=dirSource,project=dirProject,name=species,imgsz=(1280, 1280),nosave=nosave)
@@ -175,15 +180,33 @@ def runYOLOforDirOfFolders_PLANT_Botany(dirDetailedBySpecies,dirOutBase,nosave,P
 # dirDetailedBySpecies = os.path.abspath(os.path.join(os.pardir,'Image_Datasets','GBIF_TargetedSample_Rhus'))
 # runYOLOforDirOfFolders(dirDetailedBySpecies,PROJECT,SET,ANNO,VERSION,INCLUDE_SUBDIRS)
 
-INCLUDE_SUBDIRS = 1
-PROJECT = 'MAL_PLANT'#'Botany'#'Cannon'#'MAL_PLANT'
-SET = 'Detailed'#'Demo_Plant'#'Test_Sheets_PREP'#'Targeted'
-ANNO = 'PLANTfull'#'PLANT_Botany'#'PLANTfull'
+INCLUDE_SUBDIRS = 0
+PROJECT = 'MAL_FP' #'MAL_PLANT'#'Botany'#'Cannon'#'MAL_PLANT'
+SET = 'FieldPrism_Initial' #'Detailed'#'Demo_Plant'#'Test_Sheets_PREP'#'Targeted'
+ANNO = 'PREPfull'#'PLANT_Botany'#'PLANTfull'#'PREPfull
 VERSION = 'baseline'#'Small_Adoxaceae'#'baseline'
-ANNO_TYPE = 'PLANT'
+ANNO_TYPE = 'PREP'
 
-dirDetailedBySpecies = os.path.abspath(os.path.join('Image_Datasets','GBIF_DetailedSample_50Spp_Ind'))
-dirOutBase = os.path.abspath(os.path.join('YOLOv5'))
-# dirOutBase > PROJECT > SET
-# ML network: ANNO > VERSION
+# # dirDetailedBySpecies = os.path.abspath(os.path.join('Image_Datasets','FieldPrism_Training_Images','FieldPrism_Training_FS-Poor'))
+# dirDetailedBySpecies = 'D:/Dropbox/LM2_Env/Image_Datasets/FieldPrism_Training_Images/FieldPrism_Training_Sheets'
+# # dirOutBase = os.path.abspath(os.path.join('YOLOv5'))
+# dirOutBase = os.path.dirname(__file__)
+# # dirOutBase > PROJECT > SET
+# # ML network: ANNO > VERSION
+# make_file_names_valid(dirDetailedBySpecies)
+# runYOLOforDirOfFolders(dirDetailedBySpecies,dirOutBase,False,PROJECT,SET,ANNO,VERSION,INCLUDE_SUBDIRS,ANNO_TYPE)
+
+# dirDetailedBySpecies = 'D:/Dropbox/LM2_Env/Image_Datasets/FieldPrism_Training_Images/FieldPrism_Training_Outside'
+# dirOutBase = os.path.dirname(__file__)
+# make_file_names_valid(dirDetailedBySpecies)
+# runYOLOforDirOfFolders(dirDetailedBySpecies,dirOutBase,False,PROJECT,SET,ANNO,VERSION,INCLUDE_SUBDIRS,ANNO_TYPE)
+
+dirDetailedBySpecies = 'D:/Dropbox/LM2_Env/Image_Datasets/FieldPrism_Training_Images/FieldPrism_Training_FS-Poor'
+dirOutBase = os.path.dirname(__file__)
+make_file_names_valid(dirDetailedBySpecies)
 runYOLOforDirOfFolders(dirDetailedBySpecies,dirOutBase,False,PROJECT,SET,ANNO,VERSION,INCLUDE_SUBDIRS,ANNO_TYPE)
+
+# dirDetailedBySpecies = 'D:/Dropbox/LM2_Env/Image_Datasets/FieldPrism_Training_Images/REU_Field_QR-Code-Images'
+# dirOutBase = os.path.dirname(__file__)
+# make_file_names_valid(dirDetailedBySpecies)
+# runYOLOforDirOfFolders(dirDetailedBySpecies,dirOutBase,False,PROJECT,SET,ANNO,VERSION,INCLUDE_SUBDIRS,ANNO_TYPE)

@@ -1,7 +1,7 @@
 import os, cv2, argparse
 import torch
-from ruler_utils import create_overlay_bg, validate_dir
-from ruler_utils import ClassifyRulerImage
+from utils_ruler import create_overlay_bg, validate_dir
+from utils_ruler import ClassifyRulerImage
 
 '''
 pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113

@@ -40,7 +40,7 @@ from models.common import DetectMultiBackend
 from utils.datasets import IMG_FORMATS, VID_FORMATS, LoadImages, LoadStreams
 from utils.general import (LOGGER, check_file, check_img_size, check_imshow, check_requirements, colorstr, cv2,
                            increment_path, non_max_suppression, print_args, scale_coords, strip_optimizer, xyxy2xywh)
-from utils.plots import Annotator, colors, save_one_box
+from utils.plots import Annotator, AnnotatorLandmark, colors, save_one_box
 from utils.torch_utils import select_device, time_sync
 
 @torch.no_grad()
@@ -49,6 +49,8 @@ def run(
         source=ROOT / 'data/images',  # file/dir/URL/glob, 0 for webcam
         data=ROOT / 'data/coco128.yaml',  # dataset.yaml path
         anno_type='PREP',
+        ignore_objects_for_overlay = [],
+        mode = None,
         imgsz=(640, 640),  # inference size (height, width)
         conf_thres=0.25,  # confidence threshold
         iou_thres=0.45,  # NMS IOU threshold
@@ -72,21 +74,39 @@ def run(
         hide_conf=False,  # hide confidences
         half=False,  # use FP16 half-precision inference
         dnn=False,  # use OpenCV DNN for ONNX inference
+        LOGGER=LOGGER,
 ):
-    if anno_type == 'PREP':
-        COLOR_PROFILE = read_csv(os.path.abspath(os.path.join('Image_Datasets','GroundTruth_ColorProfiles','ColorProfile__PREP.csv')))
-    elif anno_type == 'PLANT':
-        COLOR_PROFILE = read_csv(os.path.abspath(os.path.join('Image_Datasets','GroundTruth_ColorProfiles','ColorProfile__PLANT.csv')))
-    source = str(source)
-    save_img = not nosave and not source.endswith('.txt')  # save inference images
-    is_file = Path(source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
-    is_url = source.lower().startswith(('rtsp://', 'rtmp://', 'http://', 'https://'))
-    webcam = source.isnumeric() or source.endswith('.txt') or (is_url and not is_file)
-    if is_url and is_file:
-        source = check_file(source)  # download
+    dir_base = os.path.dirname(__file__)
+    if anno_type in ['PREP','Archival_Detector']:
+        COLOR_PROFILE = read_csv(os.path.join(dir_base,'color_profiles','ColorProfile__PREP.csv'))
+    elif anno_type in ['PLANT','Plant_Detector']:
+        COLOR_PROFILE = read_csv(os.path.join(dir_base,'color_profiles','ColorProfile__PLANT.csv'))
+    elif anno_type in ['LANDMARK','Landmark_Detector']:
+        COLOR_PROFILE = read_csv(os.path.join(dir_base,'color_profiles','ColorProfile__LANDMARK.csv'))
+    if isinstance(source, list):
+        source_0 = source[0]
+        save_img = not nosave and not source_0.endswith('.txt')  # save inference images
+        is_file = Path(source_0).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
+        is_url = source_0.lower().startswith(('rtsp://', 'rtmp://', 'http://', 'https://'))
+        webcam = source_0.isnumeric() or source_0.endswith('.txt') or (is_url and not is_file)
+        # if is_url and is_file:
+        #     source = check_file(source)  # download
+    else:
+        source = str(source)
+        save_img = not nosave and not source.endswith('.txt')  # save inference images
+        is_file = Path(source).suffix[1:] in (IMG_FORMATS + VID_FORMATS)
+        is_url = source.lower().startswith(('rtsp://', 'rtmp://', 'http://', 'https://'))
+        webcam = source.isnumeric() or source.endswith('.txt') or (is_url and not is_file)
+        if is_url and is_file:
+            source = check_file(source)  # download
 
     # Directories
-    save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
+    if mode is None:
+        save_dir = increment_path(Path(project) / name, exist_ok=exist_ok)  # increment run
+    elif mode == 'Landmark':
+        save_dir = Path(project)
+    else:
+        save_dir = Path(project)
     (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
 
     # Load model
@@ -96,6 +116,10 @@ def run(
     imgsz = check_img_size(imgsz, s=stride)  # check image size
 
     # Dataloader
+    if isinstance(source, list):
+        LOGGER.info(f'Processing images from {os.path.dirname(source[0])}')
+    else:
+        LOGGER.info(f'Processing images from {source}')
     if webcam:
         view_img = check_imshow()
         cudnn.benchmark = True  # set True to speed up constant image size inference
@@ -147,7 +171,10 @@ def run(
             s += '%gx%g ' % im.shape[2:]  # print string
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
             imc = im0.copy() if save_crop else im0  # for save_crop
-            annotator = Annotator(im0, line_width=line_thickness, example=str(names))
+            if mode == 'Landmark':
+                annotator = AnnotatorLandmark(im0, line_width=line_thickness, example=str(names))
+            else:
+                annotator = Annotator(im0, line_width=line_thickness, example=str(names))
             if len(det):
                 # Rescale boxes from img_size to im0 size
                 det[:, :4] = scale_coords(im.shape[2:], det[:, :4], im0.shape).round()
@@ -168,9 +195,9 @@ def run(
                     if save_img or save_crop or view_img:  # Add bbox to image
                         c = int(cls)  # integer class
                         label = None if hide_labels else (names[c] if hide_conf else f'{names[c]} {conf:.2f}')
-                        print(label)
-                        print(c)
-                        if names[c] != "leaf_partial": #################################################################################### ignore leaf_partial ##################
+                        # print(label)
+                        # print(c)
+                        if names[c] not in ignore_objects_for_overlay: #################################################################################### ignore leaf_partial ##################
                             annotator.box_label(xyxy, label, color=colors(c, True))
                             if save_crop:
                                 save_one_box(xyxy, imc, file=save_dir / 'crops' / names[c] / f'{p.stem}.jpg', BGR=True)
@@ -207,8 +234,11 @@ def run(
     t = tuple(x / seen * 1E3 for x in dt)  # speeds per image
     LOGGER.info(f'Speed: %.1fms pre-process, %.1fms inference, %.1fms NMS per image at shape {(1, 3, *imgsz)}' % t)
     if save_txt or save_img:
+        # s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
+        # LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
         s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
-        LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
+        LOGGER.info(f"Results saved to {save_dir}")
+        LOGGER.info(f"{s}")
     if update:
         strip_optimizer(weights)  # update model (to fix SourceChangeWarning)
 
