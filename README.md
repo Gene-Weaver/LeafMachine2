@@ -1,4 +1,4 @@
-[![LeafMachine2](https://LeafMachine2.org/img/LM2_Desktop_Narrow.jpg "LeafMachine2")](https://LeafMachine2.org/)
+[![LeafMachine2](https://LeafMachine.org/img/LM2_Desktop_Narrow.jpg "LeafMachine2")](https://LeafMachine.org/)
 
 Table of Contents
 =================
