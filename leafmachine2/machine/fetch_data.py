@@ -4,6 +4,7 @@ from io import BytesIO
 from urllib.request import urlopen
 from zipfile import ZipFile
 import urllib.request
+from tqdm import tqdm
 
 VERSION = 'v-2-1'
 
@@ -77,21 +78,51 @@ def fetch_data(logger, dir_home, cfg_file_path):
 def get_weights(dir_home, current, logger):
     
     try:
+        # path_zip = os.path.join(dir_home,'bin',current)
+        # zipurl = ''.join(['https://leafmachine.org/LM2/', current,'.zip'])
+        # headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'}
+
+        # req = urllib.request.Request(url=zipurl, headers=headers)
+
+        # # Download the ZIP file from the URL
+        # with urllib.request.urlopen(req) as url_response:
+        #     with open(''.join([current,'.zip']), 'wb') as file:
+        #         file.write(url_response.read())
+
+        # # Extract the contents of the ZIP file to the current directory
+        # zipfilename = current + '.zip'
+        # with ZipFile(zipfilename, 'r') as zip_file:
+        #     zip_file.extractall(path_zip)
+
+
         path_zip = os.path.join(dir_home,'bin',current)
         zipurl = ''.join(['https://leafmachine.org/LM2/', current,'.zip'])
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'}
 
         req = urllib.request.Request(url=zipurl, headers=headers)
 
-        # Download the ZIP file from the URL
+        # Get the file size from the Content-Length header
         with urllib.request.urlopen(req) as url_response:
-            with open(''.join([current,'.zip']), 'wb') as file:
-                file.write(url_response.read())
+            file_size = int(url_response.headers['Content-Length'])
+
+        # Download the ZIP file from the URL with progress bar
+        with tqdm(unit='B', unit_scale=True, unit_divisor=1024, total=file_size) as pbar:
+            with urllib.request.urlopen(req) as url_response:
+                with open(current + '.zip', 'wb') as file:
+                    while True:
+                        chunk = url_response.read(4096)
+                        if not chunk:
+                            break
+                        file.write(chunk)
+                        pbar.update(len(chunk))
 
         # Extract the contents of the ZIP file to the current directory
         zipfilename = current + '.zip'
         with ZipFile(zipfilename, 'r') as zip_file:
-            zip_file.extractall(path_zip)
+            zip_file.extractall(os.path.join(dir_home,'bin'))
+
+
+            
 
         # zipurl = ''.join(['https://leafmachine.org/LM2/', current,'.zip'])
         # path_zip = os.path.join(dir_home,'bin',current)
