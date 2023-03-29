@@ -180,12 +180,12 @@ def move_data_to_home(path_release, dir_home):
     os.makedirs(destination_dir, exist_ok=True)
     shutil.move(source_file, destination_dir)
 
-    source_file = os.path.join(path_release, 'ruler_classifier', 'binary_classes.pt')
+    source_file = os.path.join(path_release, 'ruler_classifier', 'binary_classes.txt')
     destination_dir = paths['path_ruler_classifier_binary_classes']
     os.makedirs(destination_dir, exist_ok=True)
     shutil.move(source_file, destination_dir)
 
-    source_file = os.path.join(path_release, 'ruler_classifier', 'ruler_classes.pt')
+    source_file = os.path.join(path_release, 'ruler_classifier', 'ruler_classes.txt')
     destination_dir = paths['path_ruler_classifier_ruler_classes']
     os.makedirs(destination_dir, exist_ok=True)
     shutil.move(source_file, destination_dir)
