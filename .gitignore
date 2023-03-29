@@ -2,7 +2,9 @@
 requirements-d2.txt
 PRIVATE_DATA.yaml
 LeafMachine2_TRAINING_ONLY.yaml
+LeafMachine2_TEMPLATE.yaml
 LeafMachine2_WW.yaml
+
 
 # Dirs
 data/
@@ -18,6 +20,9 @@ bin/
 
 leafmachine2/*/.gitignore
 
+/bin/*
+!/bin/version.yml
+
 leafmachine2/machine/ruler_classifier/
 leafmachine2/machine/wandb/
 leafmachine2/machine/DocEnTR/model_zoo/
@@ -25,6 +30,8 @@ leafmachine2/machine/DocEnTR/git_images/
 leafmachine2/machine/DocEnTR/demo/
 leafmachine2/machine/DocEnTR/.git/
 leafmachine2/machine/DocEnTR/__pycache__
+
+leafmachine2/release_manager/
 
 leafmachine2/segmentation/wandb/
 leafmachine2/segmentation/models/

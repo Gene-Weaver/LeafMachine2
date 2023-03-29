@@ -22,6 +22,7 @@ from leafmachine2.machine.save_data import save_data, merge_csv_files
 from leafmachine2.machine.binarize_image_ML import run_binarize
 from leafmachine2.machine.LM2_logger import start_logging
 from leafmachine2.machine.utils_ruler import convert_rulers_testing, parallel_convert_rulers
+from leafmachine2.machine.fetch_data import fetch_data
 
 def machine(cfg_file_path):
     t_overall = perf_counter()
@@ -40,6 +41,10 @@ def machine(cfg_file_path):
 
     # logging.info("Hi")
     logger = start_logging(Dirs, cfg)
+
+    # Check to see if required ML files are ready to use
+    ready_to_use = fetch_data(logger, dir_home, cfg_file_path)
+    assert ready_to_use, "Required ML files are not ready to use!\nThe download may have failed,\nor\nthe directory structure of LM2 has been altered"
 
     # Wrangle images and preprocess
     print_main_start("Gathering Images and Image Metadata")
