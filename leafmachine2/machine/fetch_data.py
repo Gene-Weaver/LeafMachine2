@@ -20,37 +20,54 @@ def fetch_data(logger, dir_home, cfg_file_path):
             if current in os.listdir(os.path.join(dir_home,'bin')): # The release  dir is present
                 do_fetch = False
                 ready_to_use = True
+                logger.warning(f"Version file --- {os.path.join(dir_home,'bin','version.yml')}")
+                logger.warning(f"Current version --- {ver['version']}")
+                logger.warning(f"Last updated --- {ver['last_update']}")
             else:  # right version, no release dir yet
                 do_fetch = True
+                logger.warning(f"--------------------------------")
+                logger.warning(f"   Downloading data files...    ")
+                logger.warning(f"--------------------------------")
+                logger.warning(f"Version file --- {os.path.join(dir_home,'bin','version.yml')}")
+                logger.warning(f"Current version --- {ver['version']}")
+                logger.warning(f"Last updated --- {ver['last_update']}")
         else:
             do_fetch = True
+            logger.warning(f"--------------------------------")
+            logger.warning(f"   Out of date...               ")
+            logger.warning(f"   Downloading data files...    ")
+            logger.warning(f"--------------------------------")
+            logger.warning(f"Version file --- {os.path.join(dir_home,'bin','version.yml')}")
+            logger.warning(f"Current version --- {ver['version']}")
+            logger.warning(f"Last updated --- {ver['last_update']}")
 
-        print(f"{bcolors.CWHITEBG2}Version file --- {os.path.join(dir_home,'bin','version.yml')}{bcolors.ENDC}")
-        print(f"{bcolors.CWHITEBG2}Current version --- {ver['version']}{bcolors.ENDC}")
-        print(f"{bcolors.CWHITEBG2}Last updated --- {ver['last_update']}{bcolors.ENDC}")
-
+        
+    else:
+        do_fetch = True
+        logger.warning(f"--------------------------------")
+        logger.warning(f"   Missing version.yml...       ")
+        logger.warning(f"   Downloading data files...    ")
+        logger.warning(f"--------------------------------")
         logger.warning(f"Version file --- {os.path.join(dir_home,'bin','version.yml')}")
         logger.warning(f"Current version --- {ver['version']}")
         logger.warning(f"Last updated --- {ver['last_update']}")
-    else:
-        do_fetch = True
-        print(f"{bcolors.CWHITEBG2}Version file --- NOT FOUND{bcolors.ENDC}")
-        print(f"{bcolors.CWHITEBG2}Fetching data...{bcolors.ENDC}")
-        logger.warning(f"Version file --- NOT FOUND")
-        logger.warning(f"Fetching data...")
 
 
     if do_fetch:
+        logger.warning(f"Fetching files for version --> {ver['version']}")
         path_release = get_weights(dir_home, current, logger)
         if path_release is not None:
+            logger.warning(f"Data download successful. Unzipping...")
             move_data_to_home(path_release, dir_home)
             ready_to_use = True
+            logger.warning(f"--------------------------------")
+            logger.warning(f"   LeafMachine2 is up to date   ")
+            logger.warning(f"--------------------------------")
 
     else:
         logger.warning(f"--------------------------------")
         logger.warning(f"   LeafMachine2 is up to date   ")
         logger.warning(f"--------------------------------")
-        print(f"{bcolors.CWHITEBG2}LeafMachine2 is up to date{bcolors.ENDC}")
 
     return ready_to_use
 
