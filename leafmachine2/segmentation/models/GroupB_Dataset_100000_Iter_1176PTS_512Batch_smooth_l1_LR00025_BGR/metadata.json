@@ -1,0 +1,1 @@
+{"name": "dataset_val", "json_file": "/home/brlab/Dropbox/LeafMachine2/data/segmentation_training_data/groupB/val/images/POLYGONS_val.json", "image_root": "/home/brlab/Dropbox/LeafMachine2/data/segmentation_training_data/groupB/val/images", "evaluator_type": "coco", "thing_colors": [[0, 255, 46], [255, 173, 0], [255, 0, 209]], "thing_classes": ["leaf", "petiole", "hole"]}

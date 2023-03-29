@@ -40,6 +40,7 @@ leafmachine2/segmentation/detectron2/models
 leafmachine2/segmentation/detectron2/.gitignore
 /leafmachine2/segmentation/models/*
 !/leafmachine2/segmentation/models/*/cfg_output.yaml
+!/leafmachine2/segmentation/models/*/metadata.json
 
 leafmachine2/component_detector/datasets/
 leafmachine2/component_detector/wandb/
