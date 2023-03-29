@@ -1,0 +1,17 @@
+path: ../datasets/PLANT_Full
+train: images/train
+val: images/val
+test: images/test
+nc: 11
+names:
+- leaf_whole
+- leaf_partial
+- leaflet
+- seed_fruit_one
+- seed_fruit_many
+- flower_one
+- flower_many
+- bud
+- specimen
+- roots
+- wood
