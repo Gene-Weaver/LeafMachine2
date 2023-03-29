@@ -61,7 +61,7 @@ def fetch_data(logger, dir_home, cfg_file_path):
         path_release = get_weights(dir_home, current, logger)
         if path_release is not None:
             logger.warning(f"Data download successful. Unzipping...")
-            move_data_to_home(path_release, dir_home)
+            move_data_to_home(path_release, dir_home, logger)
             ready_to_use = True
             logger.warning(f"--------------------------------")
             logger.warning(f"   LeafMachine2 is up to date   ")
@@ -79,23 +79,6 @@ def fetch_data(logger, dir_home, cfg_file_path):
 def get_weights(dir_home, current, logger):
     
     try:
-        # path_zip = os.path.join(dir_home,'bin',current)
-        # zipurl = ''.join(['https://leafmachine.org/LM2/', current,'.zip'])
-        # headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'}
-
-        # req = urllib.request.Request(url=zipurl, headers=headers)
-
-        # # Download the ZIP file from the URL
-        # with urllib.request.urlopen(req) as url_response:
-        #     with open(''.join([current,'.zip']), 'wb') as file:
-        #         file.write(url_response.read())
-
-        # # Extract the contents of the ZIP file to the current directory
-        # zipfilename = current + '.zip'
-        # with ZipFile(zipfilename, 'r') as zip_file:
-        #     zip_file.extractall(path_zip)
-
-
         path_zip = os.path.join(dir_home,'bin',current)
         zipurl = ''.join(['https://leafmachine.org/LM2/', current,'.zip'])
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'}
@@ -122,14 +105,6 @@ def get_weights(dir_home, current, logger):
         with ZipFile(zipfilename, 'r') as zip_file:
             zip_file.extractall(os.path.join(dir_home,'bin'))
 
-
-            
-
-        # zipurl = ''.join(['https://leafmachine.org/LM2/', current,'.zip'])
-        # path_zip = os.path.join(dir_home,'bin',current)
-        # with urlopen(zipurl) as zipresp:
-        #     with ZipFile(BytesIO(zipresp.read())) as zfile:
-        #         zfile.extractall(path_zip)
         print(f"{bcolors.CGREENBG2}Data extracted to {path_zip}{bcolors.ENDC}")
         logger.warning(f"Data extracted to {path_zip}")
 
@@ -150,7 +125,7 @@ def load_version(dir_home):
             ver = yaml.full_load(ymlfile)
     return ver
 
-def move_data_to_home(path_release, dir_home):
+def move_data_to_home(path_release, dir_home, logger):
     path_list_file = os.path.join(path_release, 'path_list.yml')
 
     with open(path_list_file, 'r') as file:
@@ -174,65 +149,64 @@ def move_data_to_home(path_release, dir_home):
     source_file = os.path.join(path_release, 'ruler_classifier', 'ruler_classifier_38classes_v-1.pt')
     destination_dir = paths['path_ruler_classifier']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
+    try_move(logger, source_file, destination_dir )
     
 
     source_file = os.path.join(path_release, 'ruler_classifier', 'model_scripted_resnet_720_withCompression.pt')
     destination_dir = paths['path_ruler_binary_classifier']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
+    try_move(logger, source_file, destination_dir )
 
     source_file = os.path.join(path_release, 'ruler_classifier', 'binary_classes.txt')
     destination_dir = paths['path_ruler_classifier_binary_classes']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
+    try_move(logger, source_file, destination_dir )
 
     source_file = os.path.join(path_release, 'ruler_classifier', 'ruler_classes.txt')
     destination_dir = paths['path_ruler_classifier_ruler_classes']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
+    try_move(logger, source_file, destination_dir )
 
 
     ### Ruler segmentation
     source_file = os.path.join(path_release, 'ruler_segment', 'small_256_8__epoch-10.pt')
     destination_dir = paths['path_DocEnTR']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
+    try_move(logger, source_file, destination_dir )
 
 
     ### ACD
     source_file = os.path.join(path_release, 'acd', 'best.pt')
     destination_dir = paths['path_ACD']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
+    try_move(logger, source_file, destination_dir )
 
 
     ### PCD
     source_file = os.path.join(path_release, 'pcd', 'best.pt')
     destination_dir = paths['path_PCD']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
+    try_move(logger, source_file, destination_dir )
 
 
     ### landmarks
     source_file = os.path.join(path_release, 'landmarks', 'best.pt')
     destination_dir = paths['path_landmarks']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
+    try_move(logger, source_file, destination_dir )
 
 
     ### YOLO
     source_file = os.path.join(path_release, 'YOLO', 'yolov5x6.pt')
     destination_dir = paths['path_YOLO']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
+    try_move(logger, source_file, destination_dir )
 
 
     ### YOLO
     source_file = os.path.join(path_release, 'segmentation', 'model_final.pt')
     destination_dir = paths['path_segment']
-    os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
+    try_move(logger, source_file, destination_dir )
 
 def git_pull_no_clean():
     # Define the git command to run
@@ -260,7 +234,7 @@ def try_move(logger, source_file, destination_dir ):
         pass
     except Exception as e:
         # Catch any other exceptions that might occur
-        print(f"Error occurred while moving {source_file}: {str(e)}")
+        logger.warning(f"Error occurred while moving {source_file}: {str(e)}")
         print(f"Error occurred while moving {source_file}: {str(e)}")
 
 class bcolors:
@@ -278,4 +252,4 @@ class bcolors:
     CWHITEBG2  = '\33[107m'
 
 if __name__ == '__main__':
-    git_pull_no_clean
+    git_pull_no_clean()
