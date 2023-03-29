@@ -1,4 +1,4 @@
-[//][![LeafMachine2](https://LeafMachine2.org/img/LeafMachine2_Desktop_narrow.jpg "Field Prism")](https://LeafMachine2.org/)[//]
+[![LeafMachine2](https://LeafMachine.org/img/LM2_Desktop_Narrow2.jpg "LeafMachine2")](https://LeafMachine.org/)
 
 Table of Contents
 =================
