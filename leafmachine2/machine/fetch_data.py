@@ -88,6 +88,7 @@ def get_weights(dir_home, current, logger):
     except Exception as e:
         print(f"{bcolors.CREDBG2}ERROR --- Could not download or extract machine learning models\n{e}{bcolors.ENDC}")
         logger.warning(f"ERROR --- Could not download or extract machine learning models")
+        logger.warning(f"ERROR --- {e}")
         return None
         
 
