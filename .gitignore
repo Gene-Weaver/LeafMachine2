@@ -15,7 +15,6 @@ venv_LM2_310/
 venv_LM2_38/
 venv_LM2/
 tests/
-bin/
 .vscode/
 
 leafmachine2/*/.gitignore
