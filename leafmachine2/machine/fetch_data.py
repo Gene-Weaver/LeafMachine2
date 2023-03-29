@@ -5,6 +5,7 @@ from urllib.request import urlopen
 from zipfile import ZipFile
 import urllib.request
 from tqdm import tqdm
+import subprocess
 
 VERSION = 'v-2-1'
 
@@ -174,6 +175,7 @@ def move_data_to_home(path_release, dir_home):
     destination_dir = paths['path_ruler_classifier']
     os.makedirs(destination_dir, exist_ok=True)
     shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
+    
 
     source_file = os.path.join(path_release, 'ruler_classifier', 'model_scripted_resnet_720_withCompression.pt')
     destination_dir = paths['path_ruler_binary_classifier']
@@ -232,6 +234,34 @@ def move_data_to_home(path_release, dir_home):
     os.makedirs(destination_dir, exist_ok=True)
     shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
 
+def git_pull_no_clean():
+    # Define the git command to run
+    git_cmd = ['git', 'pull', '--no-clean']
+
+    # Run the git command using subprocess
+    result = subprocess.run(git_cmd, capture_output=True, text=True)
+
+    # Check if the command was successful
+    if result.returncode == 0:
+        print(result.stdout)
+    else:
+        print(result.stderr)
+
+def try_move(logger, source_file, destination_dir ):
+    try:
+        # Try to move the file using shutil.move()
+        shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
+        logger.warning(f"{source_file} moved to {destination_dir}")
+        print(f"{source_file} moved to {destination_dir}")
+    except FileExistsError:
+        # If the file already exists in the destination directory, skip it
+        logger.warning(f"{source_file} already exists in {destination_dir}. Skipping...")
+        print(f"{source_file} already exists in {destination_dir}. Skipping...")
+        pass
+    except Exception as e:
+        # Catch any other exceptions that might occur
+        print(f"Error occurred while moving {source_file}: {str(e)}")
+        print(f"Error occurred while moving {source_file}: {str(e)}")
 
 class bcolors:
     HEADER = '\033[95m'
@@ -246,3 +276,6 @@ class bcolors:
     CGREENBG2  = '\33[102m'
     CREDBG2    = '\33[101m'
     CWHITEBG2  = '\33[107m'
+
+if __name__ == '__main__':
+    git_pull_no_clean
