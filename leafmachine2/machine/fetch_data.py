@@ -173,64 +173,64 @@ def move_data_to_home(path_release, dir_home):
     source_file = os.path.join(path_release, 'ruler_classifier', 'ruler_classifier_38classes_v-1.pt')
     destination_dir = paths['path_ruler_classifier']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir)
+    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
 
     source_file = os.path.join(path_release, 'ruler_classifier', 'model_scripted_resnet_720_withCompression.pt')
     destination_dir = paths['path_ruler_binary_classifier']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir)
+    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
 
     source_file = os.path.join(path_release, 'ruler_classifier', 'binary_classes.txt')
     destination_dir = paths['path_ruler_classifier_binary_classes']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir)
+    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
 
     source_file = os.path.join(path_release, 'ruler_classifier', 'ruler_classes.txt')
     destination_dir = paths['path_ruler_classifier_ruler_classes']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir)
+    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
 
 
     ### Ruler segmentation
     source_file = os.path.join(path_release, 'ruler_segment', 'small_256_8__epoch-10.pt')
     destination_dir = paths['path_DocEnTR']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir)
+    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
 
 
     ### ACD
     source_file = os.path.join(path_release, 'acd', 'best.pt')
     destination_dir = paths['path_ACD']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir)
+    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
 
 
     ### PCD
     source_file = os.path.join(path_release, 'pcd', 'best.pt')
     destination_dir = paths['path_PCD']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir)
+    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
 
 
     ### landmarks
     source_file = os.path.join(path_release, 'landmarks', 'best.pt')
     destination_dir = paths['path_landmarks']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir)
+    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
 
 
     ### YOLO
     source_file = os.path.join(path_release, 'YOLO', 'yolov5x6.pt')
     destination_dir = paths['path_YOLO']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir)
+    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
 
 
     ### YOLO
     source_file = os.path.join(path_release, 'segmentation', 'model_final.pt')
     destination_dir = paths['path_segment']
     os.makedirs(destination_dir, exist_ok=True)
-    shutil.move(source_file, destination_dir)
+    shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
 
 
 class bcolors:
