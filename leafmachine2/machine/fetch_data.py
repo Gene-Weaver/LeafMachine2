@@ -204,7 +204,7 @@ def move_data_to_home(path_release, dir_home, logger):
 
 
     ### YOLO
-    source_file = os.path.join(path_release, 'segmentation', 'model_final.pt')
+    source_file = os.path.join(path_release, 'segmentation', 'model_final.pth')
     destination_dir = paths['path_segment']
     try_move(logger, source_file, destination_dir )
 
@@ -234,8 +234,8 @@ def try_move(logger, source_file, destination_dir ):
         pass
     except Exception as e:
         # Catch any other exceptions that might occur
-        logger.warning(f"Error occurred while moving {source_file}: {str(e)}")
-        print(f"Error occurred while moving {source_file}: {str(e)}")
+        logger.warning(f"[ERROR] occurred while moving {source_file}: \n{str(e)}")
+        print(f"ERROR occurred while moving {source_file}: \n{str(e)}")
 
 class bcolors:
     HEADER = '\033[95m'
