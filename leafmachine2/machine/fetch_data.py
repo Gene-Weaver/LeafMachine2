@@ -189,7 +189,7 @@ def move_data_to_home(path_release, dir_home, logger):
     try_move(logger, source_file, destination_dir )
 
 
-    ### landmarks
+    ### Landmarks
     source_file = os.path.join(path_release, 'landmarks', 'best.pt')
     destination_dir = paths['path_landmarks']
     os.makedirs(destination_dir, exist_ok=True)
@@ -203,9 +203,10 @@ def move_data_to_home(path_release, dir_home, logger):
     try_move(logger, source_file, destination_dir )
 
 
-    ### YOLO
+    ### Segmentation
     source_file = os.path.join(path_release, 'segmentation', 'model_final.pth')
     destination_dir = paths['path_segment']
+    os.makedirs(destination_dir, exist_ok=True)
     try_move(logger, source_file, destination_dir )
 
 def git_pull_no_clean():
@@ -225,17 +226,17 @@ def try_move(logger, source_file, destination_dir ):
     try:
         # Try to move the file using shutil.move()
         shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
-        logger.warning(f"{source_file} moved to {destination_dir}")
-        print(f"{source_file} moved to {destination_dir}")
+        logger.warning(f"{source_file}\nmoved to\n{destination_dir}")
+        print(f"{source_file}\nmoved to\n{destination_dir}")
     except FileExistsError:
         # If the file already exists in the destination directory, skip it
-        logger.warning(f"{source_file} already exists in {destination_dir}. Skipping...")
-        print(f"{source_file} already exists in {destination_dir}. Skipping...")
+        logger.warning(f"Already exists in\n{destination_dir}.\nSkipping...")
+        print(f"Already exists in\n{destination_dir}.\nSkipping...")
         pass
     except Exception as e:
         # Catch any other exceptions that might occur
-        logger.warning(f"[ERROR] occurred while moving {source_file}: \n{str(e)}")
-        print(f"ERROR occurred while moving {source_file}: \n{str(e)}")
+        logger.warning(f"[ERROR] occurred while moving:\n{source_file}:\n{str(e)}")
+        print(f"ERROR occurred while moving:\n{source_file}:\n{str(e)}")
 
 class bcolors:
     HEADER = '\033[95m'
