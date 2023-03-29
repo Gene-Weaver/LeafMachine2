@@ -3,6 +3,7 @@ import os, yaml, shutil
 from io import BytesIO
 from urllib.request import urlopen
 from zipfile import ZipFile
+import urllib.request
 
 VERSION = 'v-2-1'
 
@@ -76,11 +77,27 @@ def fetch_data(logger, dir_home, cfg_file_path):
 def get_weights(dir_home, current, logger):
     
     try:
-        zipurl = ''.join(['https://leafmachine.org/LM2/', current,'.zip'])
         path_zip = os.path.join(dir_home,'bin',current)
-        with urlopen(zipurl) as zipresp:
-            with ZipFile(BytesIO(zipresp.read())) as zfile:
-                zfile.extractall(path_zip)
+        zipurl = ''.join(['https://leafmachine.org/LM2/', current,'.zip'])
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36'}
+
+        req = urllib.request.Request(url=zipurl, headers=headers)
+
+        # Download the ZIP file from the URL
+        with urllib.request.urlopen(req) as url_response:
+            with open(''.join([current,'.zip']), 'wb') as file:
+                file.write(url_response.read())
+
+        # Extract the contents of the ZIP file to the current directory
+        zipfilename = current + '.zip'
+        with ZipFile(zipfilename, 'r') as zip_file:
+            zip_file.extractall(path_zip)
+
+        # zipurl = ''.join(['https://leafmachine.org/LM2/', current,'.zip'])
+        # path_zip = os.path.join(dir_home,'bin',current)
+        # with urlopen(zipurl) as zipresp:
+        #     with ZipFile(BytesIO(zipresp.read())) as zfile:
+        #         zfile.extractall(path_zip)
         print(f"{bcolors.CGREENBG2}Data extracted to {path_zip}{bcolors.ENDC}")
         logger.warning(f"Data extracted to {path_zip}")
 
