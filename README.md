@@ -169,6 +169,7 @@ If you plan on changing lots of settings, we recommend running LeafMachine2 in d
     <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
     - You should see some blue text, and then a lot of information in the console. 
     - If the run completes (usually after ~5 minutes) and you see a :grinning: then you should be all set!
-    - Otherwise, double check that you followed each step and reach out by submitting an inquiry in the form at [LeafMachine.org](https://LeafMachine.org/){:target="_blank"}
+    - Otherwise, double check that you followed each step and reach out by submitting an inquiry in the form at <a href="https://LeafMachine.org/" target="_blank">LeafMachine.org</a>
+
 
 ## Using LeafMachine2
