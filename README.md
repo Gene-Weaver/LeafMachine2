@@ -38,43 +38,85 @@ are officially supported.
 #### Virtual Environment
 
 1. Still inside the LeafMachine2 directory, show that a venv is currently not active: 
-    - `which python`
+    <pre><code class="language-python">
+        which python
+    </code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
 2. Then create the virtual environment (venv_fp is the name of our new virtual environment):  
-    - `python3 -m venv venv_fp`
+    <pre><code class="language-python">
+        python3 -m venv venv_fp
+    </code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
 3. Activate the virtual environment:  
-    - `source ./venv_fp/bin/activate`
+    <pre><code class="language-python">
+        source ./venv_fp/bin/activate
+    </code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
 4. Confirm that the venv is active (should be different from step 1):  
-    - `which python`
+    <pre><code class="language-python">
+        which python
+    </code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
 5. If you want to exit the venv, deactivate the venv using:  
-    - `deactivate`
+    <pre><code class="language-python">
+        deactivate
+    </code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
 
 #### Installing Packages
 
 1. Install the required dependencies to use LeafMachine2: 
-    - With the venv active, run 
+    - With the venv active, run: 
         <pre><code class="language-python">
             chmod +x install_dependencies
         </code></pre>
         <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
-
-        * `chmod +x install_dependencies`
-        * `bash install_dependencies.sh` 
+    - Then:
+        <pre><code class="language-python">
+            bash install_dependencies.sh
+        </code></pre>
+        <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
     - If you encounter an error, you can try running the following install command instead
-        * `pip install astropy asttokens beautifulsoup4 cachetools certifi cloudpickle colorama contourpy cycler Cython dask dataclasses debugpy decorator einops entrypoints executing fairscale filelock fonttools fsspec future fuzzywuzzy fvcore geojson gitdb GitPython grpcio huggingface-hub hydra-core idna imageio imagesize imutils iopath ipykernel ipython jedi joblib jsonpatch jsonpointer jupyter_client jupyter_core kiwisolver labelbox Levenshtein locket Markdown MarkupSafe matplotlib matplotlib-inline mypy-extensions ndjson nest-asyncio networkx numpy oauthlib omegaconf packaging pandas parso partd pathspec pathtools pickleshare Pillow platformdirs pooch portalocker promise prompt-toolkit protobuf psutil pure-eval py-cpuinfo pyamg pyasn1 pyasn1-modules pydantic pydot pyefd pyerfa pyGeoTile Pygments pyparsing pyproj python-dateutil python-Levenshtein pytz PyWavelets pywin32 PyYAML pyzenodo3 pyzmq QtPy rapidfuzz reportlab requests requests-oauthlib rsa scikit-image scikit-learn scipy seaborn sentry-sdk setproctitle Shapely shortuuid SimpleITK six sklearn smmap soupsieve stack-data tabulate tensorboard tensorboard-data-server tensorboard-plugin-wit termcolor threadpoolctl tifffile timm tomli toolz tornado tqdm traitlets typing_extensions urllib3 wandb wcwidth websocket-client Werkzeug wget yacs zenodo-get`
+        <pre><code class="language-python">
+            pip install astropy asttokens beautifulsoup4 cachetools certifi cloudpickle colorama contourpy cycler Cython dask dataclasses debugpy decorator einops entrypoints executing fairscale filelock fonttools fsspec future fuzzywuzzy fvcore geojson gitdb GitPython grpcio huggingface-hub hydra-core idna imageio imagesize imutils iopath ipykernel ipython jedi joblib jsonpatch jsonpointer jupyter_client jupyter_core kiwisolver labelbox Levenshtein locket Markdown MarkupSafe matplotlib matplotlib-inline mypy-extensions ndjson nest-asyncio networkx numpy oauthlib omegaconf packaging pandas parso partd pathspec pathtools pickleshare Pillow platformdirs pooch portalocker promise prompt-toolkit protobuf psutil pure-eval py-cpuinfo pyamg pyasn1 pyasn1-modules pydantic pydot pyefd pyerfa pyGeoTile Pygments pyparsing pyproj python-dateutil python-Levenshtein pytz PyWavelets pywin32 PyYAML pyzenodo3 pyzmq QtPy rapidfuzz reportlab requests requests-oauthlib rsa scikit-image scikit-learn scipy seaborn sentry-sdk setproctitle Shapely shortuuid SimpleITK six sklearn smmap soupsieve stack-data tabulate tensorboard tensorboard-data-server tensorboard-plugin-wit termcolor threadpoolctl tifffile timm tomli toolz tornado tqdm traitlets typing_extensions urllib3 wandb wcwidth websocket-client Werkzeug wget yacs zenodo-get
+        </code></pre>
+        <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
 2. Upgrade numpy: 
-    - `pip install numpy -U`
+    <pre><code class="language-python">
+        pip install numpy -U
+    </code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
 3. Install ViT for PyTorch. ViT is used for segmenting labels and rulers.
-    - `pip install vit-pytorch==0.37.1`
-4. 
-    - `pip install git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools`
-5. 
-    - `pip install pycocotools==2.0.5`
+    <pre><code class="language-python">
+        pip install vit-pytorch==0.37.1
+    </code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+4. Install COCO annotation tools
+    <pre><code class="language-python">
+        pip install git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools
+    </code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+5. Install COCO annotation tools
+    <pre><code class="language-python">
+        pip install pycocotools==2.0.5
+    </code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
 6. We need a special version of Open CV:
-    - `pip install opencv-contrib-python==4.7.0.68`
+    <pre><code class="language-python">
+        pip install opencv-contrib-python==4.7.0.68
+    </code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
 7. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
-    - WITH GPU: `pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113`
+    - WITH GPU: 
+    <pre><code class="language-python">
+        pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113
+    </code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
 8. Test the installation:  
-    - `python3 test.py`
+    <pre><code class="language-python">
+        python3 test.py
+    </code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
     - If you see large red messages, then the installation was not successful. The error message will be below the large red boxes, providing information on how to correct the installation error. If you need more help, please submit an inquiry in the form at [LeafMachine2.org](https://LeafMachine2.org/)
 9. You can view the test output in `LeafMachine2/demo/demo_output/`
 
@@ -103,9 +145,9 @@ are officially supported.
     - `pip install numpy -U`
 3. Install ViT for PyTorch. ViT is used for segmenting labels and rulers.
     - `pip install vit-pytorch==0.37.1`
-4. 
+4. Install COCO annotation tools
     - `pip install git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools`
-5. 
+5. Install COCO annotation tools
     - `pip install pycocotools==2.0.5`
 6. We need a special version of Open CV:
     - `pip install opencv-contrib-python==4.7.0.68`
