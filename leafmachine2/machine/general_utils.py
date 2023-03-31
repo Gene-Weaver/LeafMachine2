@@ -52,6 +52,33 @@ def parse_cfg():
     args = parser.parse_args()
     return args
 
+def check_for_subdirs(cfg):
+    original_in = cfg['leafmachine']['project']['dir_images_local']
+    dirs_list = []
+    run_name = []
+    if os.path.isdir(original_in):
+        # list contents of the directory
+        contents = os.listdir(original_in)
+        
+        # check if any of the contents is a directory
+        subdirs = [f for f in contents if os.path.isdir(os.path.join(original_in, f))]
+        
+        if len(subdirs) > 0:
+            print("The directory contains subdirectories:")
+            for subdir in subdirs:
+                print(os.path.join(original_in, subdir))
+                dirs_list.append(os.path.join(original_in, subdir))
+                run_name.append(subdir)
+        else:
+            print("The directory does not contain any subdirectories.")
+            dirs_list.append(original_in)
+            run_name.append(cfg['leafmachine']['project']['run_name'])
+
+    else:
+        print("The specified path is not a directory.")
+
+    return run_name, dirs_list
+
 def get_datetime():
     day = "_".join([str(datetime.datetime.now().strftime("%Y")),str(datetime.datetime.now().strftime("%m")),str(datetime.datetime.now().strftime("%d"))])
     time = "-".join([str(datetime.datetime.now().strftime("%H")),str(datetime.datetime.now().strftime("%M")),str(datetime.datetime.now().strftime("%S"))])

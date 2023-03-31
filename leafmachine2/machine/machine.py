@@ -11,7 +11,7 @@ from leafmachine2.component_detector.component_detector import detect_plant_comp
 from leafmachine2.segmentation.detectron2.segment_leaves import segment_leaves
 # from import  # ruler classifier?
 # from import  # landmarks
-from leafmachine2.machine.general_utils import get_datetime, load_config_file, report_config, split_into_batches, save_config_file, subset_dir_images, crop_detections_from_images
+from leafmachine2.machine.general_utils import check_for_subdirs, get_datetime, load_config_file, load_config_file_testing, report_config, split_into_batches, save_config_file, subset_dir_images, crop_detections_from_images
 from leafmachine2.machine.general_utils import print_main_start, print_main_success, print_main_fail, print_main_info, make_file_names_valid, make_images_in_dir_vertical
 from leafmachine2.machine.directory_structure import Dir_Structure
 from leafmachine2.machine.data_project import Project_Info
@@ -24,45 +24,27 @@ from leafmachine2.machine.LM2_logger import start_logging
 from leafmachine2.machine.utils_ruler import convert_rulers_testing, parallel_convert_rulers
 from leafmachine2.machine.fetch_data import fetch_data
 
-def machine(cfg_file_path):
+def machine(cfg_file_path, dir_home, cfg_test):
     t_overall = perf_counter()
-    # Set LeafMachine2 dir 
-    dir_home = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
     # Load config file
     report_config(dir_home, cfg_file_path)
-    cfg = load_config_file(dir_home, cfg_file_path)
+
+    if cfg_test is None:
+        cfg = load_config_file(dir_home, cfg_file_path)
+    else:
+        cfg = cfg_test 
     # user_cfg = load_config_file(dir_home, cfg_file_path)
     # cfg = Config(user_cfg)
 
-
-    original_in = cfg['leafmachine']['project']['dir_images_local']
-    dirs_list = []
-    run_name = []
-    if os.path.isdir(original_in):
-        # list contents of the directory
-        contents = os.listdir(original_in)
-        
-        # check if any of the contents is a directory
-        subdirs = [f for f in contents if os.path.isdir(os.path.join(original_in, f))]
-        
-        if len(subdirs) > 0:
-            print("The directory contains subdirectories:")
-            for subdir in subdirs:
-                print(os.path.join(original_in, subdir))
-                dirs_list.append(os.path.join(original_in, subdir))
-                run_name.append(subdir)
-        else:
-            print("The directory does not contain any subdirectories.")
-            dirs_list.append(original_in)
-            run_name.append(subdir)
-
-    else:
-        print("The specified path is not a directory.")
+    # Check to see if there are subdirs
+    # Yes --> use the names of the subsirs as run_name
+    run_name, dirs_list = check_for_subdirs(cfg)
 
     for dir_ind, dir_in in enumerate(dirs_list):
-        cfg['leafmachine']['project']['dir_images_local'] = dir_in
-        cfg['leafmachine']['project']['run_name'] = run_name[dir_ind]
+        if len(run_name) > 1:
+            cfg['leafmachine']['project']['dir_images_local'] = dir_in
+            cfg['leafmachine']['project']['run_name'] = run_name[dir_ind]
 
         # Dir structure
         print_main_start("Creating Directory Structure")
@@ -169,7 +151,21 @@ def machine(cfg_file_path):
 
 
 if __name__ == '__main__':    
-    # cfg_file_path = 'D:\Dropbox\LeafMachine2\LeafMachine2.yaml'
-    # cfg_file_path = 'test_installation'
-    cfg_file_path = None
-    machine(cfg_file_path)
+    is_test = True
+
+    # Set LeafMachine2 dir 
+    dir_home = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+
+    if is_test:
+        cfg_file_path = os.path.join(dir_home, 'demo','demo.yaml') #'D:\Dropbox\LeafMachine2\LeafMachine2.yaml'
+        # cfg_file_path = 'test_installation'
+
+        cfg_testing = load_config_file_testing(dir_home, cfg_file_path)
+        cfg_testing['leafmachine']['project']['dir_images_local'] = os.path.join(dir_home, cfg_testing['leafmachine']['project']['dir_images_local'][0], cfg_testing['leafmachine']['project']['dir_images_local'][1])
+        cfg_testing['leafmachine']['project']['dir_output'] = os.path.join(dir_home, cfg_testing['leafmachine']['project']['dir_output'][0], cfg_testing['leafmachine']['project']['dir_output'][1])
+
+        machine(cfg_file_path, dir_home, cfg_testing)
+    else:
+        cfg_file_path = None
+        cfg_testing = None
+        machine(cfg_file_path, dir_home, cfg_testing)
