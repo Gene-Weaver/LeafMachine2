@@ -1,9 +1,10 @@
 <!-- Include Clipboard.js -->
+```html
 <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.8/clipboard.min.js"></script>
 <script>
   var clipboard = new ClipboardJS('.btn');
 </script>
-
+```
 [![LeafMachine2](https://LeafMachine.org/img/LM2_Desktop_Narrow2.jpg "LeafMachine2")](https://LeafMachine.org/)
 
 Table of Contents
