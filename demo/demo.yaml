@@ -77,10 +77,10 @@ leafmachine:
         show_landmarks: True
         ignore_landmark_classes: []
 
-        line_width_archival: 2 # int
-        line_width_plant: 6 # int
-        line_width_seg: 12 # int # thick = 12
-        line_width_efd: 6 # int # thick = 3
+        line_width_archival: 1 # int
+        line_width_plant: 1 # int
+        line_width_seg: 1 # int # thick = 12
+        line_width_efd: 1 # int # thick = 3
         alpha_transparency_archival: 0.3  # float between 0 and 1
         alpha_transparency_plant: 0
         alpha_transparency_seg_whole_leaf: 0.4
