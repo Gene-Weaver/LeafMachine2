@@ -348,7 +348,17 @@ def load_config_file(dir_home, cfg_file_path):
         return load_cfg(dir_home)
     else:
         if cfg_file_path == 'test_installation':
-            path_cfg = os.path.join(dir_home,'demo','LeafMachine2_demo.yaml')                     # TODO make the demo yaml
+            path_cfg = os.path.join(dir_home,'demo','LeafMachine2_demo.yaml')                     
+            return get_cfg_from_full_path(path_cfg)
+        else: # Custom path
+            return get_cfg_from_full_path(cfg_file_path)
+        
+def load_config_file_testing(dir_home, cfg_file_path):
+    if cfg_file_path == None: # Default path
+        return load_cfg(dir_home)
+    else:
+        if cfg_file_path == 'test_installation':
+            path_cfg = os.path.join(dir_home,'demo','demo.yaml')                     
             return get_cfg_from_full_path(path_cfg)
         else: # Custom path
             return get_cfg_from_full_path(cfg_file_path)
