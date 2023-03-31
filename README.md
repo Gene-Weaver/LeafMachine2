@@ -169,3 +169,32 @@ LeafMachine2 is designed to use GPUs. We have not tested LeafMachine2 on systems
 - We have not validated CUDA 11.6 or CUDA 11.7, but our code is likely to work with them too. If you have success with other versions of CUDA/pytorch, let us know and we will update our instructions. 
 
 ## Using LeafMachine2
+
+
+<style>
+.highlight pre {
+  padding: 5px;
+  margin: 0;
+}
+.highlight .btn {
+  padding: 5px 10px;
+}
+</style>
+
+<div class="highlight">
+  <pre><code class="language-python">
+  your code here
+  </code></pre>
+  <button class="btn" onclick="copyCode()">Copy</button>
+</div>
+
+<script>
+function copyCode() {
+  var code = document.querySelector('.highlight code');
+  var range = document.createRange();
+  range.selectNode(code);
+  window.getSelection().addRange(range);
+  document.execCommand('copy');
+  window.getSelection().removeAllRanges();
+}
+</script>
