@@ -1,5 +1,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.8/clipboard.min.js"></script>
-
+<script>
+  var clipboard = new ClipboardJS('.btn');
+</script>
 
 [![LeafMachine2](https://LeafMachine.org/img/LM2_Desktop_Narrow2.jpg "LeafMachine2")](https://LeafMachine.org/)
 
@@ -51,7 +53,7 @@ are officially supported.
 1. Install the required dependencies to use LeafMachine2: 
     - With the venv active, run 
         <pre><code class="language-python">
-        chmod +x install_dependencies
+            chmod +x install_dependencies
         </code></pre>
         <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
 
