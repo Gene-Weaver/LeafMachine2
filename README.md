@@ -22,6 +22,12 @@ Table of Contents
 ### About Python Virtual Environments
 A virtual environment is a tool to keep the dependencies required by different projects in separate places, by creating isolated python virtual environments for them. This avoids any conflicts between the packages that you have installed for different projects. It makes it easier to maintain different versions of packages for different projects.
 
+> We include `requirements.txt` files in the `LeafMachine2/requirements/` folder. If you experience version incompatability following the
+instructions below, please refer to `LeafMachine2/requirements/requirements_all.txt` for an exhaustive list of packages and versions that
+are officially supported. 
+
+---
+
 ### Installation - Ubuntu 20.04
 
 #### Virtual Environment
@@ -40,18 +46,29 @@ A virtual environment is a tool to keep the dependencies required by different p
 #### Installing Packages
 
 1. Install the required dependencies to use LeafMachine2: 
-    - `pip install opencv-python pandas pybboxes scipy scikit-image numpy tqdm pyyaml IPython matplotlib seaborn tensorboard fpdf`
+    - With the venv active, run 
+        * `chmod +x install_dependencies`
+        * `bash install_dependencies.sh` 
+    - If you encounter an error, you can try running the following install command instead
+        * `pip install astropy asttokens beautifulsoup4 cachetools certifi cloudpickle colorama contourpy cycler Cython dask dataclasses debugpy decorator einops entrypoints executing fairscale filelock fonttools fsspec future fuzzywuzzy fvcore geojson gitdb GitPython grpcio huggingface-hub hydra-core idna imageio imagesize imutils iopath ipykernel ipython jedi joblib jsonpatch jsonpointer jupyter_client jupyter_core kiwisolver labelbox Levenshtein locket Markdown MarkupSafe matplotlib matplotlib-inline mypy-extensions ndjson nest-asyncio networkx numpy oauthlib omegaconf packaging pandas parso partd pathspec pathtools pickleshare Pillow platformdirs pooch portalocker promise prompt-toolkit protobuf psutil pure-eval py-cpuinfo pyamg pyasn1 pyasn1-modules pydantic pydot pyefd pyerfa pyGeoTile Pygments pyparsing pyproj python-dateutil python-Levenshtein pytz PyWavelets pywin32 PyYAML pyzenodo3 pyzmq QtPy rapidfuzz reportlab requests requests-oauthlib rsa scikit-image scikit-learn scipy seaborn sentry-sdk setproctitle Shapely shortuuid SimpleITK six sklearn smmap soupsieve stack-data tabulate tensorboard tensorboard-data-server tensorboard-plugin-wit termcolor threadpoolctl tifffile timm tomli toolz tornado tqdm traitlets typing_extensions urllib3 wandb wcwidth websocket-client Werkzeug wget yacs zenodo-get`
 2. Upgrade numpy: 
     - `pip install numpy -U`
-3. Install qrcode[pil]:  
-    - `pip install qrcode[pil]`
-4. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
+3. Install ViT for PyTorch. ViT is used for segmenting labels and rulers.
+    - `pip install vit-pytorch==0.37.1`
+4. 
+    - `pip install git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools`
+5. 
+    - `pip install pycocotools==2.0.5`
+6. We need a special version of Open CV:
+    - `pip install opencv-contrib-python==4.7.0.68`
+7. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
     - WITH GPU: `pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113`
-    - WITH CPU ONLY: `pip install torch==1.11.0+cpu torchvision==0.12.0+cpu torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cpu`
-5. Test the installation:  
+8. Test the installation:  
     - `python3 test.py`
-    - If you see large red messages, then the installation was not successful. The rror message will be below the large red boxes, providing information on how to correct the installation error. If you need more help, please submit an inquiry in the form at [LeafMachine2.org](https://LeafMachine2.org/)
-6. You can view the test output in `LeafMachine2/demo/demo_output/`
+    - If you see large red messages, then the installation was not successful. The error message will be below the large red boxes, providing information on how to correct the installation error. If you need more help, please submit an inquiry in the form at [LeafMachine2.org](https://LeafMachine2.org/)
+9. You can view the test output in `LeafMachine2/demo/demo_output/`
+
+---
 
 ### Installation - Windows 10+
 
@@ -71,25 +88,31 @@ A virtual environment is a tool to keep the dependencies required by different p
 #### Installing Packages
 
 1. Install the required dependencies to use LeafMachine2:  
-    - `pip install opencv-python pandas pybboxes scipy scikit-image numpy tqdm pyyaml IPython matplotlib seaborn tensorboard fpdf`
+    - `pip install astropy asttokens beautifulsoup4 cachetools certifi cloudpickle colorama contourpy cycler Cython dask dataclasses debugpy decorator einops entrypoints executing fairscale filelock fonttools fsspec future fuzzywuzzy fvcore geojson gitdb GitPython grpcio huggingface-hub hydra-core idna imageio imagesize imutils iopath ipykernel ipython jedi joblib jsonpatch jsonpointer jupyter_client jupyter_core kiwisolver labelbox Levenshtein locket Markdown MarkupSafe matplotlib matplotlib-inline mypy-extensions ndjson nest-asyncio networkx numpy oauthlib omegaconf packaging pandas parso partd pathspec pathtools pickleshare Pillow platformdirs pooch portalocker promise prompt-toolkit protobuf psutil pure-eval py-cpuinfo pyamg pyasn1 pyasn1-modules pydantic pydot pyefd pyerfa pyGeoTile Pygments pyparsing pyproj python-dateutil python-Levenshtein pytz PyWavelets pywin32 PyYAML pyzenodo3 pyzmq QtPy rapidfuzz reportlab requests requests-oauthlib rsa scikit-image scikit-learn scipy seaborn sentry-sdk setproctitle Shapely shortuuid SimpleITK six sklearn smmap soupsieve stack-data tabulate tensorboard tensorboard-data-server tensorboard-plugin-wit termcolor threadpoolctl tifffile timm tomli toolz tornado tqdm traitlets typing_extensions urllib3 wandb wcwidth websocket-client Werkzeug wget yacs zenodo-get`
 2. Upgrade numpy:  
     - `pip install numpy -U`
-3. Install qrcode[pil]:  
-    - `pip install qrcode[pil]`
-4. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
+3. Install ViT for PyTorch. ViT is used for segmenting labels and rulers.
+    - `pip install vit-pytorch==0.37.1`
+4. 
+    - `pip install git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools`
+5. 
+    - `pip install pycocotools==2.0.5`
+6. We need a special version of Open CV:
+    - `pip install opencv-contrib-python==4.7.0.68`
+7. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
     - WITH GPU: `pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113`
-    - WITH CPU ONLY: `pip install torch==1.11.0+cpu torchvision==0.12.0+cpu torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cpu`
-5. Test the installation. test.py will test the QR code builder and image processing portions of LeafMachine2:  
+8. Test the installation. test.py will test the QR code builder and image processing portions of LeafMachine2:  
     - `python test.py`
     - If you see large red messages, then the installation was not successful. The rror message will be below the large red boxes, providing information on how to correct the installation error. If you need more help, please submit an inquiry in the form at [LeafMachine2.org](https://LeafMachine2.org/)
-6. You can view the test output in at [this Zenodo repo]https://zenodo.org/record/7764379
+9. You can view the test output in at [this Zenodo repo]https://zenodo.org/record/7764379
 
 ---
 
 ### Troubleshooting CUDA
 
 - If your system already has another version of CUDA (e.g., CUDA 11.7) then it can be complicated to switch to CUDA 11.3. 
-- The simplest solution is to install pytorch with CPU only, avoiding the CUDA problem entirely.
+- The simplest solution is to install pytorch with CPU only, avoiding the CUDA problem entirely, but that is not recommended given that 
+LeafMachine2 is designed to use GPUs. We have not tested LeafMachine2 on systems that lack GPUs.
 - Alternatively, you can install the [latest pytorch release]https://pytorch.org/get-started/locally/ for your specific system, either using the cpu only version `pip3 install torch`, `pip3 install torchvision`, `pip3 install torchaudio` or by matching the pythorch version to your CUDA version.
 - We have not validated CUDA 11.6 or CUDA 11.7, but our code is likely to work with them too. If you have success with other versions of CUDA/pytorch, let us know and we will update our instructions. 
 

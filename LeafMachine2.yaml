@@ -14,7 +14,7 @@ leafmachine:
     project:
         # Project Output Dir
         dir_output: 'D:/Dropbox/LM2_Env/Image_Datasets/TEST_LM2'
-        run_name: 'Cannon_10p_Cannon_Corrected_Justified_Template' #'images_short_TEST' #'images_short_landmark'
+        run_name: 'multi_test' #'images_short_TEST' #'images_short_landmark'
         # If location is GBIF, set the config in:
         #       LeafMachine2/configs/config_download_from_GBIF_all_images_in_file OR
         #       LeafMachine2/configs/config_download_from_GBIF_all_images_in_filter
@@ -25,7 +25,7 @@ leafmachine:
         # If *not* using local, set the following 4 to null
         # If providing occ and img, then a combined will be generated
         # If providing combined, then set images and occ to null
-        dir_images_local: 'D:\Dropbox\LM2_Env\Image_Datasets\SET_FieldPrism_Test\TESTING_OUTPUT\Images_Processed\REU_Field_QR-Code-Images\Cannon_Corrected_Justified_Template\Images_Corrected' #'D:/Dropbox/LM2_Env/Image_Datasets/Hodel' #'home/brlab/Dropbox/LM2_Env/Image_Datasets/Manuscript_Images' # 'D:\Dropbox\LM2_Env\Image_Datasets\SET_FieldPrism_Test\TESTING_OUTPUT\Images_Processed\REU_Field_QR-Code-Images\Cannon_Corrected\Images_Corrected' # 'F:\temp_3sppFamily' # 'D:/Dropbox/LM2_Env/Image_Datasets/GBIF_BroadSample_3SppPerFamily' # SET_Diospyros/images_short' # 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Diospyros/images_short' #'D:\Dropbox\LM2_Env\Image_Datasets\GBIF_BroadSample_Herbarium'  #'D:/Dropbox/LM2_Env/Image_Datasets/SET_Diospyros/images_short'  # str | only for image_location:local | full path for directory containing images
+        dir_images_local: 'D:\Dropbox\LM2_Env\Image_Datasets\Explore\Images_NYBG_by_taxa_remain' #'D:/Dropbox/LM2_Env/Image_Datasets/Hodel' #'home/brlab/Dropbox/LM2_Env/Image_Datasets/Manuscript_Images' # 'D:\Dropbox\LM2_Env\Image_Datasets\SET_FieldPrism_Test\TESTING_OUTPUT\Images_Processed\REU_Field_QR-Code-Images\Cannon_Corrected\Images_Corrected' # 'F:\temp_3sppFamily' # 'D:/Dropbox/LM2_Env/Image_Datasets/GBIF_BroadSample_3SppPerFamily' # SET_Diospyros/images_short' # 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Diospyros/images_short' #'D:\Dropbox\LM2_Env\Image_Datasets\GBIF_BroadSample_Herbarium'  #'D:/Dropbox/LM2_Env/Image_Datasets/SET_Diospyros/images_short'  # str | only for image_location:local | full path for directory containing images
         
         path_combined_csv_local: null # 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Diospyros/DWC/combined_diospyros.csv' #'D:/Dropbox/LM2_Env/Image_Datasets/SET_Diospyros/DWC_short/combined_diospyros_short.csv'  # str | only for image_location:local | full path for directory containing images
         path_occurrence_csv_local: null # 'D:\Dropbox\LM2_Env\Image_Datasets\SET_Acacia\armature_occurrence.csv'  # str | only for image_location:local | full path for directory containing images
@@ -46,7 +46,7 @@ leafmachine:
         #           ruler, barcode, colorcard, label, map, envelope, photo, attached_item, weights
         # plant |FROM| 
         #           leaf_whole, leaf_partial, leaflet, seed_fruit_one, seed_fruit_many, flower_one, flower_many, bud, specimen, roots, wood
-        do_save_cropped_annotations: True
+        do_save_cropped_annotations: False
         save_cropped_annotations: ['label'] # 'save_all' to save all classes
         save_per_image: False # creates a folder for each image, saves crops into class-names folders
         save_per_annotation_class: True # saves crops into class-names folders
@@ -92,7 +92,7 @@ leafmachine:
         detector_version: 'PLANT_GroupAB_200'
         detector_iteration: 'PLANT_GroupAB_200'
         detector_weights: 'best.pt'
-        minimum_confidence_threshold: 0.1 #0.2
+        minimum_confidence_threshold: 0.5 #0.2
         do_save_prediction_overlay_images: True
         ignore_objects_for_overlay: [] #['leaf_partial'] # list[str] # list of objects that can be excluded from the overlay # all = null
     
@@ -139,7 +139,7 @@ leafmachine:
     # Configure Archival Component Detector
     leaf_segmentation:
         segment_whole_leaves: True
-        segment_partial_leaves: True ### ***
+        segment_partial_leaves: False ### ***
 
         keep_only_best_one_leaf_one_petiole: True
 

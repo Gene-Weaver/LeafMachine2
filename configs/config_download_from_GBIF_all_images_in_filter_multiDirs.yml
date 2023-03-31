@@ -1,0 +1,48 @@
+# config_download_from_GBIF_all_images_in_filter.yml
+####################################################################################
+### Directories ###
+# Dir with DWC dirs
+dir_home: 'D:\Dropbox\LM2_Env\Image_Datasets\Explore\DWC'
+
+# Dir out
+dir_destination_images: 'D:\Dropbox\LM2_Env\Image_Datasets\Explore\Images_NYBG_by_taxa'
+dir_destination_csv: 'D:\Dropbox\LM2_Env\Image_Datasets\Explore\Combined'
+
+####################################################################################
+### Exisitng Files ###
+# Darwin Core Occurance File
+filename_occ: 'occurrence.txt'
+
+# Darwin Core Images File
+filename_img: 'multimedia.txt' # 
+
+####################################################################################
+### Files that will be created ###
+# Set the filename of a new csv containing the merged records from images and occ
+#      filename_combined: 'combined_XXXXXXX.csv'
+filename_combined: null # appends to this file # null --> uses folder name
+# filename_combined: 'combined_spines.csv'
+
+####################################################################################
+### Wishlist ###
+filename_wishlist: ''
+chosen_filter: '' # species, genus, family
+
+####################################################################################
+### Set bounds ###
+n_already_downloaded: 0
+n_max_to_download: 1000
+n_imgs_per_species: 1000
+MP_low: 1
+MP_high: 200
+
+####################################################################################
+### Ignore Problematic Herbaria ###           download_all_images_in_images_csv(cfg) 
+# Some herbaria (MNHM, or Naturalis Biodiversity Center...) have server/broken link issues frequently
+# Set to True if you get long timeout errors
+# Recommend = True
+ignore_banned_herb: True 
+# You can add your own banned herbs here.
+# Add to the list based on the url stems from the 'identifier' column in the images.csv.
+# Eg. 'http://mediaphoto.mnhn.fr/media/144135118650898Vf4SNC2P5ot2SW'  -->  'mediaphoto.mnhn.fr'
+banned_url_stems: ['mediaphoto.mnhn.fr'] # ['mediaphoto.mnhn.fr', 'stock.images.gov'] etc....
