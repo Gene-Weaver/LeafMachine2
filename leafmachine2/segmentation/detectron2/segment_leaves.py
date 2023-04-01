@@ -188,7 +188,14 @@ def segment_images(logger, Instance_Detector, dict_objects, leaf_type, dict_name
 
                     # Segment!
                     # fig, out_polygons, out_bboxes, out_labels, out_color = Instance_Detector.segment(img_cropped, generate_overlay, overlay_dpi, bg_color)
-                    out_polygons, out_bboxes, out_labels, out_color = Instance_Detector.segment(img_cropped, generate_overlay, overlay_dpi, bg_color)
+                    try:
+                        out_polygons, out_bboxes, out_labels, out_color = Instance_Detector.segment(img_cropped, generate_overlay, overlay_dpi, bg_color)
+                    except:
+                        detected_components = []
+                        cropped_overlay = []
+                        overlay_data = []
+                        cropped_overlay_size = []
+                        out_polygons = []
                     
                     if len(out_polygons) > 0: # Success
                         if keep_best:

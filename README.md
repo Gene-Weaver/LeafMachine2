@@ -9,8 +9,11 @@ Table of Contents
 ### Prerequisites
 - Python 3.8.10 (Later versions should work. We have validated Python 3.10.4 too)
 - PyTorch 1.11 
-- CUDA version 11.3 (if utilizing a GPU)
 - Git
+- CUDA version 11.3 (if utilizing a GPU)
+    * see [Troubleshooting CUDA](#Troubleshooting-CUDA)
+
+
 
 ### Hardware
 - A GPU with at least 8 GB of VRAM is required
