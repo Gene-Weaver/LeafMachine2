@@ -38,6 +38,7 @@ leafmachine2/segmentation/detectron2/detectron2/model_zoo/configs
 leafmachine2/segmentation/detectron2/datasets/*
 leafmachine2/segmentation/detectron2/models
 leafmachine2/segmentation/detectron2/.gitignore
+!leafmachine2/segmentation/detectron2/detectron2/data/
 /leafmachine2/segmentation/models/*
 !/leafmachine2/segmentation/models/*/cfg_output.yaml
 !/leafmachine2/segmentation/models/*/metadata.json
