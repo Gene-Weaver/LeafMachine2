@@ -6,7 +6,7 @@ def test_LM2():
     is_test = True
 
     # Set LeafMachine2 dir 
-    dir_home = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    dir_home = os.path.dirname(__file__)
 
     if is_test:
         cfg_file_path = os.path.join(dir_home, 'demo','demo.yaml') #'D:\Dropbox\LeafMachine2\LeafMachine2.yaml'
