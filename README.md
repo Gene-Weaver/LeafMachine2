@@ -12,6 +12,15 @@ Table of Contents
 - CUDA version 11.3 (if utilizing a GPU)
 - Git
 
+### Hardware
+- A GPU with at least 8 GB of VRAM is required
+- LeafMachine2 v.2.1 is RAM limited. A batch size of 50 images could potentially utilize 48 GB+ of system memory. Setting batch sizes to 20 will only increase the number of summary and data files, but performance speed differences are minimal.
+- The PCD confidence threshold dictates RAM usage. More leaves detected -> more RAM to store more leaves and derived measurements until they are saved to batch files and summary images. 
+- The number of leaves per image dictates RAM usage. Taxa with hundred of leaves per image (e.g. _Diospyros buxifolia_) will require much more RAM than taxa with few leaves per image (e.g. _Quercus alba_)
+- For most PCs, set the number of workers to 2 or 4. If you have a high performance PC with 128 GB+ of RAM and a powerful CPU, then 8 workers and batch sizes of 100+ are possible. 
+> **Note:** An average PC with 32 GB of RAM and a consumer-grade GPU is more than capable of running LeafMachine2, just dial back the batch size. With the right configs, a PC with 16 GB of RAM can run LeafMachine2 if the batch size is set to 10 or 20. 
+
+
 ### Installation - Cloning the LeafMachine2 Repository
 1. First, install Python 3.8.10, or greater, on your machine of choice.
     - Make sure that you can use `pip` to install packages on your machine, or at least inside of a virtual environment.
@@ -37,51 +46,51 @@ For more information about virtual environments, please see [Creation of virtual
 
 1. Still inside the LeafMachine2 directory, show that a venv is currently not active 
     <pre><code class="language-python">which python</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
 2. Then create the virtual environment (venv_LM2 is the name of our new virtual environment)  
     <pre><code class="language-python">python3 -m venv venv_LM2</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
 3. Activate the virtual environment  
     <pre><code class="language-python">source ./venv_LM2/bin/activate</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
 4. Confirm that the venv is active (should be different from step 1)  
     <pre><code class="language-python">which python</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
 5. If you want to exit the venv, deactivate the venv using  
     <pre><code class="language-python">deactivate</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
 
 #### Installing Packages
 
 1. Install the required dependencies to use LeafMachine2 
     - With the venv active, run 
         <pre><code class="language-python">chmod +x install_dependencies</code></pre>
-        <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+        <button class="btn" data-clipboard-target="#code-snippet"></button>
     - Then
         <pre><code class="language-python">bash install_dependencies.sh</code></pre>
-        <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+        <button class="btn" data-clipboard-target="#code-snippet"></button>
     - If you encounter an error, you can try running the following install command instead
         <pre><code class="language-python">pip install astropy asttokens beautifulsoup4 cachetools certifi cloudpickle colorama contourpy cycler Cython dask dataclasses debugpy decorator einops entrypoints executing fairscale filelock fonttools fsspec future fuzzywuzzy fvcore geojson gitdb GitPython grpcio huggingface-hub hydra-core idna imageio imagesize imutils iopath ipykernel ipython jedi joblib jsonpatch jsonpointer jupyter_client jupyter_core kiwisolver labelbox Levenshtein locket Markdown MarkupSafe matplotlib matplotlib-inline mypy-extensions ndjson nest-asyncio networkx numpy oauthlib omegaconf packaging pandas parso partd pathspec pathtools pickleshare Pillow platformdirs pooch portalocker promise prompt-toolkit protobuf psutil pure-eval py-cpuinfo pyamg pyasn1 pyasn1-modules pydantic pydot pyefd pyerfa pyGeoTile Pygments pyparsing pyproj python-dateutil python-Levenshtein pytz PyWavelets pywin32 PyYAML pyzenodo3 pyzmq QtPy rapidfuzz reportlab requests requests-oauthlib rsa scikit-image scikit-learn scipy seaborn sentry-sdk setproctitle Shapely shortuuid SimpleITK six sklearn smmap soupsieve stack-data tabulate tensorboard tensorboard-data-server tensorboard-plugin-wit termcolor threadpoolctl tifffile timm tomli toolz tornado tqdm traitlets typing_extensions urllib3 wandb wcwidth websocket-client Werkzeug wget yacs zenodo-get</code></pre>
-        <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+        <button class="btn" data-clipboard-target="#code-snippet"></button>
 2. Upgrade numpy 
     <pre><code class="language-python">pip install numpy -U</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
-3. Install ViT for PyTorch. ViT is used for segmenting labels and rulers.
-    <pre><code class="language-python">pip install vit-pytorch==0.37.1</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
-4. Install COCO annotation tools
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+3. Install COCO annotation tools
     <pre><code class="language-python">pip install git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
-5. Install COCO annotation tools
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+4. Install COCO annotation tools
     <pre><code class="language-python">pip install pycocotools==2.0.5</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
-6. We need a special version of Open CV
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+5. We need a special version of Open CV
     <pre><code class="language-python">pip install opencv-contrib-python==4.7.0.68</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
-7. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+6. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
     - WITH GPU 
     <pre><code class="language-python">pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+7. Install ViT for PyTorch. ViT is used for segmenting labels and rulers.
+    <pre><code class="language-python">pip install vit-pytorch==0.37.1</code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
 
 > If you need help, please submit an inquiry in the form at [LeafMachine.org](https://LeafMachine.org/)
 
@@ -93,44 +102,44 @@ For more information about virtual environments, please see [Creation of virtual
 
 1. Still inside the LeafMachine2 directory, show that a venv is currently not active 
     <pre><code class="language-python">python --version</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
 2. Then create the virtual environment (venv_LM2 is the name of our new virtual environment)  
     <pre><code class="language-python">python3 -m venv venv_LM2</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
 3. Activate the virtual environment  
     <pre><code class="language-python">.\venv_LM2\Scripts\activate</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
 4. Confirm that the venv is active (should be different from step 1)  
     <pre><code class="language-python">python --version</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
 5. If you want to exit the venv, deactivate the venv using  
     <pre><code class="language-python">deactivate</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
 
 #### Installing Packages
 
 1. Install the required dependencies to use LeafMachine2  
     <pre><code class="language-python">pip install astropy asttokens beautifulsoup4 cachetools certifi cloudpickle colorama contourpy cycler Cython dask dataclasses debugpy decorator einops entrypoints executing fairscale filelock fonttools fsspec future fuzzywuzzy fvcore geojson gitdb GitPython grpcio huggingface-hub hydra-core idna imageio imagesize imutils iopath ipykernel ipython jedi joblib jsonpatch jsonpointer jupyter_client jupyter_core kiwisolver labelbox Levenshtein locket Markdown MarkupSafe matplotlib matplotlib-inline mypy-extensions ndjson nest-asyncio networkx numpy oauthlib omegaconf packaging pandas parso partd pathspec pathtools pickleshare Pillow platformdirs pooch portalocker promise prompt-toolkit protobuf psutil pure-eval py-cpuinfo pyamg pyasn1 pyasn1-modules pydantic pydot pyefd pyerfa pyGeoTile Pygments pyparsing pyproj python-dateutil python-Levenshtein pytz PyWavelets pywin32 PyYAML pyzenodo3 pyzmq QtPy rapidfuzz reportlab requests requests-oauthlib rsa scikit-image scikit-learn scipy seaborn sentry-sdk setproctitle Shapely shortuuid SimpleITK six sklearn smmap soupsieve stack-data tabulate tensorboard tensorboard-data-server tensorboard-plugin-wit termcolor threadpoolctl tifffile timm tomli toolz tornado tqdm traitlets typing_extensions urllib3 wandb wcwidth websocket-client Werkzeug wget yacs zenodo-get</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
 2. Upgrade numpy  
     <pre><code class="language-python">pip install numpy -U</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
-3. Install ViT for PyTorch. ViT is used for segmenting labels and rulers.
-    <pre><code class="language-python">pip install vit-pytorch==0.37.1</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
-4. Install COCO annotation tools
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+3. Install COCO annotation tools
     <pre><code class="language-python">pip install git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
-5. Install COCO annotation tools
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+4. Install COCO annotation tools
     <pre><code class="language-python">pip install pycocotools==2.0.5</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
-6. We need a special version of Open CV
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+5. We need a special version of Open CV
     <pre><code class="language-python">pip install opencv-contrib-python==4.7.0.68</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
-7. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+6. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
     - WITH GPU 
     <pre><code class="language-python">pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+7. Install ViT for PyTorch. ViT is used for segmenting labels and rulers.
+    <pre><code class="language-python">pip install vit-pytorch==0.37.1</code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
 
 > If you need help, please submit an inquiry in the form at [LeafMachine.org](https://LeafMachine.org/)
 
@@ -166,7 +175,7 @@ If you plan on changing lots of settings, we recommend running LeafMachine2 in d
     - make sure that the virtual environment is active and that the virtual environment is located inside the LM2 home directory: `LeafMachine2/venv_LM2`
     - cd into the LeafMachine2 directory
     <pre><code class="language-python">python test.py</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet">Copy to Clipboard</button>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
     - You should see some blue text, and then a lot of information in the console. 
     - If the run completes (usually after ~5 minutes) and you see a :grinning: then you should be all set!
     - Otherwise, double check that you followed each step and reach out by submitting an inquiry in the form at [LeafMachine.org](https://LeafMachine.org/)
