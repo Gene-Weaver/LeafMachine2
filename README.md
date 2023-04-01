@@ -64,7 +64,7 @@ For more information about virtual environments, please see [Creation of virtual
 
 1. Install the required dependencies to use LeafMachine2 
     - With the venv active, run 
-        <pre><code class="language-python">chmod +x install_dependencies</code></pre>
+        <pre><code class="language-python">chmod +x install_dependencies.sh</code></pre>
         <button class="btn" data-clipboard-target="#code-snippet"></button>
     - Then
         <pre><code class="language-python">bash install_dependencies.sh</code></pre>
