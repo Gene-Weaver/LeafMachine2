@@ -151,7 +151,7 @@ def machine(cfg_file_path, dir_home, cfg_test):
 
 
 if __name__ == '__main__':    
-    is_test = True
+    is_test = False
 
     # Set LeafMachine2 dir 
     dir_home = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))

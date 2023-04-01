@@ -8,6 +8,7 @@ LeafMachine2_WW.yaml
 
 # Dirs
 data/
+demo/demo_output/*
 wandb/
 venv_LM2_linux/
 venv_LM2_l/

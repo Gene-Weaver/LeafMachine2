@@ -3,6 +3,23 @@
 Table of Contents
 =================
 
+* [Table of Contents](#table-of-contents)
+   * [Installing LeafMachine2](#installing-leafmachine2)
+      * [Prerequisites](#prerequisites)
+      * [Hardware](#hardware)
+      * [Installation - Cloning the LeafMachine2 Repository](#installation---cloning-the-leafmachine2-repository)
+      * [About Python Virtual Environments](#about-python-virtual-environments)
+      * [Installation - Ubuntu 20.04](#installation---ubuntu-2004)
+         * [Virtual Environment](#virtual-environment)
+         * [Installing Packages](#installing-packages)
+      * [Installation - Windows 10+](#installation---windows-10)
+         * [Virtual Environment](#virtual-environment-1)
+         * [Installing Packages](#installing-packages-1)
+      * [Troubleshooting CUDA](#troubleshooting-cuda)
+   * [Testing the LeafMachine2 Installation](#testing-the-leafmachine2-installation)
+   * [Using LeafMachine2](#using-leafmachine2)
+
+---
 
 ## Installing LeafMachine2
 
