@@ -83,10 +83,16 @@ For more information about virtual environments, please see [Creation of virtual
 #### Installing Packages
 
 1. Install the required dependencies to use LeafMachine2 
-    - With the venv active, run 
+    - With the venv active, install wheel 
+        <pre><code class="language-python">python3 -m pip install wheel</code></pre>
+        <button class="btn" data-clipboard-target="#code-snippet"></button>
+    - Update pip
+        <pre><code class="language-python">python3 -m pip install --upgrade pip setuptools</code></pre>
+        <button class="btn" data-clipboard-target="#code-snippet"></button>
+    - Allow bash file to run
         <pre><code class="language-python">chmod +x install_dependencies.sh</code></pre>
         <button class="btn" data-clipboard-target="#code-snippet"></button>
-    - Then
+    - Then install dependencies
         <pre><code class="language-python">bash install_dependencies.sh</code></pre>
         <button class="btn" data-clipboard-target="#code-snippet"></button>
     - If you encounter an error, you can try running the following install command instead
