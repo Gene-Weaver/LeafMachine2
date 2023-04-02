@@ -20,7 +20,7 @@ Table of Contents
 * [Using LeafMachine2](#using-leafmachine2)
    * [LeafMachine2 Data Cleaning and Prep (preprocessing steps to be aware of)](#leafmachine2-data-cleaning-and-prep-preprocessing-steps-to-be-aware-of)
    * [LeafMachine2 Configuration File](#leafmachine2-configuration-file)
-      * [Quick Start](#quick-start)
+      * [Quick Start :star:](#quick-start)
       * [Primary options (project)](#primary-options-project)
       * [Secondary (project)](#secondary-project)
       * [Primary options (cropped_components)](#primary-options-cropped_components)
