@@ -48,7 +48,7 @@ leafmachine:
         #           leaf_whole, leaf_partial, leaflet, seed_fruit_one, seed_fruit_many, flower_one, flower_many, bud, specimen, roots, wood
         do_save_cropped_annotations: False
         save_cropped_annotations: ['label'] # 'save_all' to save all classes
-        save_per_image: False # creates a folder for each image, saves crops into class-names folders
+        save_per_image: False # creates a folder for each image, saves crops into class-names folders # TODO
         save_per_annotation_class: True # saves crops into class-names folders
         binarize_labels: True
         binarize_labels_skeletonize: False
