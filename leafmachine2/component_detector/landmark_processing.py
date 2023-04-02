@@ -497,6 +497,8 @@ class LeafSkeleton:
             else:
                 cv2.line(self.image_final, self.lamina_base, self.lamina_tip, col, 2 + r_base)
         else:
+            col = (0, 0, 0)
+            r_base = 16
             if self.has_lamina_base and (not self.has_lamina_tip) and self.has_apex: # lamina base and apex center
                 self.lamina_length = self.distance(self.lamina_base, self.apex_center)
                 ends = np.array([self.lamina_base, self.apex_center])

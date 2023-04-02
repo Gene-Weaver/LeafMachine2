@@ -56,6 +56,7 @@ def check_for_subdirs(cfg):
     original_in = cfg['leafmachine']['project']['dir_images_local']
     dirs_list = []
     run_name = []
+    has_subdirs = False
     if os.path.isdir(original_in):
         # list contents of the directory
         contents = os.listdir(original_in)
@@ -66,6 +67,7 @@ def check_for_subdirs(cfg):
         if len(subdirs) > 0:
             print("The directory contains subdirectories:")
             for subdir in subdirs:
+                has_subdirs = True
                 print(os.path.join(original_in, subdir))
                 dirs_list.append(os.path.join(original_in, subdir))
                 run_name.append(subdir)
@@ -77,7 +79,7 @@ def check_for_subdirs(cfg):
     else:
         print("The specified path is not a directory.")
 
-    return run_name, dirs_list
+    return run_name, dirs_list, has_subdirs
 
 def get_datetime():
     day = "_".join([str(datetime.datetime.now().strftime("%Y")),str(datetime.datetime.now().strftime("%m")),str(datetime.datetime.now().strftime("%d"))])

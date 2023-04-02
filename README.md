@@ -202,11 +202,79 @@ If you plan on changing lots of settings, we recommend running LeafMachine2 in d
     - cd into the LeafMachine2 directory
     <pre><code class="language-python">python test.py</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-    OR
+    or
     <pre><code class="language-python">python3 test.py</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
     - You should see some blue text, and then a lot of information in the console. 
     - If the run completes (usually after ~5 minutes) and you see a :grinning: then you should be all set!
     - Otherwise, double check that you followed each step and reach out by submitting an inquiry in the form at [LeafMachine.org](https://LeafMachine.org/)
 
+---
+
 ## Using LeafMachine2
+
+For most applications, you only need to be aware of two files:
+- `LeafMachine2.py`
+    * The file to run LeafMachine2
+- `LeafMachine2.yaml`
+    * The configuration file for LeafMachine2
+
+To run LeafMachine2...
+- From the terminal
+    * cd into the `./LeafMachine2` directory
+    * make sure that the virtual environment is active
+    * run the python file
+    <pre><code class="language-python">python3 LeafMachine2.py</code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+    or
+    <pre><code class="language-python">python LeafMachine2.py</code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+- From an IDE like VS Code
+    * open the `./LeafMachine2` directory
+    * locate the `LeafMachine2.py` file
+    * run the file (in debug mode if you want)
+- That's it!
+
+Well almost. We also need to setup our [configuration file](#LeafMachine2-Configuration-File).
+
+### LeafMachine2 Data Cleaning and Prep (preprocessing steps to be aware of)
+LeafMachine **WILL** automatically edit illegal characters out of file names and replace them with `_` or `-`.
+Illegal characters in file names include anything that is not a letter or number or `_` or `-`.
+Secifically, we use this function to clean names:
+```python
+name_cleaned = re.sub(r"[^a-zA-Z0-9_-]","-",name)
+```
+
+* This can be turned off, but doing so will likely cause bad things to happen
+
+Having spaces in names or directories can cause unexpected problems.
+* :heavy_check_mark: `./dir_names_with_underscores/file_name_with_underscores`
+* :heavy_check_mark: `./dir-names-with-dashes/file-name-with-dashes`
+* :x: `./not great dir names/not great file names`
+
+
+
+
+### LeafMachine2 Configuration File
+Now you can run LeafMachine2, but unless you setup the configuration file, nothing will happen! LeafMachine2 has many many configurable settings. Here we will outline settings that most folks will use. The `LeafMachine2.yaml` file is grouped by component, but not all settings within a component group need to be (or should be) modified. 
+
+Most settings dictate which output files LeafMachine2 will save. Some dictate how many leaves will be extracted or which ML networks will be used.
+
+To change settings in the `LeafMachine2.yaml` file we recommend using a VS Code or another IDE  because they will help reduce errors. But any plain text editor will work (e.g. Notepad on Windows)
+
+Open the file and customize the following:
+
+### Primary options
+Settings that tell LeafMachine2 where things are and where you want to save output files.
+Strings must be inside '' or "". Forgetting them, or missing one, will cause errors.
+
+```yaml
+leafmachine:
+    project:
+        dir_output: '/full/path/to/output/directory' # LeafMachine2 will build the output dir structure here
+        run_name: 'informative_run_name' # LeafMachine2 will build the output dir structure here
+```
+
+### Secondary 
+
+

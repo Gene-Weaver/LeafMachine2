@@ -39,10 +39,10 @@ def machine(cfg_file_path, dir_home, cfg_test):
 
     # Check to see if there are subdirs
     # Yes --> use the names of the subsirs as run_name
-    run_name, dirs_list = check_for_subdirs(cfg)
+    run_name, dirs_list, has_subdirs = check_for_subdirs(cfg)
 
     for dir_ind, dir_in in enumerate(dirs_list):
-        if len(run_name) > 1:
+        if has_subdirs:
             cfg['leafmachine']['project']['dir_images_local'] = dir_in
             cfg['leafmachine']['project']['run_name'] = run_name[dir_ind]
 
