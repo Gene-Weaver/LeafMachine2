@@ -256,7 +256,9 @@ Well almost. We also need to setup our [configuration file](#LeafMachine2-Config
 
 ## LeafMachine2 Data Cleaning and Prep (preprocessing steps to be aware of)
 LeafMachine **WILL** automatically edit illegal characters out of file names and replace them with `_` or `-`.
+
 Illegal characters in file names include anything that is not a letter or number or `_` or `-`.
+
 Secifically, we use this function to clean names:
 ```python
 name_cleaned = re.sub(r"[^a-zA-Z0-9_-]","-",name)
@@ -274,6 +276,7 @@ leafmachine:
 ```
 
 > If these processing steps sound like they will significantly impact your raw images, then *please* make sure that you have back up copies of your original images. If you downloaded your images from GBIF, this should not be a worry. But if you are processing your own custom images, then please only run LeafMachine2 on copies of the original images. No one has a good day if a file is deleted! If you have concerns please reach out [LeafMachine.org](https://LeafMachine.org/).
+
 > If your taxa names (the actual file name) have special characters, LeafMachine2 will replace them with `-`. Python code in general does not play nice with characters like:
 > * Viola lutea x tricolor x altaica  :arrow_right:  Viola_lutea_x_tricolor_x_altaica  
 > * Viola lutea x tricolor x altaica  :arrow_right:  Viola_lutea_-_tricolor_-_altaica  (if the X is not the letter X)
@@ -303,7 +306,9 @@ The most important setting are marked with a :star:. Begin with these settings a
 
 ### Primary options (project)
 :star: Settings that tell LeafMachine2 where things are and where you want to save output files.
+
 Strings must be inside '' or "". Forgetting them, or missing one, will cause errors.
+
 Type `null` for the default value.
 
 Pointing to directories. 
@@ -316,6 +321,7 @@ leafmachine:
 ```
 
 Set `image_location` to `'local'` if you already have images, or to `'GBIF'` if you will configure LM2 to download the images.
+
 More information about downloading images [here](#Downloading-Images-from-GBIF).
 ```yaml
 leafmachine:
@@ -325,6 +331,7 @@ leafmachine:
 ```
 
 :star: Batch processing. Set based on PC hardware. We recommend 64 GB of RAM for `batch_size: 50` and `num_workers: 4`. 
+
 On your first run, set `batch_size: 5 num_workers: 2` jsut to make sure everything is working, then increase to taste. 
 ```yaml
 leafmachine:
@@ -353,7 +360,14 @@ leafmachine:
         use_existing_archival_component_detections: '/full/path/to/output/directory/informative_run_name/Archival_Components/labels'
 ```
 
-This will allow you to select a random subset of a large image set. Setting `n_images_per_species: 10` will randomly pick 10 images from the species in `species_list: '/full/path/to/existing/species/names/10_images_per_species.csv'` and save them to `dir_images_subset: '/full/path/to/save/location/of/new/subset'`. Set `process_subset_of_images: True` to use, `process_subset_of_images: False` to skip.
+This will allow you to select a random subset of a large image set. 
+
+Setting `n_images_per_species: 10` will randomly pick 10 images from the species in 
+`species_list: '/full/path/to/existing/species/names/10_images_per_species.csv'` 
+and save them to `dir_images_subset: '/full/path/to/save/location/of/new/subset'`. 
+
+Set `process_subset_of_images: True` to use, `process_subset_of_images: False` to skip.
+
 The sepcies list is a CSV file with this format:
 | species                           | count |
 |----------------------------------|-------|
@@ -403,6 +417,7 @@ leafmachine:
 Configure data output. Currently, LM2 saves data to CSV files. JSON files are not going to be helpful for most situations. 
 
 To apply the conversion factor to all measurements, set `do_apply_conversion_factor: True`
+
 To include the DWC data in the output files, set `include_darwin_core_data_from_combined_file: True`
 ```yaml
 leafmachine:
@@ -420,8 +435,8 @@ leafmachine:
 Configure the overlay settings for most of the summary output. 
 
 :star: Set `save_overlay_to_pdf: True` to save each summary image to a PDF page. This is useful for keeping the number of total output files low.
-:star: Set `save_overlay_to_jpgs: True` to save each summary image at full resolution.
 
+:star: Set `save_overlay_to_jpgs: True` to save each summary image at full resolution.
 
 Since we place roated bounding boxes around leaves, you can set `ignore_plant_detections_classes: ['leaf_whole', 'leaf_partial', 'specimen']` to hide the bounding boxes the come directly from the PCD. Same for `ignore_archival_detections_classes: []` and `ignore_landmark_classes: []`, but we recommend leaving them empty.
 
@@ -433,7 +448,7 @@ Since we place roated bounding boxes around leaves, you can set `ignore_plant_de
         line_width_efd: 6 # int # thick = 6, thin = 1
 ```
 
-These are settings are a good starting point:
+These settings are a good starting point:
 ```yaml
 leafmachine:
     overlay:
@@ -569,15 +584,21 @@ leafmachine:
 The LM2 leaf segmentation tool will try to segment all leaves that it sees, but we only want it to find one leaf, so we set ` keep_only_best_one_leaf_one_petiole: True` to tell LM2 to only keep the largest leaf and petiole. This is not perfect, but it gets the job done for now. 
 
 :star: To save all leaf mask overlays onto the full image as a PDF, set `save_segmentation_overlay_images_to_pdf: True`
+
 :star: To save all leaf mask overlays onto the full image as individual images, set `save_each_segmentation_overlay_image: True`
+
 :star: This saves each cropped leaf with its overlay to individual files `save_individual_overlay_images: True` and this sets the overlay line width `overlay_line_width: 1`
 
 :star: LM2 can also save the masks to PNG files. To use the EFDs as the masks (these will be smooth compared to the raw mask) set `use_efds_for_png_masks: False `
+
 :star: To save individual leaf masks, set `save_masks_color: True`
+
 :star: To save full image leaf masks, set `save_full_image_masks_color: True`
+
 :star: To save the RGB image, set `save_rgb_cropped_images: True`
 
 :star: To measure length and width of leaves set `find_minimum_bounding_box: True`
+
 :star: To calcualte EFDs set `calculate_elliptic_fourier_descriptors: True` and define the desired order with `elliptic_fourier_descriptor_order: null`, the default is 40, which maintains detail.
 
 We found no real need to change `minimum_confidence_threshold: 0.7`, but you may find better results with adjustments. 
