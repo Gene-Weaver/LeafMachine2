@@ -279,6 +279,7 @@ leafmachine:
 > * Viola lutea x tricolor x altaica  :arrow_right:  Viola_lutea_-_tricolor_-_altaica  (if the X is not the letter X)
 > * Dichondra sp. Inglewood (J.M.Dalby 86/93)  :arrow_right:  Dichondra_sp-_Inglewood_-J.M.Dalby_86-93-
 > * Sida sp. Musselbrook (M.B.Thomas+ MRS437)  :arrow_right: Sida_sp-_Musselbrook_-M-B-Thomas-_MRS437-
+
 > These special characters should not be used in file names (in general, not just for LeafMachine2). 
 
 Having spaces in names or directories can cause unexpected problems.
