@@ -15,6 +15,7 @@ Table of Contents
    * [Installation - Windows 10+](#installation---windows-10)
       * [Virtual Environment](#virtual-environment-1)
       * [Installing Packages](#installing-packages-1)
+   * [Troubleshooting Package Installation](#troubleshooting-package-installation)
    * [Troubleshooting CUDA](#troubleshooting-cuda)
 * [Testing the LeafMachine2 Installation](#testing-the-leafmachine2-installation)
 * [Using LeafMachine2](#using-leafmachine2)
