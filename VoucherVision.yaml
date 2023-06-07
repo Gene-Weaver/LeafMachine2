@@ -26,7 +26,7 @@ leafmachine:
 
         # Embeddings and LLM
         embeddings_database_name: 'EmbeddingsDB_all_asia_minimal'
-        build_new_embeddings_database: True
+        build_new_embeddings_database: False
         path_to_domain_knowledge_xlsx: 'D:/Dropbox/LM2_Env/VoucherVision_Datasets/AllAsiaEntriesSoFar/AllAsiaMinimalasof25May2023_2_FOR-EMBEDDINGS-DB.xlsx' #'D:/Dropbox/LeafMachine2/leafmachine2/transcription/domain_knowledge/AllAsiaMinimalasof25May2023_2__TRIMMEDtiny.xlsx' 
         
         batch_size: 50 #null # null = all

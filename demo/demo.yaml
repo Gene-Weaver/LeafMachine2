@@ -53,6 +53,9 @@ leafmachine:
         binarize_labels: True
         binarize_labels_skeletonize: True
 
+    modules:
+        armature: False
+        specimen_crop: False
 
     data:
         save_json_rulers: False
