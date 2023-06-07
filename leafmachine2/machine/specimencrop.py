@@ -13,25 +13,23 @@ from leafmachine2.segmentation.detectron2.segment_leaves import segment_leaves
 # from import  # landmarks
 from leafmachine2.machine.general_utils import check_for_subdirs, get_datetime, load_config_file, load_config_file_testing, report_config, split_into_batches, save_config_file, subset_dir_images, crop_detections_from_images, crop_detections_from_images_SpecimenCrop
 from leafmachine2.machine.general_utils import print_main_start, print_main_success, print_main_fail, print_main_info, make_file_names_valid, make_images_in_dir_vertical
-from leafmachine2.machine.directory_structure import Dir_Structure
+from leafmachine2.machine.directory_structure_SC import Dir_Structure
 from leafmachine2.machine.data_project import Project_Info
 from leafmachine2.machine.config import Config
 from leafmachine2.machine.build_custom_overlay import build_custom_overlay, build_custom_overlay_parallel
-from leafmachine2.machine.utils_ruler import convert_rulers
 from leafmachine2.machine.save_data import save_data, merge_csv_files
-from leafmachine2.machine.binarize_image_ML import run_binarize
 from leafmachine2.machine.LM2_logger import start_logging
-from leafmachine2.machine.utils_ruler import convert_rulers_testing, parallel_convert_rulers
 from leafmachine2.machine.fetch_data import fetch_data
+from leafmachine2.machine.handle_images import check_image_compliance
 
 def machine(cfg_file_path, dir_home, cfg_test):
     t_overall = perf_counter()
 
     # Load config file
-    report_config(dir_home, cfg_file_path, system='LeafMachine2')
+    report_config(dir_home, cfg_file_path, system='SpecimenCrop')
 
     if cfg_test is None:
-        cfg = load_config_file(dir_home, cfg_file_path, system='LeafMachine2')
+        cfg = load_config_file(dir_home, cfg_file_path, system='SpecimenCrop')
     else:
         cfg = cfg_test 
     # user_cfg = load_config_file(dir_home, cfg_file_path)
@@ -42,27 +40,38 @@ def machine(cfg_file_path, dir_home, cfg_test):
     run_name, dirs_list, has_subdirs = check_for_subdirs(cfg)
 
     for dir_ind, dir_in in enumerate(dirs_list):
+
         if has_subdirs:
             cfg['leafmachine']['project']['dir_images_local'] = dir_in
             cfg['leafmachine']['project']['run_name'] = run_name[dir_ind]
+
 
         # Dir structure
         print_main_start("Creating Directory Structure")
         Dirs = Dir_Structure(cfg)
 
+
         # logging.info("Hi")
         logger = start_logging(Dirs, cfg)
+
 
         # Check to see if required ML files are ready to use
         ready_to_use = fetch_data(logger, dir_home, cfg_file_path)
         assert ready_to_use, "Required ML files are not ready to use!\nThe download may have failed,\nor\nthe directory structure of LM2 has been altered"
 
+
         # Wrangle images and preprocess
         print_main_start("Gathering Images and Image Metadata")
+
+
+        # Check image dir for correct extensions
+        # cfg, original_img_dir, new_tiff_dir = check_image_compliance(cfg, Dirs)
+        cfg, original_img_dir = check_image_compliance(cfg, Dirs)
+
+
+        # Create Project
         Project = Project_Info(cfg, logger, dir_home)
 
-        # Subset dir_images if selected
-        Project = subset_dir_images(cfg, Project, Dirs)
 
         # Save config file
         save_config_file(cfg, logger, Dirs)
@@ -76,85 +85,36 @@ def machine(cfg_file_path, dir_home, cfg_test):
         print_main_start("Locating Plant Components")
         Project = detect_plant_components(cfg, logger, dir_home, Project, Dirs)
 
-        # Detect Armature Components
-        # print_main_start("Locating Armature Components")
-        # Project = detect_armature_components(cfg, logger, dir_home, Project, Dirs)
-        # img_crop = img_crop.resize((img_crop.width * 10, img_crop.height * 10), resample=Image.LANCZOS)
-
-        
-        # Add record data (from GBIF) to the dictionary
-        logger.name = 'Project Data'
-        logger.info("Adding record data (from GBIF) to the dictionary")
-        Project.add_records_to_project_dict()
 
         # Save cropped detections
         crop_detections_from_images(cfg, logger, dir_home, Project, Dirs)
         # If Specimen Crop is selected
-        crop_detections_from_images_SpecimenCrop(cfg, logger, dir_home, Project, Dirs)
+        crop_detections_from_images_SpecimenCrop(cfg, logger, dir_home, Project, Dirs, original_img_dir)#, new_tiff_dir)
 
-        # Binarize labels
-        run_binarize(cfg, logger, Dirs)
         
-        # Split into batches for further processing
-        Project, n_batches, m  = split_into_batches(Project, logger, cfg)
-        print_main_start(m)
-        
+        if cfg['leafmachine']['overlay']['save_overlay_to_jpgs'] or cfg['leafmachine']['overlay']['save_overlay_to_pdf']:
+            # Split into batches for further processing
+            Project, n_batches, m  = split_into_batches(Project, logger, cfg)
+            print_main_start(m)
+            
 
-        for batch in range(n_batches):
-            t_batch_start = perf_counter()
-            print_main_info(f'Batch {batch+1} of {n_batches}')
+            for batch in range(n_batches):
+                t_batch_start = perf_counter()
+                print_main_info(f'Batch {batch+1} of {n_batches}')
 
-            if cfg['leafmachine']['do']['run_leaf_processing']:
-                # Process Rulers
-                logger.name = f'[BATCH {batch+1} Convert Rulers]'
-                logger.warning(f'Working on batch {batch} of {n_batches}')
-                do_test_ruler_conversion = False
-                if do_test_ruler_conversion:
-                    dir_rulers = 'F:/Rulers_ByType_V2_target'
-                    Project = convert_rulers_testing(dir_rulers, cfg, logger, dir_home, Project, batch, Dirs)
-                else:
-                    Project = convert_rulers(cfg, logger, dir_home, Project, batch, Dirs)
-                    # Project = parallel_convert_rulers(cfg, logger, dir_home, Project, batch, Dirs)
+                # Custom Overlay
+                build_custom_overlay_parallel(cfg, logger, dir_home, Project, batch, Dirs)
 
+                logger.info('Clearing batch data from RAM')
+                Project.project_data.clear() 
+                Project.project_data_list[batch] = {} 
 
-                # Segment Whole Leaves
-                do_seg = True # Need to know if segmentation has been added to Project[batch] for landmarks
-                if do_seg:
-                    Project = segment_leaves(cfg, logger, dir_home, Project, batch, n_batches, Dirs)
-                    
+                # print(Project.project_data)
+                # print(Project.project_data_list[batch])
+                t_batch_end = perf_counter()
+                logger.name = f'[BATCH {batch+1} COMPLETE]'
+                logger.info(f"[Batch {batch+1} elapsed time] {round((t_batch_end - t_batch_start)/60)} minutes")
 
-                # Landmarks Whole Leaves
-                Project = detect_landmarks(cfg, logger, dir_home, Project, batch, n_batches, Dirs, do_seg)
-
-
-                # Landmarks Armature
-                # Project = detect_armature(cfg, logger, dir_home, Project, batch, n_batches, Dirs, do_seg)
-
-
-            # Custom Overlay
-            build_custom_overlay_parallel(cfg, logger, dir_home, Project, batch, Dirs)
-
-
-            # Export data to csv and json
-            save_data(cfg, logger, dir_home, Project, batch, n_batches, Dirs)
-
-
-            # Clear Completed Images
-            # print(Project.project_data)
-
-            logger.info('Clearing batch data from RAM')
-            Project.project_data.clear() 
-            Project.project_data_list[batch] = {} 
-
-            # print(Project.project_data)
-            # print(Project.project_data_list[batch])
-            t_batch_end = perf_counter()
-            logger.name = f'[BATCH {batch+1} COMPLETE]'
-            logger.info(f"[Batch {batch+1} elapsed time] {round((t_batch_end - t_batch_start)/60)} minutes")
-
-
-        # Create CSV from the 'Data','Project','Batches' files
-        merge_csv_files(Dirs, cfg)
         
         t_overall_s = perf_counter()
         logger.name = 'Run Complete! :)'

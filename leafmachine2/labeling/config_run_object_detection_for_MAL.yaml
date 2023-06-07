@@ -1,18 +1,20 @@
 ### May error out if you have the output dir open while it's processing
 
 do_process_subdirectories: False
-dir_containing_original_images: 'D:\Dropbox\LM2_Env\Image_Datasets\GBIF_BroadSample_RandomizedSpp'
+# dir_containing_original_images: 'D:\Dropbox\LM2_Env\Image_Datasets\GBIF_BroadSample_RandomizedSpp'
+# dir_containing_original_images: 'D:\Dropbox\LM2_Env\Image_Datasets\Acacia\Acacia_prickles_4-26-23_LANCZOS/images/train'
+dir_containing_original_images: 'D:\Dropbox\LeafMachine2\leafmachine2\component_detector\datasets\Landmarks_Arm\images\train'
 do_save_prediction_overlay_images: True
 
 # ./leafmachine2/component_detector/runs/detect/name_project/name_iteration/name_run
-name_project: 'MAL_BroadSample'
-name_iteration: 'GBIF_BroadSample_RandomizedSpp'
-name_run: 'GBIF_BroadSample_RandomizedSpp' # if do_process_subdirectories: True, then name_run: '' 
+name_project: MAL_acacia_landmarks # 'MAL_acacia' # 'MAL_BroadSample'
+name_iteration: MAL_acacia_landmarks # 'MAL_acacia' #'GBIF_BroadSample_RandomizedSpp'
+name_run: MAL_acacia_landmarks_02_train # 'MAL_acacia_05_train' #'GBIF_BroadSample_RandomizedSpp' # if do_process_subdirectories: True, then name_run: '' 
 
 # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
-detector_type: 'Plant_Detector' # 'Archival_Detector' or 'Plant_Detector'
-detector_version: 'PLANT_GroupAB_200'
-detector_iteration: 'PLANT_GroupAB_200'
+detector_type: 'Landmark_Detector_YOLO' #'Armature_Detector' # 'Archival_Detector' or 'Plant_Detector' or 'Landmark_Detector_YOLO'
+detector_version: Landmarks_Arm_A_200 # 'PLANT_GroupAB_200' or 'ARM_A_1000' or 'Landmarks_Arm_A_200'
+detector_iteration: Landmarks_Arm_A_200 # 'PLANT_GroupAB_200' or 'ARM_A_1000' or 'Landmarks_Arm_A_200'
 detector_weights: 'best.pt'
 
-minimum_confidence_threshold: 0.5
+minimum_confidence_threshold: 0.02

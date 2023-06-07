@@ -61,7 +61,7 @@ class ImageCandidate:
 
     def __init__(self, cfg, image_row, occ_row, url, lock):
         self.headers_occ =  list(occ_row.columns.values)
-        self.headers_img = list(occ_row.columns.values)
+        self.headers_img = list(image_row.columns.values)
         self.occ_row = occ_row # pd.DataFrame(data=occ_row,columns=self.headers_occ)
         self.image_row = image_row # pd.DataFrame(data=image_row,columns=self.headers_img)
         self.url = url
@@ -183,7 +183,7 @@ class ImageCandidateMulti:
 
     def __init__(self, cfg, image_row, occ_row, url, dir_destination, lock):
         self.headers_occ =  list(occ_row.columns.values)
-        self.headers_img = list(occ_row.columns.values)
+        self.headers_img = list(image_row.columns.values)
         self.occ_row = occ_row # pd.DataFrame(data=occ_row,columns=self.headers_occ)
         self.image_row = image_row # pd.DataFrame(data=image_row,columns=self.headers_img)
         self.url = url
@@ -279,6 +279,94 @@ class ImageCandidateMulti:
             except Exception as e:
                 print(f"{bcolors.WARNING}       Initializing new combined .csv file: [occ,images]: {path_csv_combined}{bcolors.ENDC}")
                 combined.to_csv(path_csv_combined, mode='w', header=True, index=False)
+
+
+@dataclass
+class ImageCandidateCustom:
+    cfg: str = ''
+    # herb_code: str = '' 
+    # specimen_id: str = ''
+    # family: str = ''
+    # genus: str = ''
+    # species: str = ''
+    fullname: str = ''
+
+    filename_image: str = ''
+    filename_image_jpg: str = ''
+
+    url: str = ''
+    # headers_occ: str = ''
+    headers_img: str = ''
+
+    # occ_row: list = field(init=False,default_factory=None)
+    image_row: list = field(init=False,default_factory=None)
+
+
+    def __init__(self, cfg, image_row, url, col_name, lock):
+        # self.headers_occ =  list(occ_row.columns.values)
+        # self.headers_img = list(image_row.columns.values)
+        self.image_row = image_row # pd.DataFrame(data=image_row,columns=self.headers_img)
+
+        self.url = url
+        self.cfg = cfg
+        self.col_name = col_name
+
+        self.fullname = image_row[col_name]
+        self.filename_image = image_row[col_name]
+        self.filename_image_jpg = ''.join([image_row[col_name], '.jpg'])
+        
+        self.download_image(lock)
+
+    def download_image(self, lock) -> None:
+        dir_destination = self.cfg['dir_destination_images']
+        MP_low = self.cfg['MP_low']
+        MP_high = self.cfg['MP_high']
+        # Define URL get parameters
+        sep = '_'
+        session = requests.Session()
+        retry = Retry(connect=1) #2, backoff_factor=0.5)
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+
+        print(f"{bcolors.BOLD}      {self.fullname}{bcolors.ENDC}")
+        print(f"{bcolors.BOLD}           URL: {self.url}{bcolors.ENDC}")
+        try:
+            response = session.get(self.url, stream=True, timeout=1.0)
+            img = Image.open(response.raw)
+            self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)
+            print(f"{bcolors.OKGREEN}                SUCCESS{bcolors.ENDC}")
+        except Exception as e: 
+            print(f"{bcolors.FAIL}                SKIP No Connection or ERROR --> {e}{bcolors.ENDC}")
+            print(f"{bcolors.WARNING}                Status Code --> {response.status_code}{bcolors.ENDC}")
+            print(f"{bcolors.WARNING}                Reasone --> {response.reason}{bcolors.ENDC}")
+
+    def _save_matching_image(self, img, MP_low, MP_high, dir_destination, lock) -> None:
+        img_mp, img_w, img_h = check_image_size(img)
+        if img_mp < MP_low:
+            print(f"{bcolors.WARNING}                SKIP < {MP_low}MP: {img_mp}{bcolors.ENDC}")
+
+        elif MP_low <= img_mp <= MP_high:
+            image_path = os.path.join(dir_destination,self.filename_image_jpg)
+            img.save(image_path)
+
+            print(f"{bcolors.OKGREEN}                Regular MP: {img_mp}{bcolors.ENDC}")
+            print(f"{bcolors.OKGREEN}                Image Saved: {image_path}{bcolors.ENDC}")
+
+        elif img_mp > MP_high:
+            if self.cfg['do_resize']:
+                [img_w, img_h] = calc_resize(img_w, img_h)
+                newsize = (img_w, img_h)
+                img = img.resize(newsize)
+                image_path = os.path.join(dir_destination,self.filename_image_jpg)
+                img.save(image_path)
+
+                print(f"{bcolors.OKGREEN}                {MP_high}MP+ Resize: {img_mp}{bcolors.ENDC}")
+                print(f"{bcolors.OKGREEN}                Image Saved: {image_path}{bcolors.ENDC}")
+            else:
+                print(f"{bcolors.OKCYAN}                {MP_high}MP+ Resize: {img_mp}{bcolors.ENDC}")
+                print(f"{bcolors.OKCYAN}                SKIP: {image_path}{bcolors.ENDC}")
+
 
 '''
 ####################################################################################################
@@ -554,31 +642,35 @@ def download_all_images_in_images_csv_multiDirs(cfg):
 def download_all_images_in_images_csv(cfg):
     dir_destination = cfg['dir_destination_images']
     dir_destination_csv = cfg['dir_destination_csv']
+
     # (dirWishlists,dirNewImg,alreadyDownloaded,MP_Low,MP_High,aggOcc_filename,aggImg_filename):
     validate_dir(dir_destination)
     validate_dir(dir_destination_csv)
-
-    # Get DWC files
-    occ_df, images_df = read_DWC_file(cfg)
-
-    # Report summary
-    print(f"{bcolors.BOLD}Beginning of images file:{bcolors.ENDC}")
-    print(images_df.head())
-    print(f"{bcolors.BOLD}Beginning of occurrence file:{bcolors.ENDC}")
-    print(occ_df.head())
-
-    # Ignore problematic Herbaria
-    if cfg['ignore_banned_herb']:
-        for banned_url in cfg['banned_url_stems']:
-            images_df = images_df[~images_df['identifier'].str.contains(banned_url, na=False)]
     
-    # Report summary
-    n_imgs = images_df.shape[0]
-    n_occ = occ_df.shape[0]
-    print(f"{bcolors.BOLD}Number of images in images file: {n_imgs}{bcolors.ENDC}")
-    print(f"{bcolors.BOLD}Number of occurrence to search through: {n_occ}{bcolors.ENDC}")
+    if cfg['is_custom_file']:
+        download_from_custom_file(cfg)
+    else:
+        # Get DWC files
+        occ_df, images_df = read_DWC_file(cfg)
 
-    results = process_image_batch(cfg, images_df, occ_df)
+        # Report summary
+        print(f"{bcolors.BOLD}Beginning of images file:{bcolors.ENDC}")
+        print(images_df.head())
+        print(f"{bcolors.BOLD}Beginning of occurrence file:{bcolors.ENDC}")
+        print(occ_df.head())
+
+        # Ignore problematic Herbaria
+        if cfg['ignore_banned_herb']:
+            for banned_url in cfg['banned_url_stems']:
+                images_df = images_df[~images_df['identifier'].str.contains(banned_url, na=False)]
+        
+        # Report summary
+        n_imgs = images_df.shape[0]
+        n_occ = occ_df.shape[0]
+        print(f"{bcolors.BOLD}Number of images in images file: {n_imgs}{bcolors.ENDC}")
+        print(f"{bcolors.BOLD}Number of occurrence to search through: {n_occ}{bcolors.ENDC}")
+
+        results = process_image_batch(cfg, images_df, occ_df)
 
 def process_image_batch(cfg, images_df, occ_df):
     futures_list = []
@@ -632,7 +724,7 @@ def process_image_batch_multiDirs(cfg, images_df, occ_df, dir_destination):
 def process_each_image_row(cfg, image_row, occ_df, lock):
     print(f"{bcolors.BOLD}Working on image: {image_row['gbifID']}{bcolors.ENDC}")
     gbif_id = image_row['gbifID']
-    gbif_url = image_row['identifier']
+    gbif_url = image_row['identifier'] 
 
     occ_row = find_gbifID(gbif_id,occ_df)
 
@@ -651,5 +743,84 @@ def process_each_image_row_multiDirs(cfg, image_row, occ_df, dir_destination, lo
 
     if occ_row is not None:
         ImageInfo = ImageCandidateMulti(cfg, image_row, occ_row, gbif_url, dir_destination, lock)
+    else:
+        pass
+
+
+def download_from_custom_file(cfg):
+    # Get DWC files
+    images_df = read_custom_file(cfg)
+
+    col_url = cfg['col_url']
+    col_name = cfg['col_name']
+    if col_url == None:
+        col_url = 'identifier'
+    else:
+        col_url = col_url
+
+    # Report summary
+    print(f"{bcolors.BOLD}Beginning of images file:{bcolors.ENDC}")
+    print(images_df.head())
+
+    # Ignore problematic Herbaria
+    if cfg['ignore_banned_herb']:
+        for banned_url in cfg['banned_url_stems']:
+            images_df = images_df[~images_df[col_url].str.contains(banned_url, na=False)]
+    
+    # Report summary
+    n_imgs = images_df.shape[0]
+    print(f"{bcolors.BOLD}Number of images in images file: {n_imgs}{bcolors.ENDC}")
+
+    results = process_custom_image_batch(cfg, images_df)
+
+def read_custom_file(cfg):
+    dir_home = cfg['dir_home']
+    filename_img = cfg['filename_img']
+    # read the images.csv or occurences.csv file. can be txt ro csv
+    images_df = ingest_DWC(filename_img,dir_home)
+    return images_df
+
+# def ingest_DWC(DWC_csv_or_txt_file,dir_home):
+#     if DWC_csv_or_txt_file.split('.')[1] == 'txt':
+#         df = pd.read_csv(os.path.join(dir_home,DWC_csv_or_txt_file), sep="\t",header=0, low_memory=False, dtype=str)
+#     elif DWC_csv_or_txt_file.split('.')[1] == 'csv':
+#         df = pd.read_csv(os.path.join(dir_home,DWC_csv_or_txt_file), sep=",",header=0, low_memory=False, dtype=str)
+#     else:
+#         print(f"{bcolors.FAIL}DWC file {DWC_csv_or_txt_file} is not '.txt' or '.csv' and was not opened{bcolors.ENDC}")
+#     return df
+
+def process_custom_image_batch(cfg, images_df):
+    futures_list = []
+    results = []
+
+    lock = Lock() 
+
+    with th(max_workers=13) as executor:
+        for index, image_row in images_df.iterrows():
+            futures = executor.submit(process_each_custom_image_row, cfg, image_row, lock)
+            futures_list.append(futures)
+
+        for future in futures_list:
+            try:
+                result = future.result(timeout=60)
+                results.append(result)
+            except Exception:
+                results.append(None)
+    return results
+
+def process_each_custom_image_row(cfg, image_row, lock):
+    col_url = cfg['col_url']
+    col_name = cfg['col_name']
+
+    if col_url == None:
+        col_url = 'identifier'
+    else:
+        col_url = col_url
+
+    gbif_url = image_row[col_url] 
+
+    print(f"{bcolors.BOLD}Working on image: {image_row[col_name]}{bcolors.ENDC}")
+    if image_row is not None:
+        ImageInfo = ImageCandidateCustom(cfg, image_row, gbif_url, col_name, lock)
     else:
         pass

@@ -16,6 +16,7 @@ class Dir_Structure():
     # Processing dirs
     path_plant_components: str = ''
     path_archival_components: str = ''
+    path_armature_components: str = ''
     path_config_file: str = ''
 
     whole_leaves: str = ''
@@ -62,6 +63,8 @@ class Dir_Structure():
     landmarks: str = ''
     landmarks_whole_leaves_overlay: str = ''
     landmarks_partial_leaves_overlay: str = ''
+    landmarks_armature_overlay: str = ''
+
 
     # logging
     path_log: str = ''
@@ -80,6 +83,12 @@ class Dir_Structure():
         self.path_archival_components = os.path.join(self.dir_project,'Archival_Components')
         self.path_config_file = os.path.join(self.dir_project,'Config_File')
         validate_dir(self.path_config_file)
+
+        # Modules
+        if cfg['leafmachine']['modules']['armature']:
+            self.path_armature_components = os.path.join(self.dir_project,'Armature_Components')
+            validate_dir(self.path_armature_components)
+            validate_dir(os.path.join(self.path_armature_components, 'JSON'))
 
         # Logging
         self.path_log = os.path.join(self.dir_project,'Logs')
@@ -105,6 +114,7 @@ class Dir_Structure():
         if cfg['leafmachine']['leaf_segmentation']['save_rgb_cropped_images']:
             validate_dir(self.whole_leaves)
             validate_dir(self.partial_leaves)
+
 
         ### Segmentation overlay
         self.segmentation_whole_leaves = os.path.join(self.dir_project,'Plant_Components','Segmentation_Whole_Leaves')
@@ -149,6 +159,9 @@ class Dir_Structure():
 
         validate_dir(self.path_plant_components)
         validate_dir(os.path.join(self.path_plant_components, 'JSON'))
+
+        
+
         validate_dir(os.path.join(self.segmentation_overlay_pdfs))
 
         validate_dir(self.path_archival_components)
@@ -203,6 +216,11 @@ class Dir_Structure():
             # self.binarize_labels = os.path.join(self.dir_project,'Cropped_Images', 'By_Class','label_binary') 
             # validate_dir(self.binarize_labels)
 
+        ### Specimen Crop
+        if cfg['leafmachine']['modules']['specimen_crop']:
+            self.save_specimen_crop = os.path.join(self.dir_project,'Cropped_Images', 'Specimen_Crop') 
+            validate_dir(self.save_specimen_crop)
+
         '''Landmarks'''
         self.landmarks = os.path.join(self.dir_project,'Plant_Components','Landmarks')
         validate_dir(self.landmarks)
@@ -225,6 +243,26 @@ class Dir_Structure():
             validate_dir(self.landmarks_whole_leaves_overlay_final)
             validate_dir(self.landmarks_partial_leaves_overlay_final)
 
+        
+
+            
+
+        # armature
+        self.landmarks_armature_overlay = os.path.join(self.dir_project,'Armature_Components','Landmarks_Armature_Overlay')
+        if cfg['leafmachine']['landmark_detector_armature']['do_save_prediction_overlay_images']:
+            validate_dir(self.landmarks_armature_overlay)
+
+        self.landmarks_armature_overlay_QC = os.path.join(self.dir_project,'Armature_Components','Landmarks_Armature_Overlay_QC')
+        if cfg['leafmachine']['landmark_detector_armature']['do_save_QC_images']:
+            validate_dir(self.landmarks_armature_overlay_QC)
+
+        self.landmarks_armature_overlay_final = os.path.join(self.dir_project,'Plant_Components','Landmarks_Armature_Overlay_Final')
+        if cfg['leafmachine']['landmark_detector_armature']['do_save_final_images']:
+            validate_dir(self.landmarks_armature_overlay_final)
+
+        self.landmarks_armature_overlay_angles = os.path.join(self.dir_project,'Plant_Components','Landmarks_Whole_Leaves_Overlay_Angles')
+        if cfg['leafmachine']['landmark_detector']['do_save_final_images']:
+            validate_dir(self.landmarks_armature_overlay_angles)
 
         
             

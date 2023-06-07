@@ -1,12 +1,12 @@
-dir_export_base: 'D:\Dropbox\LM2_Env\Image_Datasets\Cannon' #'D:\Dropbox\LeafMachine2\data\archival_component_detector_data\final'
-project_name: 'Claire_cropped_leaves_3-27-23'
+dir_export_base: 'D:\Dropbox\LM2_Env\Image_Datasets\Acacia' #'D:\Dropbox\LeafMachine2\data\archival_component_detector_data\final'
+project_name: 'Acacia_prickles_4-26-23_LANCZOS'
 
-annotation_type_to_export: ['PLANT'] # 'PREP' OR 'PLANT' OR list
-include_projects: ['PLANT_Morton_QRcode_Corrected']
+annotation_type_to_export: ['ACACIA'] # 'PREP' OR 'PLANT' OR list
+include_projects: ['ACACIA_prickles']
 ignore_projects: [] #['PLANT_Morton_QRcode_Corrected','PLANT_GBIF_Acacia_Prickles','PLANT_GBIF_Acacia_Spines','PLANT_BroadSample_5SppPerTreeVREGenus','PLANT_Detailed_Rosaceae_Rosa_multiflora','PLANT_Detailed_Rosaceae_Rubus_occidentalis','PLANT_Detailed_Fabaceae_Gleditsia_triacanthos','PLANT_Detailed_Fabaceae_Gymnocladus_dioicus','PLANT_Detailed_Fabaceae_Robinia_pseudoacacia','PLANT_Detailed_Cannabaceae_Cannabis_sativa','PLANT_REU_Specimens-Full','PLANT_REU_Specimens-Leaves','PLANT_REU_All_Leaves','PLANT_Training_flowers','PLANT_Training','PLANT_Detailed_Adoxaceae_Viburnum_opulus',PLANT_Detailed_Annonaceae_Asimina_triloba,'PLANT_Detailed_Annonaceae_Annona_montana','PLANT_Detailed_Altingiaceae_Liquidambar_styraciflua','PLANT_Detailed_Vitaceae_Vitis_riparia','PLANT_Detailed_Betulaceae_Alnus_incana','PLANT_Detailed_Asteraceae_Hieracium_umbellatum','PLANT_Detailed_Adoxaceae_Viburnum_acerifolium','PLANT_Detailed_Betulaceae_Alnus_rubra','PLANT_Detailed_Caprifoliaceae_Lonicera_maackii','PLANT_Detailed_Caprifoliaceae_Lonicera_periclymenum','PLANT_Detailed_Caryophyllaceae_Dianthus_armeria','PLANT_Detailed_Ericaceae_Gaultheria_procumbens','PLANT_Detailed_Ericaceae_Rhododendron_maximum','PLANT_Detailed_Ericaceae_Vaccinium_angustifolium','PLANT_Detailed_Ericaceae_Vaccinium_oxycoccos']
 
 fetch_reviewed_annotations_only: False
-do_partition_data: False
+do_partition_data: True
 partition_ratio: 0.90 # percent sent to training set. Then val / test each get 50% of remaining
 
 accumulate_all_projects_in_run: True
@@ -21,7 +21,7 @@ do_sort_compound_and_simple_leaves: False
 # Export cropped bboxes as new jpg
 do_save_cropped_bboxes_as_jpgs: True
 do_save_colors_to_csv: True
-include_annotations: ['leaf_whole'] # PLANT # [] for all labels
+include_annotations: [] # PLANT # [] for all labels
 # include_anno: ['Ruler','Barcode','Colorcard','Map','Envelope','Photo','Attached Item','Weights'] # PREP all: ['Ruler','Barcode','Colorcard','Label','Map','Envelope','Photo','Attached Item','Weights']
 # max_annotations_saved_per_image_LEAF: 1000000000
 # max_annotations_saved_per_image_ALL_OTHER_TYPES: 10000000000

@@ -29,7 +29,8 @@ class Points:
     IMG_NAME: str 
     M_LOBE_COUNT: int = 0
     M_DEEPEST_SINUS_ANGLE: int = 0
-
+    M_OUTER: int = 0
+    
     LOBE_TIP: list = field(init=False,default_factory=list)
     ANGLE_TYPES: list = field(init=False,default_factory=list)
     LAMINA_TIP: list[tuple] = field(init=False)
@@ -65,13 +66,33 @@ class Points:
     BASE_ANGLE_N: int = field(init=False)
     DEEPEST_SINUS_ANGLE_N: int = field(init=False)
 
+    # Acacia
+    TIP: list = field(init=False,default_factory=list)
+    TIP_N: int = field(init=False)
+    M_TIP: float = field(init=False)
+    MIDDLE: list = field(init=False,default_factory=list)
+    MIDDLE_N: int = field(init=False)
+    M_MIDDLE: float = field(init=False)
+    OUTER: list = field(init=False,default_factory=list)
+    OUTER_N: int = field(init=False) 
+
     # def __post_init__(self) -> None:
     #     self.LOBE_TIP = []
-    def total_distance(self,pts):
-        total = 0
-        for i in range(len(pts) - 1):
-            total += math.dist(pts[i],pts[i+1])
-        return total
+    def total_distance(self,pts, is_multi=False):
+        if is_multi:
+            totals = []
+            for pt in pts:
+                total = 0
+                for i in range(len(pts) - 1):
+                    total += math.dist(pts[i],pts[i+1])
+                totals.append(total)
+            return totals
+
+        else:
+            total = 0
+            for i in range(len(pts) - 1):
+                total += math.dist(pts[i],pts[i+1])
+            return total
 
     def find_angle(self,pts,reflex,location):
         isReflex = False
@@ -172,6 +193,18 @@ class Points:
         except:
             self.M_DEEPEST_SINUS_ANGLE = 0
 
+        # Acacia
+        try:
+            self.M_MIDDLE = self.total_distance(self.MIDDLE)
+            # print(f'M_MIDVEIN_LENGTH: {self.M_MIDVEIN_LENGTH}')
+        except:
+            self.M_MIDDLE = 0
+        try:
+            self.M_OUTER = self.total_distance(self.OUTER, is_multi=True)
+            # print(f'M_MIDVEIN_LENGTH: {self.M_MIDVEIN_LENGTH}')
+        except:
+            self.M_OUTER = 0
+
     def export_ruler(self):
         headers = ['img_name','img_filename','1_cm',]
         data = {'img_name':[self.IMG_NAME],'img_filename':[self.IMG_FILENAME],'1_cm':[self.M_CM_1],}
@@ -243,29 +276,54 @@ class Points:
             self.LOBE_TIP = 0
             self.LOBE_TIP_N = 0
 
+        # ACACIA
+        try:
+            self.TIP_N = len(self.TIP)
+        except:
+            self.TIP = 0
+            self.TIP_N = 0
+        try:
+            self.MIDDLE_N = len(self.MIDDLE)
+        except:
+            self.MIDDLE = 0
+            self.MIDDLE_N = 0
+        try:
+            self.OUTER_N = len(self.OUTER)
+        except:
+            self.OUTER = 0
+            self.OUTER_N = 0
+
         if add_pts_counts: # will add the counts of the number of points to the dataframe
             headers = ['img_name','img_filename',
                     'lamina_length','midvein_length','petiole_length','petiole_trace_length','lamina_width','apex_angle','base_angle','angle_types','lobe_count',
                     'loc_lobe_tip','loc_lamina_tip','loc_lamina_base','loc_petiole_tip','loc_lamina_width','loc_midvein_trace','loc_petiole_trace','loc_apex_angle','loc_base_angle','loc_deepest_sinus',
-                    'loc_lobe_tip_n','loc_lamina_tip_n','loc_lamina_base_n','loc_petiole_tip_n','loc_lamina_width_n','loc_midvein_trace_n','loc_petiole_trace_n','loc_apex_angle_n','loc_base_angle_n','loc_deepest_sinus_n']
+                    'loc_tip','loc_middle','loc_outer',
+                    'loc_lobe_tip_n','loc_lamina_tip_n','loc_lamina_base_n','loc_petiole_tip_n','loc_lamina_width_n','loc_midvein_trace_n','loc_petiole_trace_n','loc_apex_angle_n','loc_base_angle_n','loc_deepest_sinus_n',
+                    'loc_tip_n','loc_middle_n','loc_outer_n',]
             data = {'img_name':[self.IMG_NAME],'img_filename':[self.IMG_FILENAME],
                     'lamina_length':[self.M_LAMINA_LENGTH],'midvein_length':[self.M_MIDVEIN_LENGTH],'petiole_length':[self.M_PETIOLE_LENGTH],'petiole_trace_length':[self.M_PETIOLE_TRACE_LENGTH],'lamina_width':[self.M_LAMINA_WIDTH],
                     'apex_angle':[self.M_APEX_ANGLE],'base_angle':[self.M_BASE_ANGLE],'angle_types':[self.ANGLE_TYPES],'lobe_count':[self.M_LOBE_COUNT],
                     'loc_lobe_tip':[self.LOBE_TIP],'loc_lamina_tip':[self.LAMINA_TIP],'loc_lamina_base':[self.LAMINA_BASE],'loc_petiole_tip':[self.PETIOLE_TIP],'loc_lamina_width':[self.LAMINA_WIDTH],
                     'loc_midvein_trace':[self.MIDVEIN_TRACE],'loc_petiole_trace':[self.PETIOLE_TRACE],'loc_apex_angle':[self.APEX_ANGLE],'loc_base_angle':[self.BASE_ANGLE],'loc_deepest_sinus':[self.DEEPEST_SINUS_ANGLE],
+                    'loc_tip':[self.TIP], 'loc_middle':[self.MIDDLE], 'loc_outer':[self.OUTER],
                     'loc_lobe_tip_n':[self.LOBE_TIP_N],'loc_lamina_tip_n':[self.LAMINA_TIP_N],'loc_lamina_base_n':[self.LAMINA_BASE_N],'loc_petiole_tip_n':[self.PETIOLE_TIP_N],'loc_lamina_width_n':[self.LAMINA_WIDTH_N],
-                    'loc_midvein_trace_n':[self.MIDVEIN_TRACE_N],'loc_petiole_trace_n':[self.PETIOLE_TRACE_N],'loc_apex_angle_n':[self.APEX_ANGLE_N],'loc_base_angle_n':[self.BASE_ANGLE_N],'loc_deepest_sinus_n':[self.DEEPEST_SINUS_ANGLE_N]}
+                    'loc_midvein_trace_n':[self.MIDVEIN_TRACE_N],'loc_petiole_trace_n':[self.PETIOLE_TRACE_N],'loc_apex_angle_n':[self.APEX_ANGLE_N],'loc_base_angle_n':[self.BASE_ANGLE_N],'loc_deepest_sinus_n':[self.DEEPEST_SINUS_ANGLE_N],
+                    'loc_tip_n':[self.TIP_N], 'loc_middle_n':[self.MIDDLE_N], 'loc_outer_n':[self.OUTER_N]}
             df = pd.DataFrame(data,headers)
             df = df.iloc[[0]]
         else: # this is the one that gets saved to csv
             headers = ['img_name','img_filename',
                     'lamina_length','midvein_length','petiole_length','petiole_trace_length','lamina_width','apex_angle','base_angle','angle_types','lobe_count','deepest_sinus',
-                    'loc_lobe_tip','loc_lamina_tip','loc_lamina_base','loc_petiole_tip','loc_lamina_width','loc_midvein_trace','loc_petiole_trace','loc_apex_angle','loc_base_angle','loc_deepest_sinus']
+                    'middle', 'outer',
+                    'loc_lobe_tip','loc_lamina_tip','loc_lamina_base','loc_petiole_tip','loc_lamina_width','loc_midvein_trace','loc_petiole_trace','loc_apex_angle','loc_base_angle','loc_deepest_sinus',
+                    'loc_tip', 'loc_middle', 'loc_outer']
             data = {'img_name':[self.IMG_NAME],'img_filename':[self.IMG_FILENAME],
                     'lamina_length':[self.M_LAMINA_LENGTH],'midvein_length':[self.M_MIDVEIN_LENGTH],'petiole_length':[self.M_PETIOLE_LENGTH],'petiole_trace_length':[self.M_PETIOLE_TRACE_LENGTH],'lamina_width':[self.M_LAMINA_WIDTH],
                     'apex_angle':[self.M_APEX_ANGLE],'base_angle':[self.M_BASE_ANGLE],'angle_types':[self.ANGLE_TYPES],'lobe_count':[self.M_LOBE_COUNT],'deepest_sinus':[self.M_DEEPEST_SINUS_ANGLE],
+                    'middle':[self.M_MIDDLE], 'outer':[self.M_OUTER],
                     'loc_lobe_tip':[self.LOBE_TIP],'loc_lamina_tip':[self.LAMINA_TIP],'loc_lamina_base':[self.LAMINA_BASE],'loc_petiole_tip':[self.PETIOLE_TIP],'loc_lamina_width':[self.LAMINA_WIDTH],
-                    'loc_midvein_trace':[self.MIDVEIN_TRACE],'loc_petiole_trace':[self.PETIOLE_TRACE],'loc_apex_angle':[self.APEX_ANGLE],'loc_base_angle':[self.BASE_ANGLE],'loc_deepest_sinus':[self.DEEPEST_SINUS_ANGLE]}
+                    'loc_midvein_trace':[self.MIDVEIN_TRACE],'loc_petiole_trace':[self.PETIOLE_TRACE],'loc_apex_angle':[self.APEX_ANGLE],'loc_base_angle':[self.BASE_ANGLE],'loc_deepest_sinus':[self.DEEPEST_SINUS_ANGLE],
+                    'loc_tip':[self.TIP], 'loc_middle':[self.MIDDLE], 'loc_outer':[self.OUTER]}
             df = pd.DataFrame(data,headers)
             df = df.iloc[[0]]
 
@@ -273,49 +331,49 @@ class Points:
 
 def get_point_locations(project_data,label_path,partition):
     headers = ['filename','count','locations']
-    locs = ['loc_lobe_tip','loc_lamina_tip','loc_lamina_base','loc_petiole_tip','loc_lamina_width','loc_midvein_trace','loc_petiole_trace','loc_apex_angle','loc_base_angle','loc_deepest_sinus']
-    pt_type = ['lobe_tip','lamina_tip','lamina_base','petiole_tip','lamina_width','midvein_trace','petiole_trace','apex_angle','base_angle','deepest_sinus']
-    locs_counts = ['loc_lobe_tip_n','loc_lamina_tip_n','loc_lamina_base_n','loc_petiole_tip_n','loc_lamina_width_n','loc_midvein_trace_n','loc_petiole_trace_n','loc_apex_angle_n','loc_base_angle_n','loc_deepest_sinus_n']
+    locs = ['loc_lobe_tip','loc_lamina_tip','loc_lamina_base','loc_petiole_tip','loc_lamina_width','loc_midvein_trace','loc_petiole_trace','loc_apex_angle','loc_base_angle','loc_deepest_sinus','loc_tip', 'loc_middle', 'loc_outer']
+    pt_type = ['lobe_tip','lamina_tip','lamina_base','petiole_tip','lamina_width','midvein_trace','petiole_trace','apex_angle','base_angle','deepest_sinus', 'tip', 'middle', 'outer']
+    locs_counts = ['loc_lobe_tip_n','loc_lamina_tip_n','loc_lamina_base_n','loc_petiole_tip_n','loc_lamina_width_n','loc_midvein_trace_n','loc_petiole_trace_n','loc_apex_angle_n','loc_base_angle_n','loc_deepest_sinus_n','loc_tip_n', 'loc_middle_n', 'loc_outer_n']
     
     for i, loc in enumerate(locs):
-        try: 
-            # combine_data = []
-            names = project_data['img_filename'].tolist()
-            pts = project_data[loc].tolist()
-            counts = locs_counts[i]
-            n_pts = project_data[counts].tolist()
+        # try: 
+        # combine_data = []
+        names = project_data['img_filename'].tolist()
+        pts = project_data[loc].tolist()
+        counts = locs_counts[i]
+        n_pts = project_data[counts].tolist()
 
-            
-            df = pd.DataFrame()
-            df[headers[0]] = names
-            df[headers[1]] = n_pts
-            df[headers[2]] = pts
+        
+        df = pd.DataFrame()
+        df[headers[0]] = names
+        df[headers[1]] = n_pts
+        df[headers[2]] = pts
 
-            # Remove rows with no labels
-            df = df[df['count'] > 0]
+        # Remove rows with no labels
+        df = df[df['count'] > 0]
 
-            # Remove rows with incorrent number of annotations
-            if pt_type[i] in ['lamina_tip','lamina_base','petiole_tip']:
-                df = df[df['count'] == 1]
-            elif pt_type[i] in ['lamina_width']:
-                df = df[df['count'] == 2]
-            elif pt_type[i] in ['apex_angle','base_angle','deepest_sinus']:
-                df = df[df['count'] == 3]
+        # Remove rows with incorrent number of annotations
+        if pt_type[i] in ['lamina_tip','lamina_base','petiole_tip','tip']:
+            df = df[df['count'] == 1]
+        elif pt_type[i] in ['lamina_width']:
+            df = df[df['count'] == 2]
+        elif pt_type[i] in ['apex_angle','base_angle','deepest_sinus']:
+            df = df[df['count'] == 3]
 
-            if partition == 'train':
-                label_path_type = os.path.join(label_path, pt_type[i] + '__' + 'train' + '__gt.csv')
-            elif partition == 'val':
-                label_path_type = os.path.join(label_path, pt_type[i] + '__' + 'val' + '__gt.csv')
-            elif partition == 'test':
-                label_path_type = os.path.join(label_path, pt_type[i] + '__' + 'test' + '__gt.csv')
-            if os.path.isfile(label_path_type):
-                # If the file already exists, append to it
-                df.to_csv(label_path_type, mode='a', header=False, index=False)
-            else:
-                # If the file doesn't exist, create it
-                df.to_csv(label_path_type, index=False)
-        except:
-            print(f"{bcolors.FAIL}\n      Failed to export {loc}{bcolors.ENDC}")
+        if partition == 'train':
+            label_path_type = os.path.join(label_path, pt_type[i] + '__' + 'train' + '__gt.csv')
+        elif partition == 'val':
+            label_path_type = os.path.join(label_path, pt_type[i] + '__' + 'val' + '__gt.csv')
+        elif partition == 'test':
+            label_path_type = os.path.join(label_path, pt_type[i] + '__' + 'test' + '__gt.csv')
+        if os.path.isfile(label_path_type):
+            # If the file already exists, append to it
+            df.to_csv(label_path_type, mode='a', header=False, index=False)
+        else:
+            # If the file doesn't exist, create it
+            df.to_csv(label_path_type, index=False)
+        # except:
+        #     print(f"{bcolors.FAIL}\n      Failed to export {loc}{bcolors.ENDC}")
 
 def export_points(opt):
     projects = opt.client.get_projects()
@@ -449,34 +507,40 @@ def export_points(opt):
                                         im = Image.open(requests.get(im_path, stream=True).raw if im_path.startswith('http') else im_path)  # open
                                 width, height = im.size  # image size
                                 fname = Path(img['External ID']).with_suffix('.txt').name
-                                # if DO_PARTITION_DATA:
-                                # label_path_train = os.path.join(saveNameJSON_YOLO,'labels','train')
-                                # label_path_val = os.path.join(saveNameJSON_YOLO,'labels','val')
-                                # label_path_test = os.path.join(saveNameJSON_YOLO,'labels','test')
-                                # validateDir_short(label_path_train)
-                                # validateDir_short(label_path_val)
-                                # validateDir_short(label_path_test)
+                                if opt.DO_PARTITION_DATA:
+                                    label_path_train = os.path.join(saveNameJSON_YOLO,'labels','train')
+                                    images_path_train = os.path.join(saveNameJSON_YOLO,'images','train')
+                                    label_path_val = os.path.join(saveNameJSON_YOLO,'labels','val')
+                                    images_path_val = os.path.join(saveNameJSON_YOLO,'images','val')
+                                    label_path_test = os.path.join(saveNameJSON_YOLO,'labels','test')
+                                    images_path_test = os.path.join(saveNameJSON_YOLO,'images','test')
+                                    validate_dir(label_path_train)
+                                    validate_dir(label_path_val)
+                                    validate_dir(label_path_test)
+                                    validate_dir(images_path_train)
+                                    validate_dir(images_path_val)
+                                    validate_dir(images_path_test)
 
-                                image_path = os.path.join(saveNameJSON_YOLO_label, img['External ID'])
-                                im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0)
-                                    # if pc in TRAIN:
-                                    #     # label_path = os.path.join(saveNameJSON_YOLO,'labels','train',fname)
-                                    #     image_path = os.path.join(saveNameJSON_YOLO,'images','train',img['External ID'])
-                                    #     im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
-                                    # elif pc in VAL:
-                                    #     # label_path = os.path.join(saveNameJSON_YOLO,'labels','val',fname)
-                                    #     image_path = os.path.join(saveNameJSON_YOLO,'images','val',img['External ID'])
-                                    #     im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
-                                    # elif pc in TEST:
-                                    #     # label_path = os.path.join(saveNameJSON_YOLO,'labels','test',fname)
-                                    #     image_path = os.path.join(saveNameJSON_YOLO,'images','test',img['External ID'])
-                                    #     im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
-                                # else:
-                                    # label_path = os.path.join(saveNameJSON_YOLO,'labels','train',fname)
-                                    # image_path = os.path.join(saveNameJSON_YOLO,'images','train',img['External ID'])
-                                    # im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
+                                    # image_path = os.path.join(saveNameJSON_YOLO_label, img['External ID'])
+                                    # im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0)
+                                    if pc in TRAIN:
+                                        # label_path = os.path.join(saveNameJSON_YOLO,'labels','train',fname)
+                                        image_path = os.path.join(saveNameJSON_YOLO,'images','train',img['External ID'])
+                                        im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
+                                    elif pc in VAL:
+                                        # label_path = os.path.join(saveNameJSON_YOLO,'labels','val',fname)
+                                        image_path = os.path.join(saveNameJSON_YOLO,'images','val',img['External ID'])
+                                        im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
+                                    elif pc in TEST:
+                                        # label_path = os.path.join(saveNameJSON_YOLO,'labels','test',fname)
+                                        image_path = os.path.join(saveNameJSON_YOLO,'images','test',img['External ID'])
+                                        im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
+                                else:
+                                    label_path = os.path.join(saveNameJSON_YOLO,'labels','train',fname)
+                                    image_path = os.path.join(saveNameJSON_YOLO,'images','train',img['External ID'])
+                                    im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
                                 img_name = img['External ID']
-                                img_filename = img_name+'.jpg'
+                                img_filename = img_name #+'.jpg'
                                 
                                 
                                 Labels = Points(IMG_NAME=img_name,IMG_FILENAME=img_filename)
@@ -552,6 +616,24 @@ def export_points(opt):
                                             trace.append((pt_x,pt_y))
                                         Labels.DEEPEST_SINUS_ANGLE.append(trace)
                                         Labels.M_DEEPEST_SINUS_ANGLE = Labels.M_DEEPEST_SINUS_ANGLE + 1
+
+                                    # Acacia
+                                    if label['value'] == 'tip':
+                                        pt_x,pt_y = label['point'].values()
+                                        Labels.TIP = [(pt_x,pt_y)]
+                                    if label['value'] == 'middle':
+                                        trace = []
+                                        for row in  label['line']:
+                                            pt_x,pt_y = row.values()
+                                            trace.append((pt_x,pt_y))
+                                        Labels.MIDDLE = trace
+                                    if label['value'] == 'outer':
+                                        trace = []
+                                        for row in  label['line']:
+                                            pt_x,pt_y = row.values()
+                                            trace.append((pt_x,pt_y))
+                                        Labels.OUTER.append(trace)
+                                        Labels.M_OUTER = Labels.M_OUTER + 1
                                 # angle type
                                 try:
                                     for label in img['Label']['classifications']:

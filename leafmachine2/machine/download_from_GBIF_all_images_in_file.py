@@ -41,7 +41,7 @@ def download_all_images_from_GBIF_LM2(dir_LM2, mode):
     return cfg
 
 if __name__ == '__main__':
-    opt = 'multi'
+    opt = 'single'
 
     if opt == 'single':
         dir_LM2 = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

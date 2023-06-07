@@ -86,6 +86,7 @@ class Points:
             raise ValueError("Length of std_devs and sample_sizes must be equal.")
         numerator = sum([(n-1)*s**2 for n, s in zip(sample_sizes, std_devs)])
         denominator = sum(sample_sizes) - k
+        denominator = max(denominator, 0.000000000000001)
         return math.sqrt(numerator / denominator)
 
     def pairwise_distance(self, coords):
@@ -289,7 +290,7 @@ def export_points(opt):
                                     # image_path = os.path.join(saveNameJSON_YOLO,'images','train',img['External ID'])
                                     # im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
                                 img_name = img['External ID']
-                                img_filename = img_name+'.jpg'
+                                img_filename = img_name#+'.jpg'
                                 
                                 CM_list = []
                                 CM_list_sd = []

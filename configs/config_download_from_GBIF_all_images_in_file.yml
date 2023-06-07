@@ -1,24 +1,30 @@
 # config_download_from_GBIF_all_images_in_file.yml
 ####################################################################################
 ### Directories ###
-dir_home: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_GBIF_Fagaceae/DWC'
-dir_destination_images: '/media/brlab/e5827490-fff7-471f-a73d-e7ae3ea264bf1/LM2_TEST/SET_GBIF_Fagaceae/images_20MPplus'
-dir_destination_csv: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_GBIF_Fagaceae/DWC'
+dir_home: 'D:/D_Desktop'
+dir_destination_images: 'D:/D_Desktop/Richie'
+dir_destination_csv: 'D:/D_Desktop/Richie'
+
+is_custom_file: True
+col_url: 'url'
+col_name: 'lab_code'
+# Use for custom
+filename_img: 'P_serotina_79_urls.csv' # 'spines_images.txt' 'prickles_images.txt'
 
 ####################################################################################
 ### Exisitng Files ###
 # Darwin Core Occurance File
-filename_occ: 'occurrence.txt'
+# filename_occ: 'occurrence.txt'
 
 ####################################################################################
 # Darwin Core Images File
-filename_img: 'multimedia.txt' # 'spines_images.txt' 'prickles_images.txt'
+# filename_img: 'multimedia.txt' # 'spines_images.txt' 'prickles_images.txt'
 
 ####################################################################################
 ### Files that will be created ###
 # Set the filename of a new csv containing the merged records from images and occ
 #      filename_combined: 'combined_XXXXXXX.csv'
-filename_combined: 'combined_Fagaceae.csv' # appends to this file 
+# filename_combined: 'combined_Fagaceae.csv' # appends to this file 
 # filename_combined: 'combined_spines.csv'
 
 ####################################################################################
@@ -36,8 +42,8 @@ n_threads: 16 # OR int in range 1:32, (usually 8-12) set to None to use number o
 # Some herbaria (MNHM, or Naturalis Biodiversity Center...) have server/broken link issues frequently
 # Set to True if you get long timeout errors
 # Recommend = True
-ignore_banned_herb: True 
+ignore_banned_herb: False 
 # You can add your own banned herbs here.
 # Add to the list based on the url stems from the 'identifier' column in the images.csv.
 # Eg. 'http://mediaphoto.mnhn.fr/media/144135118650898Vf4SNC2P5ot2SW'  -->  'mediaphoto.mnhn.fr'
-banned_url_stems: ['mediaphoto.mnhn.fr'] # ['mediaphoto.mnhn.fr', 'stock.images.gov'] etc....
+banned_url_stems: [] #['mediaphoto.mnhn.fr'] # ['mediaphoto.mnhn.fr', 'stock.images.gov'] etc....

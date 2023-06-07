@@ -32,6 +32,7 @@ leafmachine2/machine/DocEnTR/.git/
 leafmachine2/machine/DocEnTR/__pycache__
 
 leafmachine2/release_manager/
+leafmachine2/transcription/
 
 leafmachine2/segmentation/wandb/
 leafmachine2/segmentation/models/

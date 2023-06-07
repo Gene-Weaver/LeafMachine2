@@ -7,6 +7,23 @@ import multiprocessing as mp
 import numpy as np
 import concurrent.futures
 from time import perf_counter
+import glob
+import rawpy
+import imageio
+from PIL import Image
+import pyexiv2
+from colour.temperature import xy_to_CCT, CCT_to_xy #pip install colour-science
+import subprocess
+import platform
+'''
+TIFF --> DNG
+Install
+https://helpx.adobe.com/camera-raw/using/adobe-dng-converter.html
+Read
+https://helpx.adobe.com/content/dam/help/en/photoshop/pdf/dng_commandline.pdf
+
+'''
+
 
 # https://stackoverflow.com/questions/287871/how-do-i-print-colored-text-to-the-terminal
 
@@ -19,14 +36,36 @@ def get_cfg_from_full_path(path_cfg):
         cfg = yaml.full_load(ymlfile)
     return cfg
 
-def load_cfg(pathToCfg):
+# def load_cfg(pathToCfg):
+#     try:
+#         with open(os.path.join(pathToCfg,"LeafMachine2.yaml"), "r") as ymlfile:
+#             cfg = yaml.full_load(ymlfile)
+#     except:
+#         with open(os.path.join(os.path.dirname(os.path.dirname(pathToCfg)),"LeafMachine2.yaml"), "r") as ymlfile:
+#             cfg = yaml.full_load(ymlfile)
+#     return cfg
+
+# def load_cfg_VV(pathToCfg):
+#     try:
+#         with open(os.path.join(pathToCfg,"VoucherVision.yaml"), "r") as ymlfile:
+#             cfg = yaml.full_load(ymlfile)
+#     except:
+#         with open(os.path.join(os.path.dirname(os.path.dirname(pathToCfg)),"VoucherVision.yaml"), "r") as ymlfile:
+#             cfg = yaml.full_load(ymlfile)
+#     return cfg
+
+def load_cfg(pathToCfg, system='LeafMachine2'):
+    if system not in ['LeafMachine2', 'VoucherVision', 'SpecimenCrop']:
+        raise ValueError("Invalid system. Expected 'LeafMachine2', 'VoucherVision' or 'SpecimenCrop'.")
+
     try:
-        with open(os.path.join(pathToCfg,"LeafMachine2.yaml"), "r") as ymlfile:
+        with open(os.path.join(pathToCfg, f"{system}.yaml"), "r") as ymlfile:
             cfg = yaml.full_load(ymlfile)
     except:
-        with open(os.path.join(os.path.dirname(os.path.dirname(pathToCfg)),"LeafMachine2.yaml"), "r") as ymlfile:
+        with open(os.path.join(os.path.dirname(os.path.dirname(pathToCfg)), f"{system}.yaml"), "r") as ymlfile:
             cfg = yaml.full_load(ymlfile)
     return cfg
+
 
 def import_csv(full_path):
     csv_data = pd.read_csv(full_path,sep=',',header=0, low_memory=False, dtype=str)
@@ -319,14 +358,37 @@ def print_main_info(message):
     # end_white_space = " " * end
     print(f"{bcolors.CGREYBG}{white_space}{message}{end}{bcolors.ENDC}")
     
-def report_config(dir_home, cfg_file_path):
+# def report_config(dir_home, cfg_file_path):
+#     print_main_start("Loading Configuration File")
+#     if cfg_file_path == None:
+#         print_main_info(''.join([os.path.join(dir_home, 'LeafMachine2.yaml')]))
+#     elif cfg_file_path == 'test_installation':
+#         print_main_info(''.join([os.path.join(dir_home, 'demo','LeafMachine2_demo.yaml')]))
+#     else:
+#         print_main_info(cfg_file_path)
+
+# def report_config_VV(dir_home, cfg_file_path):
+#     print_main_start("Loading Configuration File")
+#     if cfg_file_path == None:
+#         print_main_info(''.join([os.path.join(dir_home, 'VoucherVision.yaml')]))
+#     elif cfg_file_path == 'test_installation':
+#         print_main_info(''.join([os.path.join(dir_home, 'demo','VoucherVision_demo.yaml')]))
+#     else:
+#         print_main_info(cfg_file_path)
+
+def report_config(dir_home, cfg_file_path, system='LeafMachine2'):
     print_main_start("Loading Configuration File")
+    
+    if system not in ['LeafMachine2', 'VoucherVision', 'SpecimenCrop']:
+        raise ValueError("Invalid system. Expected 'LeafMachine2' or 'VoucherVision' or 'SpecimenCrop'.")
+    
     if cfg_file_path == None:
-        print_main_info(''.join([os.path.join(dir_home, 'LeafMachine2.yaml')]))
+        print_main_info(''.join([os.path.join(dir_home, f'{system}.yaml')]))
     elif cfg_file_path == 'test_installation':
-        print_main_info(''.join([os.path.join(dir_home, 'demo','LeafMachine2_demo.yaml')]))
+        print_main_info(''.join([os.path.join(dir_home, 'demo', f'{system}_demo.yaml')]))
     else:
         print_main_info(cfg_file_path)
+
 
 def make_file_names_valid(dir, cfg):
     if cfg['leafmachine']['do']['check_for_illegal_filenames']:
@@ -345,15 +407,47 @@ def make_file_names_valid(dir, cfg):
                     name_new = '_'.join([name_cleaned, str(i), ext])
                 os.rename(os.path.join(dir,file), os.path.join(dir,name_new))
 
-def load_config_file(dir_home, cfg_file_path):
-    if cfg_file_path == None: # Default path
-        return load_cfg(dir_home)
+# def load_config_file(dir_home, cfg_file_path):
+#     if cfg_file_path == None: # Default path
+#         return load_cfg(dir_home)
+#     else:
+#         if cfg_file_path == 'test_installation':
+#             path_cfg = os.path.join(dir_home,'demo','LeafMachine2_demo.yaml')                     
+#             return get_cfg_from_full_path(path_cfg)
+#         else: # Custom path
+#             return get_cfg_from_full_path(cfg_file_path)
+        
+# def load_config_file_VV(dir_home, cfg_file_path):
+#     if cfg_file_path == None: # Default path
+#         return load_cfg_VV(dir_home)
+#     else:
+#         if cfg_file_path == 'test_installation':
+#             path_cfg = os.path.join(dir_home,'demo','VoucherVision_demo.yaml')                     
+#             return get_cfg_from_full_path(path_cfg)
+#         else: # Custom path
+#             return get_cfg_from_full_path(cfg_file_path)
+
+def load_config_file(dir_home, cfg_file_path, system='LeafMachine2'):
+    if system not in ['LeafMachine2', 'VoucherVision', 'SpecimenCrop']:
+        raise ValueError("Invalid system. Expected 'LeafMachine2' or 'VoucherVision' or 'SpecimenCrop'.")
+
+    if cfg_file_path is None:  # Default path
+        if system == 'LeafMachine2':
+            return load_cfg(dir_home, system='LeafMachine2')  # For LeafMachine2
+
+        elif system == 'VoucherVision': # VoucherVision
+            return load_cfg(dir_home, system='VoucherVision')  # For VoucherVision
+
+        elif system == 'SpecimenCrop': # SpecimenCrop
+            return load_cfg(dir_home, system='SpecimenCrop')  # For SpecimenCrop
+
     else:
         if cfg_file_path == 'test_installation':
-            path_cfg = os.path.join(dir_home,'demo','LeafMachine2_demo.yaml')                     
+            path_cfg = os.path.join(dir_home, 'demo', f'{system}_demo.yaml')                     
             return get_cfg_from_full_path(path_cfg)
-        else: # Custom path
+        else:  # Custom path
             return get_cfg_from_full_path(cfg_file_path)
+
         
 def load_config_file_testing(dir_home, cfg_file_path):
     if cfg_file_path == None: # Default path
@@ -425,7 +519,50 @@ def crop_detections_from_images(cfg, dir_home, Project, Dirs):
     # Wait for all worker processes to finish
     for p in processes:
         p.join()'''
+def crop_detections_from_images_worker_SpecimenCrop(filename, analysis, Project, Dirs, cfg, save_list, original_img_dir):
+    try:
+        full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpg'])))
+    except:
+        full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpeg'])))
 
+    try:
+        archival = analysis['Detections_Archival_Components']
+        has_archival = True
+    except: 
+        archival = None
+        has_archival = False
+
+    try:
+        plant = analysis['Detections_Plant_Components']
+        has_plant = True
+    except: 
+        plant = None
+        has_plant = False
+
+    if has_archival or has_plant:
+        crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archival, has_plant, archival, plant, full_image, filename, save_list, original_img_dir)
+
+def crop_detections_from_images_worker_VV(filename, analysis, Project, Dirs, save_per_image, save_per_class, save_list, binarize_labels):
+    try:
+        full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpg'])))
+    except:
+        full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpeg'])))
+
+    try:
+        archival = analysis['Detections_Archival_Components']
+        has_archival = True
+    except: 
+        has_archival = False
+
+    try:
+        plant = analysis['Detections_Plant_Components']
+        has_plant = True
+    except: 
+        has_plant = False
+
+    if has_archival and (save_per_image or save_per_class):
+        crop_component_from_yolo_coords_VV('ARCHIVAL', Dirs, analysis, archival, full_image, filename, save_per_image, save_per_class, save_list)
+ 
 def crop_detections_from_images_worker(filename, analysis, Project, Dirs, save_per_image, save_per_class, save_list, binarize_labels):
     try:
         full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpg'])))
@@ -461,7 +598,10 @@ def crop_detections_from_images(cfg, logger, dir_home, Project, Dirs, batch_size
         save_per_image = cfg['leafmachine']['cropped_components']['save_per_image']
         save_per_class = cfg['leafmachine']['cropped_components']['save_per_annotation_class']
         save_list = cfg['leafmachine']['cropped_components']['save_cropped_annotations']
-        binarize_labels = cfg['leafmachine']['cropped_components']['binarize_labels']
+        try:
+            binarize_labels = cfg['leafmachine']['cropped_components']['binarize_labels']
+        except:
+            binarize_labels = False
         if cfg['leafmachine']['project']['batch_size'] is None:
             batch_size = 50
         else:
@@ -490,6 +630,105 @@ def crop_detections_from_images(cfg, logger, dir_home, Project, Dirs, batch_size
 
     t2_stop = perf_counter()
     logger.info(f"Save cropped components --- elapsed time: {round(t2_stop - t2_start)} seconds")
+
+def crop_detections_from_images_VV(cfg, logger, dir_home, Project, Dirs, batch_size=50):
+    t2_start = perf_counter()
+    logger.name = 'Crop Components'
+    
+    if cfg['leafmachine']['cropped_components']['do_save_cropped_annotations']:
+        detections = cfg['leafmachine']['cropped_components']['save_cropped_annotations']
+        logger.info(f"Cropping {detections} components from images")
+
+        save_per_image = cfg['leafmachine']['cropped_components']['save_per_image']
+        save_per_class = cfg['leafmachine']['cropped_components']['save_per_annotation_class']
+        save_list = cfg['leafmachine']['cropped_components']['save_cropped_annotations']
+        binarize_labels = cfg['leafmachine']['cropped_components']['binarize_labels']
+        if cfg['leafmachine']['project']['batch_size'] is None:
+            batch_size = 50
+        else:
+            batch_size = int(cfg['leafmachine']['project']['batch_size'])
+        if cfg['leafmachine']['project']['num_workers'] is None:
+            num_workers = 4 
+        else:
+            num_workers = int(cfg['leafmachine']['project']['num_workers'])
+
+        if binarize_labels:
+            save_per_class = True
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = []
+            for i in range(0, len(Project.project_data), batch_size):
+                batch = list(Project.project_data.items())[i:i+batch_size]
+                # print(f'Cropping Detections from Images {i} to {i+batch_size}')
+                logger.info(f'Cropping {detections} from images {i} to {i+batch_size} [{len(Project.project_data)}]')
+                for filename, analysis in batch:
+                    if len(analysis) != 0:
+                        futures.append(executor.submit(crop_detections_from_images_worker_VV, filename, analysis, Project, Dirs, save_per_image, save_per_class, save_list, binarize_labels))
+
+                for future in concurrent.futures.as_completed(futures):
+                    pass
+                futures.clear()
+
+    t2_stop = perf_counter()
+    logger.info(f"Save cropped components --- elapsed time: {round(t2_stop - t2_start)} seconds")
+
+
+def crop_detections_from_images_SpecimenCrop(cfg, logger, dir_home, Project, Dirs, original_img_dir=None):
+    t2_start = perf_counter()
+    logger.name = 'Crop Components --- Specimen Crop'
+
+    if cfg['leafmachine']['modules']['specimen_crop']:
+        # save_list = ['ruler', 'barcode', 'colorcard', 'label', 'map', 'envelope', 'photo', 'attached_item', 'weights',
+        #               'leaf_whole', 'leaf_partial', 'leaflet', 'seed_fruit_one', 'seed_fruit_many', 'flower_one', 'flower_many', 'bud', 'specimen', 'roots', 'wood']
+        save_list = cfg['leafmachine']['cropped_components']['include_these_objects_in_specimen_crop']
+
+        logger.info(f"Cropping to include {save_list} components from images")
+
+        for i, (filename, analysis) in enumerate(Project.project_data.items()):
+            if len(analysis) != 0:
+                logger.info(f'Cropping {save_list} from image {i} of {len(Project.project_data)}: {filename}')
+                crop_detections_from_images_worker_SpecimenCrop(filename, analysis, Project, Dirs, cfg, save_list, original_img_dir)
+
+    t2_stop = perf_counter()
+    logger.info(f"Save cropped components --- elapsed time: {round(t2_stop - t2_start)} seconds")
+
+# def crop_detections_from_images_SpecimenCrop(cfg, logger, dir_home, Project, Dirs, original_img_dir=None, batch_size=50):
+#     t2_start = perf_counter()
+#     logger.name = 'Crop Components --- Specimen Crop'
+    
+#     if cfg['leafmachine']['modules']['specimen_crop']:
+#         # save_list = ['ruler', 'barcode', 'colorcard', 'label', 'map', 'envelope', 'photo', 'attached_item', 'weights',
+#         #               'leaf_whole', 'leaf_partial', 'leaflet', 'seed_fruit_one', 'seed_fruit_many', 'flower_one', 'flower_many', 'bud', 'specimen', 'roots', 'wood']
+#         save_list = cfg['leafmachine']['cropped_components']['include_these_objects_in_specimen_crop']
+
+#         logger.info(f"Cropping to include {save_list} components from images")
+
+#         if cfg['leafmachine']['project']['batch_size'] is None:
+#             batch_size = 50
+#         else:
+#             batch_size = int(cfg['leafmachine']['project']['batch_size'])
+#         if cfg['leafmachine']['project']['num_workers'] is None:
+#             num_workers = 4 
+#         else:
+#             num_workers = int(cfg['leafmachine']['project']['num_workers'])
+
+#         with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+#             futures = []
+#             for i in range(0, len(Project.project_data), batch_size):
+#                 batch = list(Project.project_data.items())[i:i+batch_size]
+#                 # print(f'Cropping Detections from Images {i} to {i+batch_size}')
+#                 logger.info(f'Cropping {save_list} from images {i} to {i+batch_size} [{len(Project.project_data)}]')
+#                 for filename, analysis in batch:
+#                     if len(analysis) != 0:
+#                         futures.append(executor.submit(crop_detections_from_images_worker_SpecimenCrop, filename, analysis, Project, Dirs, save_list, original_img_dir))
+
+#                 for future in concurrent.futures.as_completed(futures):
+#                     pass
+#                 futures.clear()
+
+#     t2_stop = perf_counter()
+#     logger.info(f"Save cropped components --- elapsed time: {round(t2_stop - t2_start)} seconds")
+
 '''
 # Single threaded
 def crop_detections_from_images(cfg, dir_home, Project, Dirs):
@@ -525,6 +764,277 @@ def crop_detections_from_images(cfg, dir_home, Project, Dirs):
                 if has_plant and (save_per_image or save_per_class):
                     crop_component_from_yolo_coords('PLANT', Dirs, analysis, plant, full_image, filename, save_per_image, save_per_class, save_list)
 '''
+
+def crop_image_raw(img, output_image_path, min_x, min_y, max_x, max_y):
+    cropped = img.crop((min_x, min_y, max_x, max_y))
+    cropped.save(output_image_path)
+
+        
+def create_temp_tiffs_dir(new_tiff_dir):
+    temp_tiffs_dir = os.path.join(new_tiff_dir, 'temp_tiffs')
+
+    # Create the new directory if it doesn't exist
+    if not os.path.exists(temp_tiffs_dir):
+        os.makedirs(temp_tiffs_dir)
+        
+    return temp_tiffs_dir
+
+def copy_exif_data(input_image_path, output_image_path):
+    # Open the original image file
+    with pyexiv2.Image(input_image_path) as img:
+        exif_data = img.read_exif()
+        # print(exif_data)
+
+    # Open the output image file
+    with pyexiv2.Image(output_image_path) as img:
+        img.modify_exif(exif_data)
+        img.modify_exif({'Exif.Image.Orientation': 1})
+
+
+def convert_to_dng(tiff_path, dng_path):
+    # Check the system
+    system = platform.system()
+    if system == "Windows":
+        executable_path = "C:\Program Files\Adobe\Adobe DNG Converter\Adobe DNG Converter.exe"
+    elif system == "Darwin":
+        executable_path = "/Applications/Adobe DNG Converter.app/Contents/MacOS/Adobe DNG Converter"
+
+    # prepare the command
+    # command = f'"{executable_path}" -u -d "{os.path.dirname(tiff_path)}" -o "{dng_path}"'
+    command = f'"{executable_path}" -c -d "{os.path.dirname(dng_path)}" "{tiff_path}"'
+    print(command)
+    # call the command
+    subprocess.run(command, shell=False)
+
+def crop_and_save_dng(input_path, output_path, x, y, width, height):
+    # Read the raw DNG file
+    raw = rawpy.imread(input_path)
+
+    # Crop the raw sensor data
+    raw_cropped = raw.raw_image.copy()
+    raw_cropped = raw_cropped[y:y+height, x:x+width]
+
+    # Update the rawpy object with the cropped data
+    raw.raw_image[:height, :width] = raw_cropped
+    raw.raw_image_visible[:height, :width] = raw_cropped
+
+    # Save the cropped image as a DNG file
+    raw.save(output_path)
+
+
+def get_colorspace(colorspace_choice):
+    # Match the string from YAML to the corresponding rawpy.ColorSpace attribute
+    if colorspace_choice == 'raw':
+        return rawpy.ColorSpace.raw
+    elif colorspace_choice == 'sRGB':
+        return rawpy.ColorSpace.sRGB
+    elif colorspace_choice == 'Adobe':
+        return rawpy.ColorSpace.Adobe
+    elif colorspace_choice == 'Wide':
+        return rawpy.ColorSpace.Wide
+    elif colorspace_choice == 'ProPhoto':
+        return rawpy.ColorSpace.ProPhoto
+    elif colorspace_choice == 'XYZ':
+        return rawpy.ColorSpace.XYZ
+    else:
+        raise ValueError("Invalid colorspace choice")
+
+
+def crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archival, has_plant, archival_detections, 
+                                                 plant_detections, full_image, filename, save_list, original_img_dir):
+    
+    padding = int(cfg['leafmachine']['project']['padding_for_crop'])
+
+    colorspace_choice = cfg['leafmachine']['project']['colorspace']
+    colorspace = get_colorspace(colorspace_choice)
+
+    height = analysis['height']
+    width = analysis['width']
+
+    # Initialize variables for minimum and maximum coordinates
+    min_x, min_y = float('inf'), float('inf')
+    max_x, max_y = float('-inf'), float('-inf')
+
+    success = False
+
+    # If original_img_dir is provided, load the CR2 image instead of using the full_image
+    if original_img_dir is not None:
+        temp_tiffs_dir = create_temp_tiffs_dir(os.path.join(Dirs.dir_project,'Cropped_Images'))
+        # Remove the extension from filename
+        filename_stem = os.path.splitext(filename)[0]
+        # Use glob to find the CR2 file in original_img_dir with the matching stem
+        cr2_file = glob.glob(os.path.join(original_img_dir, filename_stem + '*.CR2'))[0]
+        # Use rawpy to convert the raw CR2 file to TIFF
+        temporary_tiff_path = os.path.join(temp_tiffs_dir, filename_stem + "_temp.TIFF")
+
+        # adjust_white_balance(cr2_file, cr2_file, 4450, 7)
+
+        with rawpy.imread(cr2_file) as raw:
+            # Get RGB image
+            rgb = raw.postprocess(use_camera_wb=True, use_auto_wb=False, output_bps=16, output_color=colorspace, half_size=False)
+            imageio.imsave(temporary_tiff_path, rgb)
+        # Load the temporary TIFF as full_image
+        # adjust_white_balance(temporary_tiff_path, temporary_tiff_path, 4450, 7)
+        full_image = Image.open(temporary_tiff_path)
+        
+
+
+    if not has_archival:
+        pass
+    else:
+        success = True
+        for detection in archival_detections:
+            detection_class = detection[0]
+            detection_class = set_index_for_annotation(detection_class, "ARCHIVAL")
+
+            if (detection_class in save_list) or ('save_all' in save_list):
+
+                location = yolo_to_position_ruler(detection, height, width)
+                ruler_polygon = [(location[1], location[2]), (location[3], location[2]), (location[3], location[4]), (location[1], location[4])]
+
+                x_coords = [x for x, y in ruler_polygon]
+                y_coords = [y for x, y in ruler_polygon]
+
+                min_x = min(min_x, *x_coords)
+                min_y = min(min_y, *y_coords)
+                max_x = max(max_x, *x_coords)
+                max_y = max(max_y, *y_coords)
+
+    if not has_plant:
+        pass
+    else:
+        success = True
+        for detection in plant_detections:
+            detection_class = detection[0]
+            detection_class = set_index_for_annotation(detection_class, "PLANT")
+
+            if (detection_class in save_list) or ('save_all' in save_list):
+
+                location = yolo_to_position_ruler(detection, height, width)
+                ruler_polygon = [(location[1], location[2]), (location[3], location[2]), (location[3], location[4]), (location[1], location[4])]
+
+                x_coords = [x for x, y in ruler_polygon]
+                y_coords = [y for x, y in ruler_polygon]
+
+                min_x = min(min_x, *x_coords)
+                min_y = min(min_y, *y_coords)
+                max_x = max(max_x, *x_coords)
+                max_y = max(max_y, *y_coords)
+
+    if success:
+        # Calculate new min/max coordinates, ensuring they are within image bounds
+        min_x = max(0, min_x - padding)
+        min_y = max(0, min_y - padding)
+        max_x = min(full_image.width, max_x + padding)
+        max_y = min(full_image.height, max_y + padding)
+        detection_cropped_name = '.'.join([filename, 'jpg'])
+
+        # Save the cropped image
+        if original_img_dir is not None:
+            # Save the image as a TIFF in the new_tiff_dir
+            cropped_tiff_path = os.path.join(Dirs.save_specimen_crop, detection_cropped_name.replace('.jpg', '.TIFF'))
+            crop_image_raw(full_image, cropped_tiff_path, min_x, min_y, max_x, max_y)
+            copy_exif_data(cr2_file, cropped_tiff_path)
+            # Convert the TIFF to DNG
+            # https://helpx.adobe.com/camera-raw/using/adobe-dng-converter.html
+            # Convert the TIFF to DNG
+            # cropped_dng_path = cropped_tiff_path.replace('.TIFF', '.DNG')
+            # convert_to_dng(cr2_file, cropped_dng_path)
+            
+        else:
+            # Perform a single crop using the minimum and maximum coordinates
+            detection_cropped = full_image[min_y:max_y, min_x:max_x]
+            cv2.imwrite(os.path.join(Dirs.save_specimen_crop, detection_cropped_name), detection_cropped)
+
+    else:
+        print('Failed')
+
+
+
+def crop_component_from_yolo_coords_VV(anno_type, Dirs, analysis, all_detections, full_image, filename, save_per_image, save_per_class, save_list):
+    height = analysis['height']
+    width = analysis['width']
+
+    # Initialize a list to hold all the cropped images
+    cropped_images = []
+
+    if len(all_detections) < 1:
+        print('     MAKE THIS HAVE AN EMPTY PLACEHOLDER') # TODO ###################################################################################
+    else:
+        for detection in all_detections:
+            detection_class = detection[0]
+            detection_class = set_index_for_annotation(detection_class, anno_type)
+
+            if (detection_class in save_list) or ('save_all' in save_list):
+
+                location = yolo_to_position_ruler(detection, height, width)
+                ruler_polygon = [(location[1], location[2]), (location[3], location[2]), (location[3], location[4]), (location[1], location[4])]
+
+                x_coords = [x for x, y in ruler_polygon]
+                y_coords = [y for x, y in ruler_polygon]
+
+                min_x, min_y = min(x_coords), min(y_coords)
+                max_x, max_y = max(x_coords), max(y_coords)
+
+                detection_cropped = full_image[min_y:max_y, min_x:max_x]
+                cropped_images.append(detection_cropped)
+                loc = '-'.join([str(min_x), str(min_y), str(max_x), str(max_y)])
+                detection_cropped_name = '.'.join(['__'.join([filename, detection_class]), 'jpg'])
+
+                # save_per_image
+                if (detection_class in save_list) and save_per_image:
+                    dir_destination = os.path.join(Dirs.save_per_image, filename, detection_class)
+                    # print(os.path.join(dir_destination,detection_cropped_name))
+                    validate_dir(dir_destination)
+                    cv2.imwrite(os.path.join(dir_destination,detection_cropped_name), detection_cropped)
+                    
+                # save_per_class
+                if (detection_class in save_list) and save_per_class:
+                    dir_destination = os.path.join(Dirs.save_per_annotation_class, detection_class)
+                    # print(os.path.join(dir_destination,detection_cropped_name))
+                    validate_dir(dir_destination)
+                    cv2.imwrite(os.path.join(dir_destination,detection_cropped_name), detection_cropped)
+            else:
+                # print(f'detection_class: {detection_class} not in save_list: {save_list}')
+                pass
+
+    # Initialize a list to hold all the acceptable cropped images
+    acceptable_cropped_images = []
+
+    for img in cropped_images:
+        # Calculate the aspect ratio of the image
+        aspect_ratio = min(img.shape[0], img.shape[1]) / max(img.shape[0], img.shape[1])
+        # Only add the image to the acceptable list if the aspect ratio is more square than 1:8
+        if aspect_ratio >= 1/8:
+            acceptable_cropped_images.append(img)
+
+    # Sort acceptable_cropped_images by area (largest first)
+    acceptable_cropped_images.sort(key=lambda img: img.shape[0] * img.shape[1], reverse=True)
+
+
+    # If there are no acceptable cropped images, set combined_image to None or to a placeholder image
+    if not acceptable_cropped_images:
+        combined_image = None  # Or a placeholder image here
+    else:
+        # Recalculate max_width and total_height for acceptable images
+        max_width = max(img.shape[1] for img in acceptable_cropped_images)
+        total_height = sum(img.shape[0] for img in acceptable_cropped_images)
+
+        # Now, combine all the acceptable cropped images into a single image
+        combined_image = np.zeros((total_height, max_width, 3), dtype=np.uint8)
+
+        y_offset = 0
+        for img in acceptable_cropped_images:
+            combined_image[y_offset:y_offset+img.shape[0], :img.shape[1]] = img
+            y_offset += img.shape[0]
+
+        # save the combined image
+        if (detection_class in save_list) and save_per_class:
+            dir_destination = os.path.join(Dirs.save_per_annotation_class, detection_class)
+            validate_dir(dir_destination)
+            combined_image_name = '__'.join([filename, detection_class]) + '.jpg'
+            cv2.imwrite(os.path.join(dir_destination, combined_image_name), combined_image)
+
 
 def crop_component_from_yolo_coords(anno_type, Dirs, analysis, all_detections, full_image, filename, save_per_image, save_per_class, save_list):
     height = analysis['height']

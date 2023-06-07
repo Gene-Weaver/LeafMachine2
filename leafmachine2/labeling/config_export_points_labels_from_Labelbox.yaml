@@ -1,12 +1,12 @@
-dir_export_base: 'D:\Dropbox\LM2_Env\Image_Datasets\Cannon' #'D:\Dropbox\LeafMachine2\data\archival_component_detector_data\final'
-project_name: 'Claire_3-27-23'
+dir_export_base: 'D:\Dropbox\LM2_Env\Image_Datasets\Acacia' #'D:\Dropbox\LeafMachine2\data\archival_component_detector_data\final'
+project_name: 'POINTS_Acacia_Prickles_2023-05-01'
 
 annotation_type_to_export: ['POINTS'] # 'PREP' OR 'PLANT' OR list
-include_projects: ['POINTS_Morton_Quercus_mohriana','POINTS_Morton_Quercus_stellata','POINTS_Morton_sinus_only ']
+include_projects: ['POINTS_Acacia_Prickles',]
 ignore_projects: [] #['POINTS_Morton_sinus_only', 'POINTS_Morton_Quercus_stellata', 'POINTS_Morton_Quercus_mohriana']
 
 fetch_reviewed_annotations_only: False
-do_partition_data: False
+do_partition_data: True
 partition_ratio: 0.90 # percent sent to training set. Then val / test each get 50% of remaining
 
 accumulate_all_projects_in_run: True 

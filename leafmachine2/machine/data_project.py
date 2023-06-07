@@ -33,8 +33,9 @@ class Project_Info():
         logger.name = 'Project Info'
         logger.info("Gathering Images and Image Metadata")
 
-        self.image_location = cfg['leafmachine']['project']['image_location']
         self.batch_size = cfg['leafmachine']['project']['batch_size']
+
+        self.image_location = cfg['leafmachine']['project']['image_location']
 
         # If project is local, expect:
         #       dir with images
@@ -48,6 +49,7 @@ class Project_Info():
         #       Darwin Core Images (or multimedia.txt) and Occurrences file pair, either .txt or .csv
         elif self.image_location in ['GBIF','g','G','gbif']:
             self.__import_GBIF_files_post_download(cfg, logger, dir_home)
+
 
         self.__make_project_dict() #, self.batch_size)
 
@@ -89,42 +91,45 @@ class Project_Info():
         
         # CSV import
         # Combined
-        if cfg['leafmachine']['project']['path_combined_csv_local'] is None:
-            self.csv_combined = None
-            self.path_csv_combined = None
-        else:
-            self.path_csv_combined = cfg['leafmachine']['project']['path_combined_csv_local']
-            self.csv_combined = import_csv(self.path_csv_combined)
-        # Occurrence
-        if cfg['leafmachine']['project']['path_occurrence_csv_local'] is None:
-            self.csv_occ = None
-            self.path_csv_occ = None
-        else:
-            self.path_csv_occ = cfg['leafmachine']['project']['path_occurrence_csv_local']
-            self.csv_occ = import_csv(self.path_csv_occ)
-        # Images/metadata
-        if cfg['leafmachine']['project']['path_images_csv_local'] is None:
-            self.path_csv_img = None
-            self.path_csv_img = None
-        else:
-            self.path_csv_img = cfg['leafmachine']['project']['path_images_csv_local']
-            self.csv_img = import_csv(self.path_csv_img)
-
-        # Create combined if it's missing
-        if self.csv_combined is None:
-            if cfg['leafmachine']['project']['path_combined_csv_local'] is not None:
-                # Print_Verbose(cfg, 2, 'Combined CSV file not provided, creating it now...').bold()
-                logger.info('Combined CSV file not provided, creating it now...')
-                location = self.__create_combined_csv()
-                # Print_Verbose(cfg, 2, ''.join(['Combined CSV --> ',location])).green()
-                logger.info(''.join(['Combined CSV --> ',location]))
-
+        try:
+            if cfg['leafmachine']['project']['path_combined_csv_local'] is None:
+                self.csv_combined = None
+                self.path_csv_combined = None
             else:
-                # Print_Verbose(cfg, 2, 'Combined CSV file not available or provided. Skipped record import.').bold()
-                logger.info('Combined CSV file not available or provided. Skipped record import.')
-        else:
-            # Print_Verbose(cfg, 2, ''.join(['Combined CSV --> ',self.path_csv_combined])).green()
-            logger.info(''.join(['Combined CSV --> ',self.path_csv_combined]))
+                self.path_csv_combined = cfg['leafmachine']['project']['path_combined_csv_local']
+                self.csv_combined = import_csv(self.path_csv_combined)
+            # Occurrence
+            if cfg['leafmachine']['project']['path_occurrence_csv_local'] is None:
+                self.csv_occ = None
+                self.path_csv_occ = None
+            else:
+                self.path_csv_occ = cfg['leafmachine']['project']['path_occurrence_csv_local']
+                self.csv_occ = import_csv(self.path_csv_occ)
+            # Images/metadata
+            if cfg['leafmachine']['project']['path_images_csv_local'] is None:
+                self.path_csv_img = None
+                self.path_csv_img = None
+            else:
+                self.path_csv_img = cfg['leafmachine']['project']['path_images_csv_local']
+                self.csv_img = import_csv(self.path_csv_img)
+
+            # Create combined if it's missing
+            if self.csv_combined is None:
+                if cfg['leafmachine']['project']['path_combined_csv_local'] is not None:
+                    # Print_Verbose(cfg, 2, 'Combined CSV file not provided, creating it now...').bold()
+                    logger.info('Combined CSV file not provided, creating it now...')
+                    location = self.__create_combined_csv()
+                    # Print_Verbose(cfg, 2, ''.join(['Combined CSV --> ',location])).green()
+                    logger.info(''.join(['Combined CSV --> ',location]))
+
+                else:
+                    # Print_Verbose(cfg, 2, 'Combined CSV file not available or provided. Skipped record import.').bold()
+                    logger.info('Combined CSV file not available or provided. Skipped record import.')
+            else:
+                # Print_Verbose(cfg, 2, ''.join(['Combined CSV --> ',self.path_csv_combined])).green()
+                logger.info(''.join(['Combined CSV --> ',self.path_csv_combined]))
+        except:
+            pass
 
         # Print_Verbose(cfg, 2, ''.join(['Image Directory --> ',self.dir_images])).green()
         logger.info(''.join(['Image Directory --> ',self.dir_images]))

@@ -59,7 +59,7 @@ def process_dir_for_MAL():
 
     # dir_base = os.path.dirname(__file__)
     dir_base = os.path.join(parentdir,'component_detector')
-    make_file_names_valid(cfg['dir_containing_original_images'])
+    # make_file_names_valid(cfg['dir_containing_original_images'], cfg)
     run_MAL(cfg, dir_base)
 
 if __name__ == '__main__':

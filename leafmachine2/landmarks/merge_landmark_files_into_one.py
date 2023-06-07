@@ -28,20 +28,28 @@ def merge_csv(input_dir, output_file):
     # Write the merged data to the output file
     merged_data.to_csv(output_file, index=False)
 
-def convert_to_YOLO(input_path, image_path, output_dir):
+def convert_to_YOLO(input_path, image_path, output_dir, version):
     # Define the size of the bounding box
 
-    classes = {
-        'apex_angle': 0,
-        'base_angle': 1,
-        'lamina_base': 2,
-        'lamina_tip': 3,
-        'lamina_width': 4,
-        'lobe_tip': 5,
-        'midvein_trace': 6,
-        'petiole_tip': 7,
-        'petiole_trace': 8
-    }
+    if version == 'base':
+        classes = {
+            'apex_angle': 0,
+            'base_angle': 1,
+            'lamina_base': 2,
+            'lamina_tip': 3,
+            'lamina_width': 4,
+            'lobe_tip': 5,
+            'midvein_trace': 6,
+            'petiole_tip': 7,
+            'petiole_trace': 8,
+        }
+    elif version == 'arm':
+        classes = {
+            'tip': 0,
+            'middle': 1,
+            'outer': 2,
+        }
+
     # Read the train.csv file into a DataFrame
     data = pd.read_csv(input_path)
 
@@ -71,11 +79,17 @@ def convert_to_YOLO(input_path, image_path, output_dir):
             class_name = row[1]
             locations = ast.literal_eval(row[4])
             for point in locations:
-                # point_bbox = create_bbox_from_point(point, box_size)
-                # yolo_locs = convert_locations(point_bbox, width, height, box_size)
-                yolo_locs = create_bbox_from_point(point, box_size, width, height)
-                for yolo_loc in yolo_locs:
-                    yolo_locations.append((classes[class_name], *yolo_loc))
+                if class_name == 'outer':
+                    for pair in point:
+                        yolo_locs = create_bbox_from_point(pair, box_size, width, height)
+                        for yolo_loc in yolo_locs:
+                            yolo_locations.append((classes[class_name], *yolo_loc))
+                else:
+                    # point_bbox = create_bbox_from_point(point, box_size)
+                    # yolo_locs = convert_locations(point_bbox, width, height, box_size)
+                    yolo_locs = create_bbox_from_point(point, box_size, width, height)
+                    for yolo_loc in yolo_locs:
+                        yolo_locations.append((classes[class_name], *yolo_loc))
 
         # Create a string with the YOLO format labels for this image
         label_str = ""
@@ -84,6 +98,7 @@ def convert_to_YOLO(input_path, image_path, output_dir):
 
         # Write the label string to a text file
         label_filename = os.path.splitext(filename)[0] + '.txt'
+        os.makedirs(output_dir, exist_ok=True)
         with open(os.path.join(output_dir, label_filename), 'w') as f:
             f.write(label_str)
 
@@ -117,12 +132,12 @@ def create_bbox_from_point(point, box_size, width, height):
     # So this swaps them, puts them all in the correct order
     if not valid_int:
         # Calculate the x and y coordinates of the top-left corner of the bounding box
-        x_min = int(point[0] - (box_size - 1) / 2)
-        y_min = int(point[1] - (box_size - 1) / 2)
+        x_min = int(point[0]) - int((box_size - 1) / 2)
+        y_min = int(point[1]) - int((box_size - 1) / 2)
 
         # Calculate the x and y coordinates of the bottom-right corner of the bounding box
-        x_max = int(point[0] + (box_size - 1) / 2)
-        y_max = int(point[1] + (box_size - 1) / 2)
+        x_max = int(point[0]) + int((box_size - 1) / 2)
+        y_max = int(point[1]) + int((box_size - 1) / 2)
     else:
         # Calculate the x and y coordinates of the top-left corner of the bounding box
         x_min = int(point[1] - (box_size - 1) / 2)
@@ -199,29 +214,33 @@ if __name__ == '__main__':
 
     # 1. Merge the csv files from labelbox into one, split by test/train
     if run_merge_csv:
-        merge_csv('D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/YOLO/test', 
-                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/YOLO/test.csv')
+        merge_csv('D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/test', 
+                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/test.csv')
 
-        merge_csv('D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/YOLO/train', 
-                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/YOLO/train.csv')
+        merge_csv('D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/train', 
+                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/train.csv')
     
     # 2. Clean images, so that train/test are seperate
     if run_clean_image_dirs:
-        clear_training_images_from_test_dir('D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks/images/test',
-                                            'D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks/labels/train')
+        # clear_training_images_from_test_dir('D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks/images/test',
+        #                                     'D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks/labels/train')
+        clear_training_images_from_test_dir('D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks_Arm/images/test',
+                                            'D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks_Arm/labels/train')
 
-        clear_training_images_from_test_dir('D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks/images/train',
-                                        'D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks/labels/test')
+        clear_training_images_from_test_dir('D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks_Arm/images/train',
+                                        'D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks_Arm/labels/test')
 
     # 3. convert the points from labelbox .csv into tiny bboxes for YOLO .txt that have diff dims based on image resolution
     if run_convert_pts_to_bboxes:
-        convert_to_YOLO('D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/YOLO/test.csv', 
-                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/YOLO/landmarks_YOLO/images/test',
-                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/YOLO/landmarks_YOLO_expanded_bbox/labels/test')
+        convert_to_YOLO('D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/test.csv', 
+                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/landmarks_YOLO/images/test',
+                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/landmarks_YOLO_expanded_bbox/labels/test',
+                    'arm')
         
-        convert_to_YOLO('D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/YOLO/train.csv', 
-                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/YOLO/landmarks_YOLO/images/train',
-                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/YOLO/landmarks_YOLO_expanded_bbox/labels/train')
+        convert_to_YOLO('D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/train.csv', 
+                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/landmarks_YOLO/images/train',
+                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/landmarks_YOLO_expanded_bbox/labels/train',
+                    'arm')
 
     # NOTE: The original pass and training up to 100 epochs all had 9x9 bboxes.
     #       The 2nd time "landmarks_YOLO_expanded_bbox" had:

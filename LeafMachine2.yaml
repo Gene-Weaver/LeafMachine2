@@ -3,6 +3,8 @@ leafmachine:
     do:
         check_for_illegal_filenames: False 
         check_for_corrupt_images_make_vertical: False
+
+        run_leaf_processing: False
     print:
         verbose: True
         optional_warnings: True
@@ -13,8 +15,8 @@ leafmachine:
     # Overall Project Input Settings
     project:
         # Project Output Dir
-        dir_output: 'D:/Dropbox/LM2_Env/Image_Datasets/TEST_LM2'
-        run_name: 'multi_test' #'images_short_TEST' #'images_short_landmark'
+        dir_output: 'D:\D_Desktop\Manuscript_Images_Revision' # 'D:/Dropbox/LM2_Env/Image_Datasets/TEST_LM2' # 'D:\D_Desktop\Richie\Richie_Out'
+        run_name: 'Manuscript_Images_Revision' #'images_short_TEST' #'images_short_landmark'
         # If location is GBIF, set the config in:
         #       LeafMachine2/configs/config_download_from_GBIF_all_images_in_file OR
         #       LeafMachine2/configs/config_download_from_GBIF_all_images_in_filter
@@ -22,10 +24,10 @@ leafmachine:
         GBIF_mode: 'all' # str |FROM| 'all' or 'filter'. All = config_download_from_GBIF_all_images_in_file.yml Filter = config_download_from_GBIF_all_images_in_filter.yml
         batch_size: 50 #null # null = all
         num_workers: 2 # int |DEFAULT| 4 # More is not always better. Most hardware loses performance after 4
-        # If *not* using local, set the following 4 to null
+        # If *not* using local, set the following 4 to nullMy Project 92806
         # If providing occ and img, then a combined will be generated
         # If providing combined, then set images and occ to null
-        dir_images_local: 'D:\Dropbox\LM2_Env\Image_Datasets\Explore\Images_NYBG_by_taxa_remain' #'D:/Dropbox/LM2_Env/Image_Datasets/Hodel' #'home/brlab/Dropbox/LM2_Env/Image_Datasets/Manuscript_Images' # 'D:\Dropbox\LM2_Env\Image_Datasets\SET_FieldPrism_Test\TESTING_OUTPUT\Images_Processed\REU_Field_QR-Code-Images\Cannon_Corrected\Images_Corrected' # 'F:\temp_3sppFamily' # 'D:/Dropbox/LM2_Env/Image_Datasets/GBIF_BroadSample_3SppPerFamily' # SET_Diospyros/images_short' # 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Diospyros/images_short' #'D:\Dropbox\LM2_Env\Image_Datasets\GBIF_BroadSample_Herbarium'  #'D:/Dropbox/LM2_Env/Image_Datasets/SET_Diospyros/images_short'  # str | only for image_location:local | full path for directory containing images
+        dir_images_local: 'D:\Dropbox\LM2_Env\Image_Datasets\Manuscript_Images_Revision' #'D:\D_Desktop\Richie\Imgs' #'D:/Dropbox/LM2_Env/Image_Datasets/Acacia/Acacia_prickles_4-26-23_LANCZOS/images/short' #'D:\D_Desktop\Richie\Imgs' #'home/brlab/Dropbox/LM2_Env/Image_Datasets/Manuscript_Images' # 'D:\Dropbox\LM2_Env\Image_Datasets\SET_FieldPrism_Test\TESTING_OUTPUT\Images_Processed\REU_Field_QR-Code-Images\Cannon_Corrected\Images_Corrected' # 'F:\temp_3sppFamily' # 'D:/Dropbox/LM2_Env/Image_Datasets/GBIF_BroadSample_3SppPerFamily' # SET_Diospyros/images_short' # 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Diospyros/images_short' #'D:\Dropbox\LM2_Env\Image_Datasets\GBIF_BroadSample_Herbarium'  #'D:/Dropbox/LM2_Env/Image_Datasets/SET_Diospyros/images_short'  # str | only for image_location:local | full path for directory containing images
         
         path_combined_csv_local: null # 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Diospyros/DWC/combined_diospyros.csv' #'D:/Dropbox/LM2_Env/Image_Datasets/SET_Diospyros/DWC_short/combined_diospyros_short.csv'  # str | only for image_location:local | full path for directory containing images
         path_occurrence_csv_local: null # 'D:\Dropbox\LM2_Env\Image_Datasets\SET_Acacia\armature_occurrence.csv'  # str | only for image_location:local | full path for directory containing images
@@ -46,12 +48,17 @@ leafmachine:
         #           ruler, barcode, colorcard, label, map, envelope, photo, attached_item, weights
         # plant |FROM| 
         #           leaf_whole, leaf_partial, leaflet, seed_fruit_one, seed_fruit_many, flower_one, flower_many, bud, specimen, roots, wood
-        do_save_cropped_annotations: False
-        save_cropped_annotations: ['label'] # 'save_all' to save all classes
+        do_save_cropped_annotations: True
+        save_cropped_annotations: ['label', 'ruler','colorcard'] # 'save_all' to save all classes
         save_per_image: False # creates a folder for each image, saves crops into class-names folders # TODO
         save_per_annotation_class: True # saves crops into class-names folders
         binarize_labels: True
         binarize_labels_skeletonize: False
+
+    
+    modules:
+        armature: False
+        specimen_crop: False
 
 
     data:
@@ -60,7 +67,7 @@ leafmachine:
         save_individual_csv_files_rulers: False
         save_individual_csv_files_measurements: False
         include_darwin_core_data_from_combined_file: False
-        do_apply_conversion_factor: True
+        do_apply_conversion_factor: True ###########################
 
     overlay:
         save_overlay_to_pdf: True
@@ -71,15 +78,15 @@ leafmachine:
         show_archival_detections: True
         ignore_archival_detections_classes: []
         show_plant_detections: True
-        ignore_plant_detections_classes: ['leaf_whole', 'leaf_partial', 'specimen']
+        ignore_plant_detections_classes: ['leaf_whole', 'specimen'] #['leaf_whole', 'leaf_partial', 'specimen']
         show_segmentations: True
         show_landmarks: True
         ignore_landmark_classes: []
 
-        line_width_archival: 2 # int
-        line_width_plant: 6 # int
-        line_width_seg: 12 # int # thick = 12
-        line_width_efd: 6 # int # thick = 3
+        line_width_archival: 12 # int 2
+        line_width_plant: 12 # int 6
+        line_width_seg: 6 # int # thick = 12
+        line_width_efd: 12 # int # thick = 3
         alpha_transparency_archival: 0.3  # float between 0 and 1
         alpha_transparency_plant: 0
         alpha_transparency_seg_whole_leaf: 0.4
@@ -92,7 +99,7 @@ leafmachine:
         detector_version: 'PLANT_GroupAB_200'
         detector_iteration: 'PLANT_GroupAB_200'
         detector_weights: 'best.pt'
-        minimum_confidence_threshold: 0.5 #0.2
+        minimum_confidence_threshold: 0.5 # 0.5 = default
         do_save_prediction_overlay_images: True
         ignore_objects_for_overlay: [] #['leaf_partial'] # list[str] # list of objects that can be excluded from the overlay # all = null
     
@@ -103,10 +110,21 @@ leafmachine:
         detector_version: 'PREP_final'
         detector_iteration: 'PREP_final'
         detector_weights: 'best.pt'
-        minimum_confidence_threshold: 0.5
+        minimum_confidence_threshold: 0.5 # 0.5 = default
         do_save_prediction_overlay_images: True
         ignore_objects_for_overlay: [] # list[str] # list of objects that can be excluded from the overlay # all = null
     
+    # Configure Plant Component Detector
+    armature_component_detector:
+        # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
+        detector_type: 'Armature_Detector' 
+        detector_version: 'ARM_A_1000'
+        detector_iteration: 'ARM_A_1000'
+        detector_weights: 'best.pt'
+        minimum_confidence_threshold: 0.5 #0.2
+        do_save_prediction_overlay_images: True
+        ignore_objects_for_overlay: [] 
+
     landmark_detector:
         # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
         landmark_whole_leaves: True
@@ -126,6 +144,25 @@ leafmachine:
 
         do_show_final_images: False
         do_save_final_images: True
+
+    landmark_detector_armature:
+        # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
+        upscale_factor: 10
+        
+        detector_type: 'Landmark_Detector_YOLO' 
+        detector_version: 'Landmarks_Arm_A_200'
+        detector_iteration: 'Landmarks_Arm_A_200'
+        detector_weights: 'last.pt'
+        minimum_confidence_threshold: 0.06
+        do_save_prediction_overlay_images: True ######################################################################################################
+        ignore_objects_for_overlay: [] # list[str] # list of objects that can be excluded from the overlay # all = null
+        use_existing_landmark_detections: null #'D:/Dropbox/LM2_Env/Image_Datasets/TEST_LM2/images_short_landmark/Plant_Components/Landmarks_Whole_Leaves_Overlay' # null for unprocessed images
+
+        do_show_QC_images: True
+        do_save_QC_images: True
+
+        do_show_final_images: True
+        do_save_final_images: True
     
     ruler_detection:
         detect_ruler_type: True # only True right now
@@ -139,7 +176,7 @@ leafmachine:
     # Configure Archival Component Detector
     leaf_segmentation:
         segment_whole_leaves: True
-        segment_partial_leaves: False ### ***
+        segment_partial_leaves: True ### ***
 
         keep_only_best_one_leaf_one_petiole: True
 
@@ -173,18 +210,18 @@ leafmachine:
         ruler_directory: 'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_CroppedAnnotations_Group1_Partial/PREP/Ruler' 
 
     component_detector_train:
-        plant_or_archival: 'LANDMARK' # str |FROM| 'PLANT' or 'ARCHIVAL' or 'LANDMARK'
+        plant_or_archival: 'ARCHIVAL' # str |FROM| 'PLANT' or 'ARCHIVAL' or 'LANDMARK' or 'ARM'
         model_options:
-            data: '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks/Landmarks.yaml' # 'D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/PLANT_Botany_Small/PLANT_Botany_Small.yaml'
+            data: '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/PREP_final/PREP_final.yaml' #'/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks_Arm/Landmarks_Arm.yaml' # 'D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/PLANT_Botany_Small/PLANT_Botany_Small.yaml'
             project: null # str |DEFAULT| 'runs/train'
-            name: 'Landmarks' # str |DEFAULT| 'exp'     #PLANT_GroupAB_200
-            weights: '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Landmark_Detector_YOLO/Landmarks/Landmarks2/weights/best.pt' # '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Plant_Detector/PLANT_GroupA/weights/best.pt' # '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Plant_Detector/PLANT_GroupB/PLANT_GroupB/weights/last.pt' # null # str |DEFAULT| yolov5x6.pt |FROM| small to big: yolov5n yolov5s yolov5m yolov5l yolov5x yolov5x6 
+            name: 'Archival_Nano' # str |DEFAULT| 'exp'     #PLANT_GroupAB_200
+            weights: '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/architecture/yolov5n.pt' #'/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Landmark_Detector_YOLO/Landmarks/Landmarks/weights/best.pt' #'/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Landmark_Detector_YOLO/Landmarks/Landmarks2/weights/best.pt' # '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Plant_Detector/PLANT_GroupA/weights/best.pt' # '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Plant_Detector/PLANT_GroupB/PLANT_GroupB/weights/last.pt' # null # str |DEFAULT| yolov5x6.pt |FROM| small to big: yolov5n yolov5s yolov5m yolov5l yolov5x yolov5x6 
             optimizer: null # str SGD |FROM| 'SGD', 'Adam', 'AdamW'
-            epochs: 200 # int |DEFAULT| 300
+            epochs: 1000 # int |DEFAULT| 300 | normally 200 for landmarks, 1000 for bboxes
             batch_size: 14 # int |DEAFULT| 8 # 14 for 48GB VRAM
-            patience: null # int |DEFAULT| 100
+            patience: 0 # int |DEFAULT| 100
             save_period: 10 # int |DEFAULT| 1
-            imgsz: 1280 # int |DEFAULT| 512
+            imgsz: 256 # int |DEFAULT| 512 #1280
             workers: null # int |DEFAULT| 8
             hyp: null # str |DEFAULT| 'data/hyps/hyp.scratch-low.yaml' |FROM| /data/hyps/
             resume: null # bool |DEFAULT| False
@@ -294,20 +331,20 @@ leafmachine:
         do_eval_check_directory: True # bool |DEFAULT| True
 
     landmark_train:
-        dir_train: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/images' # 'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/images'
-        dir_val: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/images' # 'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/images'
-        dir_save: '/home/brlab/Dropbox/LeafMachine2/leafmachine2/landmarks/landmark_models' # 'D:/Dropbox/LeafMachine2/leafmachine2/landmarks/landmark_models'
-        run_name: 'landmark_v1'
+        dir_train: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/images/train' # 'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/images'
+        dir_val: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/images/val' # 'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS/images'
+        dir_save: '/home/brlab/Dropbox/LeafMachine2/leafmachine2/landmarks_arm/landmark_arm_models' # 'D:/Dropbox/LeafMachine2/leafmachine2/landmarks/landmark_models'
+        run_name: 'landmarks_arm_v1'
 
         # This will select the correct csv file that contains the GT annotations. File format should be something like this: apex_angle__train__gt.csv
         # The class (eg. apex_angle) and the version (train or test) need to be seperated by 2 underscores '__' AND the class must match the landmark: 
         # Other names can be in the file name so long as the class and version can be parsed by --> string.split('__')
-        landmark: 'lamina_width' # str |DEFAULT| None |FROM| 'apex_angle', 'base_angle', 'lamina_base', 'lamina_tip', 'lamina_width', 'lobe_tip', 'midvein_trace', 'petiole_tip', 'petiole_trace'
+        landmark: ['tip', 'middle', 'outer'] # str |DEFAULT| None |FROM| 'apex_angle', 'base_angle', 'lamina_base', 'lamina_tip', 'lamina_width', 'lobe_tip', 'midvein_trace', 'petiole_tip', 'petiole_trace', 'tip', 'middle', 'outer'
 
         model_options:
-            resume: '/home/brlab/Dropbox/LeafMachine2/leafmachine2/landmarks/landmark_models/landmark_v1/lamina_width/landmark_v1_lamina_width_epoch-40.ckpt' # full path to .ckpt file to resume
+            resume: null #'/home/brlab/Dropbox/LeafMachine2/leafmachine2/landmarks/landmark_models/landmark_v1/lamina_width/landmark_v1_lamina_width_epoch-40.ckpt' # full path to .ckpt file to resume
 
-            number_of_points: 2 # null for indeterminate. Otherwise set to an int for number of points that need to be located
+            number_of_points: null # null for indeterminate. Otherwise set to an int for number of points that need to be located
             weight_to_get_correct_number_of_points: 1 #  |DEFAULT| 1
             batch_size: 20 # int |DEFAULT| 32
             image_size: 256 # int |DEFAULT| 512 |FROM| 224, 256, 512

@@ -274,6 +274,13 @@ def save_labels_to_txt(opt, project, file, annoType, data, saveNameJSON_YOLO_ori
                         bottom = top + h
                         img_crop = im.crop((left, top, right, bottom))
 
+                        # Upscale acacia prickles/spines
+                        if annoType == 'ACACIA':
+                            # img_crop = img_crop.resize((img_crop.width * 10, img_crop.height * 10), resample=Image.BICUBIC)
+                            img_crop = img_crop.resize((img_crop.width * 10, img_crop.height * 10), resample=Image.LANCZOS)
+                        else:
+                            continue
+
                         if opt.DO_PARTITION_DATA:
                             if pc in TRAIN:
                                 save_crop_name = img["External ID"] + '__' + str(label_ind)

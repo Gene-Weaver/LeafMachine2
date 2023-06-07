@@ -235,6 +235,15 @@ def assign_index(cls,annoType):
             annoInd = 7
         elif cls == 'weights':
             annoInd = 8
+    elif annoType == 'ACACIA':
+        if cls == 'prickles':
+            annoInd = 0
+        elif cls == 'prickles_skip':
+            annoInd = 1
+        elif cls == 'spines':
+            annoInd = 2
+        elif cls == 'spines_skip':
+            annoInd = 3
     return annoInd
 
 def set_index_for_annotation(cls,annoType):
@@ -280,6 +289,15 @@ def set_index_for_annotation(cls,annoType):
             annoInd = 'Attached Item'
         elif cls == 8:
             annoInd = 'Weights'
+    elif annoType == 'ACACIA':
+        if cls == 0:
+            annoInd = 'prickles'
+        elif cls == 1: 
+            annoInd = 'prickles_skip'
+        elif cls == 2:
+            annoInd = 'spines'
+        elif cls == 3:
+            annoInd = 'spines_skip'
     return annoInd
 
 def get_MAL_ontology(project_id, client):

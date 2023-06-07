@@ -83,6 +83,8 @@ def run(
         COLOR_PROFILE = read_csv(os.path.join(dir_base,'color_profiles','ColorProfile__PLANT.csv'))
     elif anno_type in ['LANDMARK','Landmark_Detector']:
         COLOR_PROFILE = read_csv(os.path.join(dir_base,'color_profiles','ColorProfile__LANDMARK.csv'))
+    elif anno_type in ['Arm','ARM','Armature_Detector','Armature']:
+        COLOR_PROFILE = read_csv(os.path.join(dir_base,'color_profiles','ColorProfile__LANDMARK_ARM.csv'))
     if isinstance(source, list):
         source_0 = source[0]
         save_img = not nosave and not source_0.endswith('.txt')  # save inference images

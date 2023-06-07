@@ -1,8 +1,8 @@
-dir_export_base: 'D:\Dropbox\LM2_Env\Image_Datasets\GroundTruth_RULER_POINTS' #'D:\Dropbox\LeafMachine2\data\archival_component_detector_data\final'
-project_name: 'GroundTruth_RULER_POINTS_revised_wPE'
+dir_export_base: 'D:\D_Desktop\Richie\Richie_Out' #'D:\Dropbox\LM2_Env\Image_Datasets\GroundTruth_RULER_POINTS' #'D:\Dropbox\LeafMachine2\data\archival_component_detector_data\final'
+project_name: 'Richie_ruler_manual'
 
 annotation_type_to_export: ['RULER'] # 'PREP' OR 'PLANT' OR list
-include_projects: []
+include_projects: ['RULER_Richie']
 ignore_projects: [] #['POINTS_Morton_sinus_only', 'POINTS_Morton_Quercus_stellata', 'POINTS_Morton_Quercus_mohriana']
 
 fetch_reviewed_annotations_only: False

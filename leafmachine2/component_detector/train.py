@@ -604,6 +604,9 @@ class TrainOptions:
         elif self.cfg['leafmachine']['component_detector_train']['plant_or_archival'] == 'LANDMARK':
             if self.cfg_private['w_and_b']['landmark_component_detector_project'] is not None:
                 self.w_and_b_project = self.cfg_private['w_and_b']['landmark_component_detector_project']
+        elif self.cfg['leafmachine']['component_detector_train']['plant_or_archival'] == 'ARM':
+            if self.cfg_private['w_and_b']['arm_component_detector_project'] is not None:
+                self.w_and_b_project = self.cfg_private['w_and_b']['arm_component_detector_project']
                 
         if self.cfg_private['w_and_b']['entity'] is not None:
             self.entity = self.cfg_private['w_and_b']['entity']
@@ -904,8 +907,11 @@ if __name__ == "__main__":
         if cfg_private['w_and_b']['archival_component_detector_project'] is not None:
             w_and_b_project = cfg_private['w_and_b']['archival_component_detector_project']
     elif cfg['leafmachine']['component_detector_train']['plant_or_archival'] == 'LANDMARK':
-            if cfg_private['w_and_b']['landmark_component_detector_project'] is not None:
-                w_and_b_project = cfg_private['w_and_b']['landmark_component_detector_project']
+        if cfg_private['w_and_b']['landmark_component_detector_project'] is not None:
+            w_and_b_project = cfg_private['w_and_b']['landmark_component_detector_project']
+    elif cfg['leafmachine']['component_detector_train']['plant_or_archival'] == 'ARM':
+            if cfg_private['w_and_b']['arm_component_detector_project'] is not None:
+                w_and_b_project = cfg_private['w_and_b']['arm_component_detector_project']
             
     if cfg_private['w_and_b']['entity'] is not None:
         entity = cfg_private['w_and_b']['entity']

@@ -1,0 +1,102 @@
+# To use default value, set to null
+leafmachine:
+    do:
+        check_for_illegal_filenames: False 
+        check_for_corrupt_images_make_vertical: False
+
+    print:
+        verbose: True
+        optional_warnings: True
+
+    logging:
+        log_level: null
+
+    # Overall Project Input Settings
+    project:
+        # Image to Process
+        dir_images_local: 'D:\T_Downloads\test_LB_Cr2s\test_LB_Cr2s\cr2' 
+        image_location: 'local'
+
+        # Project Output Dir
+        dir_output: 'D:\D_Desktop\Fungarium'
+        run_name: 'test_LB_Cr2s_150pixels_ProPhoto'
+
+        batch_size: 50 #null # null = all
+        num_workers: 2 # int |DEFAULT| 4 # More is not always better. Most hardware loses performance after 4
+        process_subset_of_images: False
+
+        padding_for_crop: 150 # in pixels
+        colorspace: 'ProPhoto' # from 'raw' OR 'sRGB' OR 'Adobe' OR 'Wide' OR 'ProPhoto' OR 'XYZ'
+
+
+    cropped_components:
+        # empty list for all, add to list to IGNORE, lowercase, comma seperated
+        # archival |FROM| 
+        #           ruler, barcode, colorcard, label, map, envelope, photo, attached_item, weights
+        # plant |FROM| 
+        #           leaf_whole, leaf_partial, leaflet, seed_fruit_one, seed_fruit_many, flower_one, flower_many, bud, specimen, roots, wood
+        do_save_cropped_annotations: True
+        save_cropped_annotations: ['label', 'ruler','colorcard', 'barcode'] # 'save_all' to save all classes
+        include_these_objects_in_specimen_crop: ['ruler', 'barcode', 'colorcard', 'label', 'map', 'envelope', 'photo', 'attached_item', 'leaf_whole', 'leaf_partial', 'leaflet', 'seed_fruit_one', 'seed_fruit_many', 'flower_one', 'flower_many', 'bud', 'specimen', 'roots', 'wood']
+        
+        save_per_image: False # creates a folder for each image, saves crops into class-names folders # TODO
+        save_per_annotation_class: True # saves crops into class-names folders
+
+    
+    modules:
+        specimen_crop: True
+
+
+    data:
+        save_json_rulers: False
+        save_json_measurements: False
+        save_individual_csv_files_rulers: False
+        save_individual_csv_files_measurements: False
+        include_darwin_core_data_from_combined_file: False
+        do_apply_conversion_factor: False ###########################
+
+    overlay:
+        save_overlay_to_pdf: False
+        save_overlay_to_jpgs: False
+        overlay_dpi: 300 # int |FROM| 100 to 300
+        overlay_background_color: 'black' # str |FROM| 'white' or 'black'
+
+        show_archival_detections: True
+        ignore_archival_detections_classes: []
+        show_plant_detections: True
+        ignore_plant_detections_classes: [] #['leaf_whole', 'specimen'] #['leaf_whole', 'leaf_partial', 'specimen']
+        show_segmentations: True
+        show_landmarks: True
+        ignore_landmark_classes: []
+
+        line_width_archival: 2 # int
+        line_width_plant: 6 # int
+        line_width_seg: 12 # int # thick = 12
+        line_width_efd: 6 # int # thick = 3
+        alpha_transparency_archival: 0.3  # float between 0 and 1
+        alpha_transparency_plant: 0
+        alpha_transparency_seg_whole_leaf: 0.4
+        alpha_transparency_seg_partial_leaf: 0.3
+
+    # Configure Plant Component Detector
+    plant_component_detector:
+        # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
+        detector_type: 'Plant_Detector' 
+        detector_version: 'PLANT_GroupAB_200'
+        detector_iteration: 'PLANT_GroupAB_200'
+        detector_weights: 'best.pt'
+        minimum_confidence_threshold: 0.2 # 0.5 = default
+        do_save_prediction_overlay_images: True
+        ignore_objects_for_overlay: [] #['leaf_partial'] # list[str] # list of objects that can be excluded from the overlay # all = null
+    
+    # Configure Archival Component Detector
+    archival_component_detector:
+        # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
+        detector_type: 'Archival_Detector' 
+        detector_version: 'PREP_final'
+        detector_iteration: 'PREP_final'
+        detector_weights: 'best.pt'
+        minimum_confidence_threshold: 0.2 # 0.5 = default
+        do_save_prediction_overlay_images: True
+        ignore_objects_for_overlay: [] # list[str] # list of objects that can be excluded from the overlay # all = null
+    
