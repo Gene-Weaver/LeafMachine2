@@ -1931,7 +1931,10 @@ def detect_ruler(logger, RulerCFG, ruler_cropped, ruler_name):
     # Print_Verbose(RulerCFG.cfg,1,message).green()
 
     logger.info(message)
-    torch.cuda.empty_cache()
+    try:
+        torch.cuda.empty_cache()
+    except:
+        pass
     return pred_class1, pred_class_orig, percentage1, imgOverlay, summary_message
 
 def detect_bi_sweep(RulerCFG, ruler_bi):
@@ -1966,7 +1969,10 @@ def detect_bi_sweep(RulerCFG, ruler_bi):
         pred_class_orig = pred_class
         pred_class = f'fail_thresh_not_met__{pred_class_orig}'
 
-    torch.cuda.empty_cache()
+    try:
+        torch.cuda.empty_cache()
+    except:
+        pass
     return pred_class, pred_class_orig, percentage1
 
 @dataclass
@@ -2021,10 +2027,15 @@ class RulerConfig:
         # model.load_state_dict(checkpoint['model_state_dict'])
         
 
-
-        self.net_ruler = torch.jit.load(os.path.join(self.path_to_model,model_name), map_location='cuda:0')
+        try:
+            self.net_ruler = torch.jit.load(os.path.join(self.path_to_model,model_name), map_location='cuda:0')
+        except:
+            self.net_ruler = torch.jit.load(os.path.join(self.path_to_model,model_name), map_location='cpu')
         self.net_ruler.eval()
-        self.net_ruler.to('cuda:0') # specify device as 'cuda:0'
+        try:
+            self.net_ruler.to('cuda:0') # specify device as 'cuda:0'
+        except:
+            self.net_ruler.to('cpu')
         # torch.jit.save(self.net_ruler, '/home/brlab/Dropbox/LeafMachine2/leafmachine2/machine/ruler_classifier/model/ruler_classifier_38classes_v-1.pt')
         # torch.save(self.net_ruler.state_dict(), '/home/brlab/Dropbox/LeafMachine2/leafmachine2/machine/ruler_classifier/model/ruler_classifier_38classes_v-1.pt')
 
@@ -2033,9 +2044,15 @@ class RulerConfig:
         #     logger.info("Could not load ruler classifier network")
 
         model_name_bi = self.cfg['leafmachine']['ruler_detection']['ruler_binary_detector']
-        self.net_ruler_bi = torch.jit.load(os.path.join(self.path_to_model, model_name_bi), map_location='cuda:0')
+        try:
+            self.net_ruler_bi = torch.jit.load(os.path.join(self.path_to_model, model_name_bi), map_location='cuda:0')
+        except:
+            self.net_ruler_bi = torch.jit.load(os.path.join(self.path_to_model, model_name_bi), map_location='cpus')
         self.net_ruler_bi.eval()
-        self.net_ruler_bi.to('cuda:0') # specify device as 'cuda:0'
+        try:
+            self.net_ruler_bi.to('cuda:0') # specify device as 'cuda:0'
+        except:
+            self.net_ruler_bi.to('cpu') # specify device as 'cuda:0'
         logger.info(f"Loaded ruler binary classifier network: {os.path.join(self.path_to_model, model_name_bi)}")
 
 @dataclass
@@ -2056,7 +2073,10 @@ class ClassifyRulerImage:
         self.img_sq = squarify_tile_four_versions(self.img, showImg=False, makeSquare=True, sz=720) # for 
         self.transforms = transforms.Compose([transforms.ToTensor()])
         self.img_t = self.transforms(self.img_sq)
-        self.img_tensor = torch.unsqueeze(self.img_t, 0).cuda()
+        try:
+            self.img_tensor = torch.unsqueeze(self.img_t, 0).cuda()
+        except:
+            self.img_tensor = torch.unsqueeze(self.img_t, 0).cpu()
 
 @dataclass
 class RulerImage:
