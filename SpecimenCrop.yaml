@@ -18,15 +18,17 @@ leafmachine:
         image_location: 'local'
 
         # Project Output Dir
-        dir_output: 'D:\D_Desktop\Fungarium'
-        run_name: 'test_LB_Cr2s_150pixels_ProPhoto'
+        save_to_original_dir: True # cropped images will be saved inside of the original dir too
+        
+        dir_output: 'D:\D_Desktop\Fungarium' # can set this to a temp location if the intermediate files are not needed
+        run_name: 'TEST'
 
         batch_size: 50 #null # null = all
         num_workers: 2 # int |DEFAULT| 4 # More is not always better. Most hardware loses performance after 4
         process_subset_of_images: False
 
         padding_for_crop: 150 # in pixels
-        colorspace: 'ProPhoto' # from 'raw' OR 'sRGB' OR 'Adobe' OR 'Wide' OR 'ProPhoto' OR 'XYZ'
+        colorspace: 'raw' # from 'raw' OR 'sRGB' OR 'Adobe' OR 'Wide' OR 'ProPhoto' OR 'XYZ'
 
 
     cropped_components:

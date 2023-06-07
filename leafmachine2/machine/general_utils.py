@@ -844,6 +844,7 @@ def crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archiv
                                                  plant_detections, full_image, filename, save_list, original_img_dir):
     
     padding = int(cfg['leafmachine']['project']['padding_for_crop'])
+    save_to_original_dir = cfg['leafmachine']['project']['save_to_original_dir']
 
     colorspace_choice = cfg['leafmachine']['project']['colorspace']
     colorspace = get_colorspace(colorspace_choice)
@@ -932,6 +933,11 @@ def crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archiv
         # Save the cropped image
         if original_img_dir is not None:
             # Save the image as a TIFF in the new_tiff_dir
+            if save_to_original_dir:
+                cropped_tiff_path = os.path.join(original_img_dir, detection_cropped_name.replace('.jpg', '.TIFF'))
+                crop_image_raw(full_image, cropped_tiff_path, min_x, min_y, max_x, max_y)
+                copy_exif_data(cr2_file, cropped_tiff_path)
+            
             cropped_tiff_path = os.path.join(Dirs.save_specimen_crop, detection_cropped_name.replace('.jpg', '.TIFF'))
             crop_image_raw(full_image, cropped_tiff_path, min_x, min_y, max_x, max_y)
             copy_exif_data(cr2_file, cropped_tiff_path)
