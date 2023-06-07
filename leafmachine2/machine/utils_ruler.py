@@ -2047,7 +2047,7 @@ class RulerConfig:
         try:
             self.net_ruler_bi = torch.jit.load(os.path.join(self.path_to_model, model_name_bi), map_location='cuda:0')
         except:
-            self.net_ruler_bi = torch.jit.load(os.path.join(self.path_to_model, model_name_bi), map_location='cpus')
+            self.net_ruler_bi = torch.jit.load(os.path.join(self.path_to_model, model_name_bi), map_location='cpu')
         self.net_ruler_bi.eval()
         try:
             self.net_ruler_bi.to('cuda:0') # specify device as 'cuda:0'
