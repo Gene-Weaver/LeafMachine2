@@ -173,7 +173,33 @@ leafmachine:
         overlay_dpi: 300 # int |FROM| 100 to 300
         overlay_background_color: 'black' # str |FROM| 'white' or 'black'
 
+    # Configure Plant Component Detector
+    armature_component_detector:
+        # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
+        detector_type: 'Armature_Detector' 
+        detector_version: 'ARM_A_1000'
+        detector_iteration: 'ARM_A_1000'
+        detector_weights: 'best.pt'
+        minimum_confidence_threshold: 0.5 #0.2
+        do_save_prediction_overlay_images: True
+        ignore_objects_for_overlay: [] 
 
-    
-
+    landmark_detector_armature:
+        # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
+        upscale_factor: 10
         
+        detector_type: 'Landmark_Detector_YOLO' 
+        detector_version: 'Landmarks_Arm_A_200'
+        detector_iteration: 'Landmarks_Arm_A_200'
+        detector_weights: 'last.pt'
+        minimum_confidence_threshold: 0.06
+        do_save_prediction_overlay_images: True ######################################################################################################
+        ignore_objects_for_overlay: [] # list[str] # list of objects that can be excluded from the overlay # all = null
+        use_existing_landmark_detections: null #'D:/Dropbox/LM2_Env/Image_Datasets/TEST_LM2/images_short_landmark/Plant_Components/Landmarks_Whole_Leaves_Overlay' # null for unprocessed images
+
+        do_show_QC_images: True
+        do_save_QC_images: True
+
+        do_show_final_images: True
+        do_save_final_images: True
+    
