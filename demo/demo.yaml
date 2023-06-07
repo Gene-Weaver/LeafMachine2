@@ -3,6 +3,7 @@ leafmachine:
     do:
         check_for_illegal_filenames: True 
         check_for_corrupt_images_make_vertical: True
+        run_leaf_processing: True
     print:
         verbose: True
         optional_warnings: True
