@@ -92,8 +92,11 @@ pywin32
 PyYAML
 pyzenodo3
 pyzmq
+pyexiv2
+colour-science
 QtPy
 rapidfuzz
+rawpy
 reportlab
 requests
 requests-oauthlib

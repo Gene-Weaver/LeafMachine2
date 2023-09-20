@@ -1,4 +1,5 @@
 pip install numpy -U
+pip install PIL[colour]
 vit-pytorch==0.37.1
 pycococreatortools @ git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8
 pycocotools==2.0.5
