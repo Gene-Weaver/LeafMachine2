@@ -868,64 +868,72 @@ class RulerInfo:
             # Locate the ticks in the chunk
             # Split for inline and non-inline
             # artificially force into pairs for easy use
-            if not self.is_inline:
-                plotPtsX, plotPtsY, distUse, npts, peak_pos, avg_width = locate_ticks_centroid(chunkAdd, scanSize, i)
-                pairs = [[plotPtsX, plotPtsY, distUse, npts, peak_pos, avg_width]]
+            if not self.is_inline: #not
+                pairs = locate_ticks_centroid(chunkAdd, scanSize, i)
+                self.logger.debug(f"Scanlines locate_ticks_centroid")
             elif self.is_inline:
                 pairs = locate_ticks_centroid_inline(chunkAdd, scanSize, i, self.logger, self.max_dim)
+                self.logger.debug(f"Scanlines locate_ticks_centroid_inline")
 
             for pair in pairs:
                 scanlineData = {'index':[],'scanSize':[],'imgChunk':[],'plotPtsX':[],'plotPtsY':[],'plotPtsYoverall':[],'dists':[],'sd':[],'nPeaks':[],'normalizedSD':1000,'gmean':[],'mean':[]}    
                 plotPtsX, plotPtsY, distUse, npts, peak_pos, avg_width = pair
-                if (plotPtsY is not None) and (plotPtsY != []) and (distUse.any()) and (npts is not None):
-                    plot_points = list(zip(plotPtsX, plotPtsY))
-                    # Check the regularity of the tickmarks and their distances
-                    min_pairwise_distance = minimum_pairwise_distance(plotPtsX, plotPtsY)
-                    min_pairwise_distance_odd = minimum_pairwise_distance(plotPtsX[1::2], plotPtsY[1::2]) / 2
-                    min_pairwise_distance_even = minimum_pairwise_distance(plotPtsX[0::2], plotPtsY[0::2]) / 2
-                    min_pairwise_distance_third = minimum_pairwise_distance(plotPtsX[2::3], plotPtsY[2::3]) / 3
-                    
-                    if self.is_inline:
-                        sanity_check = True
-                    else:
-                        sanity_check = sanity_check_scanlines(
-                        min_pairwise_distance,
-                        min_pairwise_distance_odd,
-                        min_pairwise_distance_even,
-                        min_pairwise_distance_third
-                        )
-
-                    mean_plus_normsd = np.mean(distUse) # + avg_width #+ (3*(np.std(distUse) / np.mean(distUse)))
-
-                    sd_temp = (np.std(distUse, ddof=1) / np.mean(distUse))
-                    if sd_temp < sd_temp_hold and (npts >= 3) and sanity_check:
-                        sd_temp_hold = sd_temp
-                        self.avg_width = avg_width
-                        best_value = np.mean(distUse)
-                    # Store the scanline data if the tickmarks are regular
-                    if sanity_check and not np.isnan(np.mean(distUse)):
-                        chunkAdd[chunkAdd >= 1] = 255
-                        scanlineData = {
-                            'index': int(i),
-                            'mean': mean_plus_normsd, #np.mean(distUse),
-                            'normalizedSD': (np.std(distUse, ddof=1) / np.mean(distUse)),
-                            'nPeaks': npts,
-                            'sd': np.std(distUse, ddof=1),
-                            'imgChunk': chunkAdd,
-                            'plotPtsX': plotPtsX,
-                            'plotPtsY': plotPtsY,
-                            'plot_points': plot_points,
-                            'plotPtsYoverall': (scanSize * i + scanSize) - round(scanSize / 2),
-                            'dists': distUse,
-                            'gmean': gmean(distUse),
-                            'scanSize': int(scanSize),
-                            'peak_pos': peak_pos
-                        }
+                self.logger.debug(f"pair: {plotPtsX, plotPtsY, distUse, npts, peak_pos, avg_width}")
+                if (
+                    plotPtsY is not None and 
+                    plotPtsX is not None and 
+                    distUse is not None and
+                    npts is not None
+                ):
+                    if len(plotPtsX) == len(plotPtsY):
+                        plot_points = list(zip(plotPtsX, plotPtsY))
+                        # Check the regularity of the tickmarks and their distances
+                        min_pairwise_distance = minimum_pairwise_distance(plotPtsX, plotPtsY)
+                        min_pairwise_distance_odd = minimum_pairwise_distance(plotPtsX[1::2], plotPtsY[1::2]) / 2
+                        min_pairwise_distance_even = minimum_pairwise_distance(plotPtsX[0::2], plotPtsY[0::2]) / 2
+                        min_pairwise_distance_third = minimum_pairwise_distance(plotPtsX[2::3], plotPtsY[2::3]) / 3
                         
-                        data_list.append(scanlineData)
-                        means_list.append([mean_plus_normsd])
-                        sd_list.append([(np.std(distUse) / np.mean(distUse))])
-                        npts_dict[str(mean_plus_normsd)] = npts
+                        if self.is_inline:
+                            sanity_check = True
+                        else:
+                            sanity_check = sanity_check_scanlines(
+                            min_pairwise_distance,
+                            min_pairwise_distance_odd,
+                            min_pairwise_distance_even,
+                            min_pairwise_distance_third
+                            )
+
+                        mean_plus_normsd = np.mean(distUse) # + avg_width #+ (3*(np.std(distUse) / np.mean(distUse)))
+
+                        sd_temp = (np.std(distUse, ddof=1) / np.mean(distUse))
+                        if sd_temp < sd_temp_hold and (npts >= 3) and sanity_check:
+                            sd_temp_hold = sd_temp
+                            self.avg_width = avg_width
+                            best_value = np.mean(distUse)
+                        # Store the scanline data if the tickmarks are regular
+                        if sanity_check and not np.isnan(np.mean(distUse)):
+                            chunkAdd[chunkAdd >= 1] = 255
+                            scanlineData = {
+                                'index': int(i),
+                                'mean': mean_plus_normsd, #np.mean(distUse),
+                                'normalizedSD': (np.std(distUse, ddof=1) / np.mean(distUse)),
+                                'nPeaks': npts,
+                                'sd': np.std(distUse, ddof=1),
+                                'imgChunk': chunkAdd,
+                                'plotPtsX': plotPtsX,
+                                'plotPtsY': plotPtsY,
+                                'plot_points': plot_points,
+                                'plotPtsYoverall': (scanSize * i + scanSize) - round(scanSize / 2),
+                                'dists': distUse,
+                                'gmean': gmean(distUse),
+                                'scanSize': int(scanSize),
+                                'peak_pos': peak_pos
+                            }
+                            
+                            data_list.append(scanlineData)
+                            means_list.append([mean_plus_normsd])
+                            sd_list.append([(np.std(distUse) / np.mean(distUse))])
+                            npts_dict[str(mean_plus_normsd)] = npts
 
         if len(means_list) >= 2:
             do_continue = True
@@ -1019,7 +1027,7 @@ class RulerInfo:
             self.intersect_means_list = None
             self.npts_dict = npts_dict
 
-            self.logger.debug(f"Not enough points located - only found {len(means_list)} - requires >= 2")
+            self.logger.debug(f"Not enough scanlines located - only found {len(means_list)} - requires >= 2")
         
     def order_units_small_to_large(self, conversion_board, sorted_union_means_list, units_possible):
         current_val = sorted_union_means_list[0][0]
@@ -3238,14 +3246,21 @@ def locate_ticks_centroid_inline(chunkAdd,scanSize, i, logger, max_dim):
                     plotPtsX = peak_pos[(dist > 2) & (dist * 10 < max_dim)]
                     plotPtsY = np.repeat(round((scanSize/2) + (((scanSize * i) + (scanSize * i + scanSize)) / 2)),plotPtsX.size)
                     npts = len(plotPtsY)
-
-                    return [[plotPtsX,plotPtsY,distUse,npts,peak_pos,avg_width], [None,None,None,None,None,None]]
+                    return [[plotPtsX,plotPtsY,distUse,npts,peak_pos,avg_width]]
                 else:
-                    return [[None,None,None,None,None,None], [None,None,None,None,None,None]]
+                    return [[None,None,None,None,None,None]]
         else:
-            return [[None,None,None,None,None,None], [None,None,None,None,None,None]]
+            return [[None,None,None,None,None,None]]
     else:
-        return [[None,None,None,None,None,None], [None,None,None,None,None,None]]
+        return [[None,None,None,None,None,None]]
+
+    #                 return [[plotPtsX,plotPtsY,distUse,npts,peak_pos,avg_width], [None,None,None,None,None,None]]
+    #             else:
+    #                 return [[None,None,None,None,None,None], [None,None,None,None,None,None]]
+    #     else:
+    #         return [[None,None,None,None,None,None], [None,None,None,None,None,None]]
+    # else:
+    #     return [[None,None,None,None,None,None], [None,None,None,None,None,None]]
     # Convert binary image to RGB
     # chunkAdd_rgb = np.stack((chunkAdd*255,)*3, axis=-1).astype(np.uint8)
     # Draw a small circle for each centroid
@@ -3283,12 +3298,12 @@ def locate_ticks_centroid(chunkAdd,scanSize, i):
                 plotPtsY = np.repeat(round((scanSize/2) + (((scanSize * i) + (scanSize * i + scanSize)) / 2)),plotPtsX.size)
                 npts = len(plotPtsY)
 
-                return plotPtsX,plotPtsY,distUse,npts,peak_pos,avg_width
+                return [[plotPtsX,plotPtsY,distUse,npts,peak_pos,avg_width]]
             else:
-                return None,None,None,None,None,None
+                return [[None,None,None,None,None,None]]
 
         else:
-            return None,None,None,None,None,None
+            return [[None,None,None,None,None,None]]
     # Convert binary image to RGB
     # chunkAdd_rgb = np.stack((chunkAdd*255,)*3, axis=-1).astype(np.uint8)
     # Draw a small circle for each centroid
@@ -3298,7 +3313,7 @@ def locate_ticks_centroid(chunkAdd,scanSize, i):
     # # Show the image
     # cv2.imshow('Centroids', chunkAdd_rgb)
     # cv2.waitKey(0)
-    return None,None,None,None,None,None
+    return [[None,None,None,None,None,None]]
 
 
 def remove_outliers(dist):
@@ -3352,7 +3367,11 @@ def skeletonize(img):
     # except:
     #     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     #     img = cv2.ximgproc.thinning(gray)
-    return cv2.ximgproc.thinning(img)
+    try:
+        return cv2.ximgproc.thinning(img)
+    except AttributeError:
+        warnings.warn("Skeletonization unavailable - cv2.ximgproc.thinning() not available with current cv2 package")
+        return img
 
     '''skel = np.zeros(img.shape,np.uint8)
     size = np.size(img)

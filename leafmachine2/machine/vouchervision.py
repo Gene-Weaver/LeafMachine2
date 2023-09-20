@@ -1,14 +1,14 @@
 '''
 VoucherVision - based on LeafMachine2 Processes
 '''
-import os, inspect, sys, logging
+import os, inspect, sys, logging, subprocess
 from time import perf_counter
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
 sys.path.append(currentdir)
 from leafmachine2.component_detector.component_detector import detect_plant_components, detect_archival_components
-from leafmachine2.machine.general_utils import check_for_subdirs, load_config_file, load_config_file_testing, report_config, save_config_file, subset_dir_images, crop_detections_from_images_VV
+from leafmachine2.machine.general_utils import check_for_subdirs_VV, load_config_file, load_config_file_testing, report_config, save_config_file, subset_dir_images, crop_detections_from_images_VV
 from leafmachine2.machine.general_utils import print_main_start
 from leafmachine2.machine.directory_structure_VV import Dir_Structure
 from leafmachine2.machine.data_project import Project_Info
@@ -17,6 +17,7 @@ from leafmachine2.machine.binarize_image_ML import run_binarize
 from leafmachine2.machine.LM2_logger import start_logging
 from leafmachine2.machine.fetch_data import fetch_data
 from leafmachine2.transcription.run_VoucherVision import VoucherVision
+
 
 def voucher_vision(cfg_file_path, dir_home, cfg_test):
     t_overall = perf_counter()
@@ -33,7 +34,7 @@ def voucher_vision(cfg_file_path, dir_home, cfg_test):
 
     # Check to see if there are subdirs
     # Yes --> use the names of the subsirs as run_name
-    run_name, dirs_list, has_subdirs = check_for_subdirs(cfg)
+    run_name, dirs_list, has_subdirs = check_for_subdirs_VV(cfg)
 
     for dir_ind, dir_in in enumerate(dirs_list):
         if has_subdirs:

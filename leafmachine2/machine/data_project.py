@@ -1,4 +1,4 @@
-import os, sys, inspect
+import os, sys, inspect, shutil
 from dataclasses import dataclass, field
 import pandas as pd
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
@@ -29,6 +29,8 @@ class Project_Info():
     csv_occ: str = ''
     csv_img: str = ''
 
+    has_valid_images: bool = True
+
     def __init__(self, cfg, logger, dir_home) -> None:
         logger.name = 'Project Info'
         logger.info("Gathering Images and Image Metadata")
@@ -36,6 +38,8 @@ class Project_Info():
         self.batch_size = cfg['leafmachine']['project']['batch_size']
 
         self.image_location = cfg['leafmachine']['project']['image_location']
+        
+        self.valid_extensions = ['.jpg', '.JPG', '.jpeg', '.JPEG', '.png', '.PNG', '.bmp', '.BMP', '.tif', '.TIF', '.tiff', '.TIFF']
 
         # If project is local, expect:
         #       dir with images
@@ -50,7 +54,6 @@ class Project_Info():
         elif self.image_location in ['GBIF','g','G','gbif']:
             self.__import_GBIF_files_post_download(cfg, logger, dir_home)
 
-
         self.__make_project_dict() #, self.batch_size)
 
         # Make sure image file names are legal
@@ -59,7 +62,19 @@ class Project_Info():
         # Make all images vertical
         make_images_in_dir_vertical(self.dir_images, cfg)
 
-
+    @property
+    def has_valid_images(self):
+        return self.check_for_images()
+    
+    @property
+    def file_ext(self):
+        return f"{['.jpg', '.JPG', '.jpeg', '.JPEG', '.png', '.PNG', '.bmp', '.BMP', '.tif', '.TIF', '.tiff', '.TIFF']}"
+    
+    def check_for_images(self):
+        for filename in os.listdir(self.dir_images):
+            if filename.endswith(tuple(self.valid_extensions)):
+                return True
+        return False
 
     def __create_combined_csv(self):
         self.csv_img = self.csv_img.rename(columns={"gbifID": "gbifID_images"}) 
@@ -182,22 +197,57 @@ class Project_Info():
                 img_name = str(img.split('.')[0])
                 self.project_data[img_name] = {}
     '''
+    # def __make_project_dict(self): # This DELETES the invalid file, not safe
+    #     self.project_data = {}
+    #     for img in os.listdir(self.dir_images):
+    #         img_split, ext = os.path.splitext(img)
+    #         if ext.lower() in self.valid_extensions:
+    #             with Image.open(os.path.join(self.dir_images, img)) as im:
+    #                 _, ext = os.path.splitext(img)
+    #                 if ext != '.jpg':
+    #                     im = im.convert('RGB')
+    #                     im.save(os.path.join(self.dir_images, img_split) + '.jpg', quality=100)
+    #                     img += '.jpg'
+    #                     os.remove(os.path.join(self.dir_images, ''.join([img_split, ext])))
+    #             img_name = os.path.splitext(img)[0]
+    #             self.project_data[img_split] = {}
+
     def __make_project_dict(self):
         self.project_data = {}
+        invalid_dir = None
+
         for img in os.listdir(self.dir_images):
-            valid_extensions = ['.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff']
             img_split, ext = os.path.splitext(img)
-            if ext.lower() in valid_extensions:
+            if ext in self.valid_extensions:
                 with Image.open(os.path.join(self.dir_images, img)) as im:
                     _, ext = os.path.splitext(img)
-                    if ext != '.jpg':
+                    if ext not in ['.jpg']:
                         im = im.convert('RGB')
-                        im.save(os.path.join(self.dir_images, img_split) + '.jpg', quality=100)
-                        img += '.jpg'
-                        os.remove(os.path.join(self.dir_images, ''.join([img_split, ext])))
+                        new_img_name = ''.join([img_split, '.jpg'])
+                        im.save(os.path.join(self.dir_images, new_img_name), quality=100)
+                        self.project_data[img_split] = {}
+
+                        # move the original file to the INVALID_FILE directory
+                        if invalid_dir is None:
+                            invalid_dir = os.path.join(os.path.dirname(self.dir_images), 'INVALID_FILES')
+                            os.makedirs(invalid_dir, exist_ok=True)
+
+                        # skip if the file already exists in the INVALID_FILE directory
+                        if not os.path.exists(os.path.join(invalid_dir, img)):
+                            shutil.move(os.path.join(self.dir_images, img), os.path.join(invalid_dir, img))
+
+                        img = new_img_name
                 img_name = os.path.splitext(img)[0]
                 self.project_data[img_split] = {}
+            else:
+                # if the file has an invalid extension, move it to the INVALID_FILE directory
+                if invalid_dir is None:
+                    invalid_dir = os.path.join(os.path.dirname(self.dir_images), 'INVALID_FILES')
+                    os.makedirs(invalid_dir, exist_ok=True)
 
+                # skip if the file already exists in the INVALID_FILE directory
+                if not os.path.exists(os.path.join(invalid_dir, img)):
+                    shutil.move(os.path.join(self.dir_images, img), os.path.join(invalid_dir, img))
 
     def add_records_to_project_dict(self):
         for img in os.listdir(self.dir_images):

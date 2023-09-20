@@ -106,6 +106,21 @@ def export_torchscript(model, im, file, optimize, prefix=colorstr('TorchScript:'
         return f
     except Exception as e:
         LOGGER.info(f'{prefix} export failure: {e}')
+    #https://github.com/ultralytics/yolov5/issues/10490
+    # try:
+    #     LOGGER.info(f'\n{prefix} starting export with torch {torch.version}...')
+    #     fl = file.with_suffix('.torchscript.ptl')
+    #     ts = torch.jit.trace(model, im, strict=False)
+    #     d = {"shape": im.shape, "stride": int(max(model.stride)), "names": model.names}
+    #     extra_files = {'config.txt': json.dumps(d)} # torch._C.ExtraFilesMap()
+    #     if optimize:
+    #         optimize_for_mobile(ts)._save_for_lite_interpreter(str(fl), _extra_files=extra_files)
+    #     else:
+    #         ts.save(str(fl), _extra_files=extra_files)
+    #     return fl, None
+    # except Exception as e:
+    #     LOGGER.info(f'{prefix} export failure: {e}')
+    #     return None, e
 
 
 def export_onnx(model, im, file, opset, train, dynamic, simplify, prefix=colorstr('ONNX:')):

@@ -61,6 +61,10 @@ def machine(cfg_file_path, dir_home, cfg_test):
         print_main_start("Gathering Images and Image Metadata")
         Project = Project_Info(cfg, logger, dir_home)
 
+        if not Project.has_valid_images:
+            logger.error("No valid images found. Check file extensions.")
+            raise FileNotFoundError(f"No valid images found in the specified directory. Invalid files may have been moved to the 'INVALID_FILES' directory.\nSupported file extensions: {Project.file_ext}")
+
         # Subset dir_images if selected
         Project = subset_dir_images(cfg, Project, Dirs)
 

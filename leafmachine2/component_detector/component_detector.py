@@ -278,11 +278,14 @@ def detect_armature_components(cfg, logger, dir_home, Project, Dirs):
 
 ''' RUN IN PARALLEL'''
 def run_in_parallel(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, line_thickness, ignore_objects_for_overlay, mode, LOGGER, chunk, n_workers):
+    num_files = len(os.listdir(source))
+    LOGGER.info(f"The number of worker threads: ({n_workers}), number of files ({num_files}).")
+
     chunk_size = len(os.listdir(source)) // n_workers
     start = chunk * chunk_size
     end = start + chunk_size if chunk < (n_workers-1) else len(os.listdir(source))
 
-    sub_source = [os.path.join(source, f) for f in os.listdir(source)[start:end] if f.endswith('.jpg')]
+    sub_source = [os.path.join(source, f) for f in os.listdir(source)[start:end] if f.lower().endswith('.jpg')]
 
     run(weights=weights,
         source=sub_source,

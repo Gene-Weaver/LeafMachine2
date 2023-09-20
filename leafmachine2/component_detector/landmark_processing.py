@@ -20,55 +20,55 @@ class LeafSkeleton:
     do_show_QC_images: bool = False
     do_save_QC_images: bool = False
 
-    classes: int = 0
-    points_list: int = 0
+    classes: float = None
+    points_list: float = None
 
-    image: int = 0
+    image: float = None
 
-    ordered_midvein: int = 0
-    midvein_fit: int = 0
-    midvein_fit_points: int = 0
-    ordered_midvein_length: float = 0.0 
+    ordered_midvein: float = None
+    midvein_fit: float = None
+    midvein_fit_points: float = None
+    ordered_midvein_length: float = None
     has_midvein = False
 
     is_split = False
 
-    ordered_petiole: int = 0
-    ordered_petiole_length: float = 0.0 
+    ordered_petiole: float = None
+    ordered_petiole_length: float = None
     has_ordered_petiole = False
 
     has_apex: bool = False
-    apex_left: int = 0
-    apex_right: int = 0
-    apex_center: int = 0
+    apex_left: float = None
+    apex_right: float = None
+    apex_center: float = None
     apex_angle_type: str = 'NA'
-    apex_angle_degrees: float = 0.0
+    apex_angle_degrees: float = None
 
     has_base: bool = False
-    base_left: int = 0
-    base_right: int = 0
-    base_center: int = 0
+    base_left: float = None
+    base_right: float = None
+    base_center: float = None
     base_angle_type: str = 'NA'
-    base_angle_degrees: float = 0.0
+    base_angle_degrees: float = None
 
     has_lamina_tip: bool = False
-    lamina_tip: int = 0
+    lamina_tip: float = None
 
     has_lamina_base: bool = False
-    lamina_base: int = 0
+    lamina_base: float = None
 
     has_lamina_length: bool = False
-    lamina_fit: int = 0
-    lamina_length: float = 0.0
+    lamina_fit: float = None
+    lamina_length: float = None
 
     has_width: bool = False
-    lamina_width: float = 0.0
-    width_left: float = 0.0
-    width_right: float = 0.0
+    lamina_width: float = None
+    width_left: float = None
+    width_right: float = None
 
     has_lobes: bool = False
-    lobe_count: int = 0
-    lobes: int = 0
+    lobe_count: float = None
+    lobes: float = None
 
     def __init__(self, cfg, logger, Dirs, leaf_type, all_points, height, width, dir_temp, file_name) -> None:
         # Store the necessary arguments as instance attributes
@@ -131,6 +131,9 @@ class LeafSkeleton:
         # self.save_QC_image()
         # print('hi')
 
+    def get(self, attribute, default=None):
+        return getattr(self, attribute, default)
+
     def split_image_by_midvein(self):
         
         if self.has_midvein:
@@ -142,48 +145,51 @@ class LeafSkeleton:
             # Fit a line to the points
             self.midvein_fit = np.polyfit(points_arr[:, 0], points_arr[:, 1], n_fit)
 
-            # Plot a sample of points from along the line
-            max_dim = max(self.height, self.width)
-            if max_dim < 400:
-                num_points = 40
-            elif max_dim < 1000:
-                num_points = 80
+            if len(self.midvein_fit) < 1:
+                self.midvein_fit = None
             else:
-                num_points = 120
+                # Plot a sample of points from along the line
+                max_dim = max(self.height, self.width)
+                if max_dim < 400:
+                    num_points = 40
+                elif max_dim < 1000:
+                    num_points = 80
+                else:
+                    num_points = 120
 
-            # Get the endpoints of the line segment that lies within the bounds of the image
-            x1 = 0
-            y1 = int(self.midvein_fit[0] * x1 + self.midvein_fit[1])
-            x2 = self.width - 1
-            y2 = int(self.midvein_fit[0] * x2 + self.midvein_fit[1])
-            denom = self.midvein_fit[0]
-            if denom == 0:
-                denom = 0.0000000001
-            if y1 < 0:
-                y1 = 0
-                x1 = int((y1 - self.midvein_fit[1]) / denom)
-            if y2 >= self.height:
-                y2 = self.height - 1
-                x2 = int((y2 - self.midvein_fit[1]) / denom)
+                # Get the endpoints of the line segment that lies within the bounds of the image
+                x1 = 0
+                y1 = int(self.midvein_fit[0] * x1 + self.midvein_fit[1])
+                x2 = self.width - 1
+                y2 = int(self.midvein_fit[0] * x2 + self.midvein_fit[1])
+                denom = self.midvein_fit[0]
+                if denom == 0:
+                    denom = 0.0000000001
+                if y1 < 0:
+                    y1 = 0
+                    x1 = int((y1 - self.midvein_fit[1]) / denom)
+                if y2 >= self.height:
+                    y2 = self.height - 1
+                    x2 = int((y2 - self.midvein_fit[1]) / denom)
 
-            # Sample num_points points along the line segment within the bounds of the image
-            x_vals = np.linspace(x1, x2, num_points)
-            y_vals = self.midvein_fit[0] * x_vals + self.midvein_fit[1]
+                # Sample num_points points along the line segment within the bounds of the image
+                x_vals = np.linspace(x1, x2, num_points)
+                y_vals = self.midvein_fit[0] * x_vals + self.midvein_fit[1]
 
-            # Remove any points that are outside the bounds of the image
-            indices = np.where((y_vals >= 0) & (y_vals < self.height))[0]
-            x_vals = x_vals[indices]
-            y_vals = y_vals[indices]
+                # Remove any points that are outside the bounds of the image
+                indices = np.where((y_vals >= 0) & (y_vals < self.height))[0]
+                x_vals = x_vals[indices]
+                y_vals = y_vals[indices]
 
-            # Recompute y-values using the line equation and updated x-values
-            y_vals = self.midvein_fit[0] * x_vals + self.midvein_fit[1]
+                # Recompute y-values using the line equation and updated x-values
+                y_vals = self.midvein_fit[0] * x_vals + self.midvein_fit[1]
 
-            self.midvein_fit_points = np.column_stack((x_vals, y_vals))
-            self.is_split = True
+                self.midvein_fit_points = np.column_stack((x_vals, y_vals))
+                self.is_split = True
 
-            # Draw line of fit
-            for point in self.midvein_fit_points:
-                cv2.circle(self.image, tuple(point.astype(int)), radius=1, color=(255, 255, 255), thickness=-1)
+                # Draw line of fit
+                for point in self.midvein_fit_points:
+                    cv2.circle(self.image, tuple(point.astype(int)), radius=1, color=(255, 255, 255), thickness=-1)
 
 
     '''def split_image_by_midvein(self): # cubic
@@ -269,13 +275,13 @@ class LeafSkeleton:
                         self.has_apex = False
                         if (left == []) and (right != []):
                             self.apex_right, right = self.get_far_point(right, self.apex_center)
-                            self.apex_left = []
+                            self.apex_left = None
                         elif (right == []) and (left != []):
                             self.apex_left, left = self.get_far_point(left, self.apex_center)
-                            self.apex_right = []
+                            self.apex_right = None
                         else:
-                            self.apex_left = []
-                            self.apex_right = []
+                            self.apex_left = None
+                            self.apex_right = None
                     else:
                         self.has_apex = True
                         self.apex_left, left = self.get_far_point(left, self.apex_center)
@@ -292,16 +298,16 @@ class LeafSkeleton:
                         self.logger.debug(f"[angle_type] {self.apex_angle_type} [angle] {self.apex_angle_degrees}")
                     else:
                         self.apex_angle_type = 'NA'
-                        self.apex_angle_degrees = 0
+                        self.apex_angle_degrees = None
                         self.logger.debug(f"[angle_type] {self.apex_angle_type} [angle] {self.apex_angle_degrees}")
 
 
                     if self.has_apex:
-                        if self.apex_center != []:
+                        if self.apex_center is not None:
                             cv2.circle(self.image, self.apex_center, radius=3, color=(0, 255, 0), thickness=-1)
-                        if self.apex_left != []:
+                        if self.apex_left is not None:
                             cv2.circle(self.image, self.apex_left, radius=3, color=(255, 0, 0), thickness=-1)
-                        if self.apex_right != []:
+                        if self.apex_right is not None:
                             cv2.circle(self.image, self.apex_right, radius=3, color=(0, 0, 255), thickness=-1)
         
     def determine_apex_redo(self):
@@ -313,16 +319,16 @@ class LeafSkeleton:
             self.logger.debug(f"[angle_type REDO] {self.apex_angle_type} [angle] {self.apex_angle_degrees}")
         else:
             self.apex_angle_type = 'NA'
-            self.apex_angle_degrees = 0
+            self.apex_angle_degrees = None
             self.logger.debug(f"[angle_type REDO] {self.apex_angle_type} [angle] {self.apex_angle_degrees}")
 
 
         if self.has_apex:
-            if self.apex_center != []:
+            if self.apex_center is not None:
                 cv2.circle(self.image, self.apex_center, radius=11, color=(0, 255, 0), thickness=2)
-            if self.apex_left != []:
+            if self.apex_left is not None:
                 cv2.circle(self.image, self.apex_left, radius=3, color=(255, 0, 0), thickness=-1)
-            if self.apex_right != []:
+            if self.apex_right is not None:
                 cv2.circle(self.image, self.apex_right, radius=3, color=(0, 0, 255), thickness=-1)
     
     def determine_base_redo(self):
@@ -334,16 +340,16 @@ class LeafSkeleton:
             self.logger.debug(f"[angle_type REDO] {self.base_angle_type} [angle] {self.base_angle_degrees}")
         else:
             self.base_angle_type = 'NA'
-            self.base_angle_degrees = 0
+            self.base_angle_degrees = None
             self.logger.debug(f"[angle_type REDO] {self.base_angle_type} [angle] {self.base_angle_degrees}")
 
 
         if self.has_base:
-            if self.base_center != []:
+            if self.base_center is not None:
                 cv2.circle(self.image, self.base_center, radius=11, color=(0, 255, 0), thickness=2)
-            if self.base_left != []:
+            if self.base_left is not None:
                 cv2.circle(self.image, self.base_left, radius=3, color=(255, 0, 0), thickness=-1)
-            if self.base_right != []:
+            if self.base_right is not None:
                 cv2.circle(self.image, self.base_right, radius=3, color=(0, 0, 255), thickness=-1)
 
     def determine_base(self):
@@ -371,13 +377,13 @@ class LeafSkeleton:
                         self.has_base = False
                         if (left == []) and (right != []):
                             self.base_right, right = self.get_far_point(right, self.base_center)
-                            self.base_left = []
+                            self.base_left = None
                         elif (right == []) and (left != []):
                             self.base_left, left = self.get_far_point(left, self.base_center) 
-                            self.base_right = []
+                            self.base_right = None
                         else:
-                            self.base_left = []
-                            self.base_right = []
+                            self.base_left = None
+                            self.base_right = None
                     else:
                         self.has_base = True
                         self.base_left, left = self.get_far_point(left, self.base_center)
@@ -395,7 +401,7 @@ class LeafSkeleton:
                         self.logger.debug(f"[angle_type] {self.base_angle_type} [angle] {self.base_angle_degrees}")
                     else:
                         self.base_angle_type = 'NA'
-                        self.base_angle_degrees = 0
+                        self.base_angle_degrees = None
                         self.logger.debug(f"[angle_type] {self.base_angle_type} [angle] {self.base_angle_degrees}")
 
                     if self.has_base:
@@ -416,11 +422,11 @@ class LeafSkeleton:
             else:
                 if len(self.points_list['lamina_tip']) == 1:
                     self.lamina_tip = self.points_list['lamina_tip'][0]
-                    self.lamina_tip_alternate = []
+                    self.lamina_tip_alternate = None
                 else: # blindly choose the most "central points"
                     centroid = tuple(np.mean(self.points_list['lamina_tip'], axis=0))
                     self.lamina_tip = min(self.points_list['lamina_tip'], key=lambda p: np.linalg.norm(np.array(p) - np.array(centroid)))
-                    self.lamina_tip_alternate = [] # TODO finish this
+                    self.lamina_tip_alternate = None # TODO finish this
             
             # if lamina_tip is closer to midvein_fit_points, then apex_center = lamina_tip
             if self.apex_center and (len(self.midvein_fit_points) > 0):
@@ -436,7 +442,7 @@ class LeafSkeleton:
             if self.apex_center:
                 self.has_lamina_tip = True
                 self.lamina_tip = self.apex_center
-                self.lamina_tip_alternate = []
+                self.lamina_tip_alternate = None
                 
         if self.lamina_tip:
             cv2.circle(self.image, self.lamina_tip, radius=5, color=(255, 0, 230), thickness=2) # pink solid
@@ -454,11 +460,11 @@ class LeafSkeleton:
             else:
                 if len(self.points_list['lamina_base']) == 1:
                     self.lamina_base = self.points_list['lamina_base'][0]
-                    self.lamina_base_alternate = []
+                    self.lamina_base_alternate = None
                 else: # blindly choose the most "central points"
                     centroid = tuple(np.mean(self.points_list['lamina_base'], axis=0))
                     self.lamina_base = min(self.points_list['lamina_base'], key=lambda p: np.linalg.norm(np.array(p) - np.array(centroid)))
-                    self.lamina_base_alternate = []      
+                    self.lamina_base_alternate = None     
             
             # if has_lamina_tip is closer to midvein_fit_points, then base_center = has_lamina_tip
             if self.base_center and (len(self.midvein_fit_points) > 0):
@@ -474,7 +480,7 @@ class LeafSkeleton:
             if self.base_center:
                 self.has_lamina_base = True
                 self.lamina_base = self.base_center
-                self.lamina_base_alternate = []
+                self.lamina_base_alternate = None
 
         if self.lamina_base:
             cv2.circle(self.image, self.lamina_base, radius=5, color=(0, 100, 255), thickness=2) # orange
@@ -527,12 +533,12 @@ class LeafSkeleton:
                 else:
                     cv2.line(self.image, self.base_center, self.apex_center, col, 2 + r_base) # 0, 175, 200
             else:
-                self.lamina_length = 0.0
-                self.lamina_fit = []
+                self.lamina_length = None
+                self.lamina_fit = None
                 self.has_lamina_length = False
 
     def determine_width(self):
-        if 'lamina_width' in self.points_list:
+        if (('lamina_width' in self.points_list) and ((self.midvein_fit is not None and len(self.midvein_fit) > 0) or (self.lamina_fit is not None))):
             left = []
             right = []
             if len(self.midvein_fit) > 0: # try using the midvein as a reference first
@@ -551,12 +557,17 @@ class LeafSkeleton:
                         right.append(point)
                     elif loc == 'left':
                         left.append(point)
-
-            if (left == []) or (right == []):
+            else:
                 self.has_width = False
-                self.width_left = []
-                self.width_right = []
-                self.lamina_width = 0.0
+                self.width_left = None
+                self.width_right = None
+                self.lamina_width = None
+
+            if (left == []) or (right == []) or not self.has_width:
+                self.has_width = False
+                self.width_left = None
+                self.width_right = None
+                self.lamina_width = None
             else:
                 self.has_width = True
                 if len(self.midvein_fit) > 0:
@@ -567,13 +578,11 @@ class LeafSkeleton:
                     self.width_left, self.width_right = self.find_min_width(left, right)
                     self.lamina_width = self.distance(self.width_left, self.width_right)
                     self.order_points_plot([self.width_left, self.width_right], 'lamina_width_alt', 'QC')
-                    
-                    
         else:
             self.has_width = False
-            self.width_left = []
-            self.width_right = []
-            self.lamina_width = 0.0
+            self.width_left = None
+            self.width_right = None
+            self.lamina_width = None
 
     def determine_lobes(self):
         if 'lobe_tip' in self.points_list:
@@ -589,11 +598,11 @@ class LeafSkeleton:
 
             if len(self.points_list['petiole_tip']) == 1:
                 self.petiole_tip = self.points_list['petiole_tip'][0]
-                self.petiole_tip_alternate = []
+                self.petiole_tip_alternate = None
             else: # blindly choose the most "central points"
                 centroid = tuple(np.mean(self.points_list['petiole_tip'], axis=0))
                 self.petiole_tip = min(self.points_list['petiole_tip'], key=lambda p: np.linalg.norm(np.array(p) - np.array(centroid)))
-                self.petiole_tip_alternate = []
+                self.petiole_tip_alternate = None
 
             # Straight length of petiole points
             if self.has_ordered_petiole:
@@ -601,11 +610,11 @@ class LeafSkeleton:
                 self.petiole_length = self.distance(self.petiole_tip_opposite, self.petiole_tip)
                 self.order_points_plot([self.petiole_tip_opposite, self.petiole_tip], 'petiole_tip', 'QC')
             else:
-                self.petiole_tip_opposite = []
-                self.petiole_length = 0.0
+                self.petiole_tip_opposite = None
+                self.petiole_length = None
             
             # Straight length of petiole tip to lamina base
-            if len(self.lamina_base) > 0:
+            if self.lamina_base is not None:
                 self.petiole_length_to_lamina_base = self.distance(self.lamina_base, self.petiole_tip)
                 self.petiole_tip_opposite_alternate = self.lamina_base
                 self.order_points_plot([self.petiole_tip_opposite_alternate, self.petiole_tip], 'petiole_tip_alt', 'QC')
@@ -614,8 +623,8 @@ class LeafSkeleton:
                 self.petiole_tip_opposite_alternate = self.base_center
                 self.order_points_plot([self.petiole_tip_opposite_alternate, self.petiole_tip], 'petiole_tip_alt', 'QC')
             else:
-                self.petiole_length_to_lamina_base = 0.0
-                self.petiole_tip_opposite_alternate = []
+                self.petiole_length_to_lamina_base = None
+                self.petiole_tip_opposite_alternate = None
 
     def redo_measurements(self):
         if self.has_width:
@@ -690,7 +699,7 @@ class LeafSkeleton:
             self.t_width_left = [self.width_left[0] + self.add_x, self.width_left[1] + self.add_y]
             self.t_width_right = [self.width_right[0] + self.add_x, self.width_right[1] + self.add_y]
 
-        if (self.width_infer != []) and (len(self.width_infer) > 0):
+        if self.width_infer is not None:
             self.t_width_infer = []
             for point in self.width_infer:
                 new_x = int(point[0]) + self.add_x
@@ -726,9 +735,9 @@ class LeafSkeleton:
             # Apex angle
             # if self.apex_center != []:
             #     cv2.circle(self.image_final, self.apex_center, radius=3, color=(0, 255, 0), thickness=-1)
-            if self.apex_left != []:
+            if self.apex_left is not None:
                 cv2.circle(self.image_final, self.apex_left, radius=3 + r_base, color=(255, 0, 0), thickness=-1)
-            if self.apex_right != []:
+            if self.apex_right is not None:
                 cv2.circle(self.image_final, self.apex_right, radius=3 + r_base, color=(0, 0, 255), thickness=-1)
 
             # Base angle
@@ -765,9 +774,9 @@ class LeafSkeleton:
             # Apex angle
             # if self.apex_center != []:
             #     cv2.circle(self.image_final, self.apex_center, radius=3, color=(0, 255, 0), thickness=-1)
-            if self.apex_left != []:
+            if self.apex_left is not None:
                 cv2.circle(self.image_final, self.apex_left, radius=3 + r_base, color=(255, 0, 0), thickness=-1)
-            if self.apex_right != []:
+            if self.apex_right is not None:
                 cv2.circle(self.image_final, self.apex_right, radius=3 + r_base, color=(0, 0, 255), thickness=-1)
 
             # Base angle
@@ -954,7 +963,7 @@ class LeafSkeleton:
 
     def check_crossing_width(self):
         self.logger.debug(f'Restrictions [Crossing Width Line] - check_crossing_width()')
-        self.width_infer = []
+        self.width_infer = None
 
         if self.has_width:
             self.logger.debug(f'Restrictions [Crossing Width Line] - has width')
@@ -983,6 +992,8 @@ class LeafSkeleton:
                 self.has_ordered_petiole = False
                 self.has_apex = False
                 self.has_base = False
+                self.has_valid_apex_loc = False
+                self.has_valid_base_loc = False
                 self.logger.debug(f'Restrictions [Crossing Width Line] - CANNOT VALIDATE APEX, BASE, PETIOLE LOCATIONS')
         
         else:
@@ -1090,6 +1101,7 @@ class LeafSkeleton:
                 apex_side = loc_center
                 self.has_valid_apex_loc = True
             else:
+                self.has_valid_apex_loc = False
                 self.logger.debug(f'Restrictions [Angles] - has_valid_apex_loc = False, apex loc crosses width')
         else:
             self.logger.debug(f'Restrictions [Angles] - has_valid_apex_loc = False, no apex')
@@ -1930,15 +1942,15 @@ class LeafSkeleton:
         self.midvein_fit = []
         self.midvein_fit_points = []
         self.ordered_petiole = []
-        self.apex_left = self.apex_left or []
-        self.apex_right = self.apex_right or []
-        self.apex_center = self.apex_center or []
-        self.base_left = self.base_left or []
-        self.base_right = self.base_right or []
-        self.base_center = self.base_center or []
-        self.lamina_tip = self.lamina_tip or []
-        self.lamina_base = self.lamina_base or []
-        self.width_left = self.width_left or []
-        self.width_right = self.width_right or []
+        self.apex_left = self.apex_left or None
+        self.apex_right = self.apex_right or None
+        self.apex_center = self.apex_center or None
+        self.base_left = self.base_left or None
+        self.base_right = self.base_right or None
+        self.base_center = self.base_center or None
+        self.lamina_tip = self.lamina_tip or None
+        self.lamina_base = self.lamina_base or None
+        self.width_left = self.width_left or None
+        self.width_right = self.width_right or None
 
 

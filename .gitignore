@@ -4,7 +4,8 @@ PRIVATE_DATA.yaml
 LeafMachine2_TRAINING_ONLY.yaml
 LeafMachine2_TEMPLATE.yaml
 LeafMachine2_WW.yaml
-
+yolov8x-pose.pt
+yolov8n.pt
 
 # Dirs
 data/
@@ -17,6 +18,9 @@ venv_LM2_38/
 venv_LM2/
 tests/
 .vscode/
+runs/
+KP_Test/
+
 
 leafmachine2/*/.gitignore
 
@@ -51,7 +55,7 @@ leafmachine2/component_detector/runs/
 leafmachine2/component_detector/architecture/
 leafmachine2/component_detector/yolov5x6.pt
 
-
+leafmachine2/keypoint_detector/
 
 
 

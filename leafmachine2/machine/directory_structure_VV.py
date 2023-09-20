@@ -80,7 +80,11 @@ class Dir_Structure():
         validate_dir(self.transcription_ind)
         self.transcription_ind_helper = os.path.join(self.dir_project,'Transcription','Individual_Helper_Content') 
         validate_dir(self.transcription_ind_helper)
+        self.transcription_ind_OCR = os.path.join(self.dir_project,'Transcription','Individual_OCR') 
+        validate_dir(self.transcription_ind_OCR)
 
+        self.save_original = os.path.join(self.dir_project,'Original_Images') 
+        validate_dir(self.save_original)
 
         self.save_per_image = os.path.join(self.dir_project,'Cropped_Images', 'By_Image') 
         self.save_per_annotation_class = os.path.join(self.dir_project,'Cropped_Images', 'By_Class') 

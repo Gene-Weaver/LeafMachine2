@@ -2,11 +2,11 @@
 ####################################################################################
 ### Directories ###
 # Dir with DWC dirs
-dir_home: 'D:\Dropbox\LM2_Env\Image_Datasets\Explore\DWC'
+dir_home: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/DWC_Big_Leaf'
 
 # Dir out
-dir_destination_images: 'D:\Dropbox\LM2_Env\Image_Datasets\Explore\Images_NYBG_by_taxa'
-dir_destination_csv: 'D:\Dropbox\LM2_Env\Image_Datasets\Explore\Combined'
+dir_destination_images: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/Images_by_Family'
+dir_destination_csv: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/Combined'
 
 ####################################################################################
 ### Exisitng Files ###
@@ -31,10 +31,11 @@ chosen_filter: '' # species, genus, family
 ####################################################################################
 ### Set bounds ###
 n_already_downloaded: 0
-n_max_to_download: 1000
-n_imgs_per_species: 1000
+n_max_to_download: 100000
+n_imgs_per_species: 1
 MP_low: 1
 MP_high: 200
+do_shuffle_occurrences: True
 
 ####################################################################################
 ### Ignore Problematic Herbaria ###           download_all_images_in_images_csv(cfg) 

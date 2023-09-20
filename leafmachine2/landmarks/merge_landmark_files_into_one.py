@@ -1,4 +1,4 @@
-import os
+import os, shutil
 import pandas as pd
 from PIL import Image
 import ast
@@ -42,6 +42,7 @@ def convert_to_YOLO(input_path, image_path, output_dir, version):
             'midvein_trace': 6,
             'petiole_tip': 7,
             'petiole_trace': 8,
+            'deepest_sinus': 9,
         }
     elif version == 'arm':
         classes = {
@@ -63,7 +64,10 @@ def convert_to_YOLO(input_path, image_path, output_dir, version):
 
         # Get the image dimensions using PIL
         img_path = os.path.join(image_path, filename)
-        img = Image.open(img_path)
+        try:
+            img = Image.open(f'{img_path}.jpg')
+        except:
+            img = Image.open(img_path)
         width, height = img.size
 
         if max(width, height) >= 1000:
@@ -79,7 +83,7 @@ def convert_to_YOLO(input_path, image_path, output_dir, version):
             class_name = row[1]
             locations = ast.literal_eval(row[4])
             for point in locations:
-                if class_name == 'outer':
+                if class_name in ['outer', 'deepest_sinus']:
                     for pair in point:
                         yolo_locs = create_bbox_from_point(pair, box_size, width, height)
                         for yolo_loc in yolo_locs:
@@ -206,19 +210,44 @@ def clear_training_images_from_test_dir(dir_with_test_images, dir_with_training_
         if os.path.exists(test_path):
             os.remove(test_path)
 
+def move_images_without_labels(src_dir, dest_dir):
+    sub_dirs = ['train', 'val', 'test']
+    
+    for sub_dir in sub_dirs:
+        img_dir = os.path.join(src_dir, 'images', sub_dir)
+        label_dir = os.path.join(src_dir, 'labels', sub_dir)
+        dest_sub_dir = os.path.join(dest_dir, sub_dir)
+        
+        if not os.path.exists(dest_sub_dir):
+            os.makedirs(dest_sub_dir)
+
+        image_files = {f.split('.')[0]: f for f in os.listdir(img_dir) if f.endswith('.jpg')}
+        label_files = {f.split('.')[0]: f for f in os.listdir(label_dir) if f.endswith('.txt')}
+        
+        for img_stem, img_file in image_files.items():
+            if img_stem not in label_files:
+                src_path = os.path.join(img_dir, img_file)
+                dest_path = os.path.join(dest_sub_dir, img_file)
+                shutil.move(src_path, dest_path)
+                print(f"Moved {img_file} from {src_path} to {dest_path}")
+
 
 if __name__ == '__main__':
     run_merge_csv = False
     run_clean_image_dirs = False
-    run_convert_pts_to_bboxes = True
+    run_convert_pts_to_bboxes = False
+    run_remove_images_that_lack_labels = True
 
     # 1. Merge the csv files from labelbox into one, split by test/train
     if run_merge_csv:
-        merge_csv('D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/test', 
-                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/test.csv')
+        merge_csv('/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/YOLO/test', 
+                    '/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/YOLO/test.csv')
 
-        merge_csv('D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/train', 
-                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/train.csv')
+        merge_csv('/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/YOLO/train', 
+                    '/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/YOLO/train.csv')
+        
+        merge_csv('/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/YOLO/val', 
+                    '/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/YOLO/val.csv')
     
     # 2. Clean images, so that train/test are seperate
     if run_clean_image_dirs:
@@ -232,15 +261,26 @@ if __name__ == '__main__':
 
     # 3. convert the points from labelbox .csv into tiny bboxes for YOLO .txt that have diff dims based on image resolution
     if run_convert_pts_to_bboxes:
-        convert_to_YOLO('D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/test.csv', 
-                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/landmarks_YOLO/images/test',
-                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/landmarks_YOLO_expanded_bbox/labels/test',
-                    'arm')
+        convert_to_YOLO('/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/YOLO/test.csv', 
+                    '/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/images/test',
+                    '/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/labels/test',
+                    'base')
         
-        convert_to_YOLO('D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/train.csv', 
-                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/landmarks_YOLO/images/train',
-                    'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/POINTS_Acacia_Prickles_2023-05-01/YOLO/landmarks_YOLO_expanded_bbox/labels/train',
-                    'arm')
+        convert_to_YOLO('/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/YOLO/val.csv', 
+                    '/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/images/val',
+                    '/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/labels/val',
+                    'base')
+        
+        convert_to_YOLO('/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/YOLO/train.csv', 
+                    '/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/images/train',
+                    '/home/brlab/Dropbox/LM2_Env/Image_Datasets/GroundTruth_POINTS/GroundTruth_POINTS_V2/labels/train',
+                    'base')
+        
+    if run_remove_images_that_lack_labels:
+        src_directory = '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks_V2' # replace with your actual source directory
+        dest_directory = '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks_V2/removed' # replace with your actual destination directory
+        
+        move_images_without_labels(src_directory, dest_directory)
 
     # NOTE: The original pass and training up to 100 epochs all had 9x9 bboxes.
     #       The 2nd time "landmarks_YOLO_expanded_bbox" had:

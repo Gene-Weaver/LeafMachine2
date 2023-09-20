@@ -11,6 +11,8 @@ from urllib3.util import Retry
 from torch import ge
 from re import S
 from threading import Lock
+from random import shuffle
+from collections import defaultdict
 
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
@@ -60,8 +62,10 @@ class ImageCandidate:
 
 
     def __init__(self, cfg, image_row, occ_row, url, lock):
-        self.headers_occ =  list(occ_row.columns.values)
-        self.headers_img = list(image_row.columns.values)
+        # self.headers_occ =  list(occ_row.columns.values)
+        # self.headers_img = list(image_row.columns.values)
+        self.headers_occ = occ_row
+        self.headers_img = image_row
         self.occ_row = occ_row # pd.DataFrame(data=occ_row,columns=self.headers_occ)
         self.image_row = image_row # pd.DataFrame(data=image_row,columns=self.headers_img)
         self.url = url
@@ -180,17 +184,29 @@ class ImageCandidateMulti:
     occ_row: list = field(init=False,default_factory=None)
     image_row: list = field(init=False,default_factory=None)
 
+    download_success: bool = False
+
 
     def __init__(self, cfg, image_row, occ_row, url, dir_destination, lock):
-        self.headers_occ =  list(occ_row.columns.values)
-        self.headers_img = list(image_row.columns.values)
+        # Convert the Series to a DataFrame with one row
+        try:
+            # Now, you can access columns and data as you would in a DataFrame
+            self.headers_occ = occ_row
+            self.headers_img = image_row
+        except Exception as e:
+            print(f"Exception occurred: {e}")
+
+        
         self.occ_row = occ_row # pd.DataFrame(data=occ_row,columns=self.headers_occ)
         self.image_row = image_row # pd.DataFrame(data=image_row,columns=self.headers_img)
         self.url = url
         self.cfg = cfg
 
         self.filename_image, self.filename_image_jpg, self.herb_code, self.specimen_id, self.family, self.genus, self.species, self.fullname = generate_image_filename(occ_row)
-        self.download_image(dir_destination, lock)
+
+        self.download_success = self.download_image(dir_destination, lock)
+
+
 
     def download_image(self, dir_destination, lock) -> None:
         # dir_destination = self.cfg['dir_destination_images']
@@ -211,10 +227,12 @@ class ImageCandidateMulti:
             img = Image.open(response.raw)
             self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)
             print(f"{bcolors.OKGREEN}                SUCCESS{bcolors.ENDC}")
+            return True
         except Exception as e: 
             print(f"{bcolors.FAIL}                SKIP No Connection or ERROR --> {e}{bcolors.ENDC}")
             print(f"{bcolors.WARNING}                Status Code --> {response.status_code}{bcolors.ENDC}")
             print(f"{bcolors.WARNING}                Reasone --> {response.reason}{bcolors.ENDC}")
+            return False
 
     def _save_matching_image(self, img, MP_low, MP_high, dir_destination, lock) -> None:
         img_mp, img_w, img_h = check_image_size(img)
@@ -279,6 +297,20 @@ class ImageCandidateMulti:
             except Exception as e:
                 print(f"{bcolors.WARNING}       Initializing new combined .csv file: [occ,images]: {path_csv_combined}{bcolors.ENDC}")
                 combined.to_csv(path_csv_combined, mode='w', header=True, index=False)
+
+class SharedCounter:
+    def __init__(self):
+        self.img_count_dict = {}
+        self.lock = Lock()
+    
+    def increment(self, key, value=1):
+        with self.lock:
+            self.img_count_dict[key] = self.img_count_dict.get(key, 0) + value
+
+    def get_count(self, key):
+        with self.lock:
+            return self.img_count_dict.get(key, 0)
+
 
 
 @dataclass
@@ -605,6 +637,15 @@ see yml for details
 def download_all_images_in_images_csv_multiDirs(cfg):
     dir_destination_parent = cfg['dir_destination_images']
     dir_destination_csv = cfg['dir_destination_csv']
+    n_already_downloaded = cfg['n_already_downloaded']
+    n_max_to_download = cfg['n_max_to_download']
+    n_imgs_per_species = cfg['n_imgs_per_species']
+    MP_low = cfg['MP_low']
+    MP_high = cfg['MP_high']
+    do_shuffle_occurrences = cfg['do_shuffle_occurrences']
+
+    shared_counter = SharedCounter() 
+
     # (dirWishlists,dirNewImg,alreadyDownloaded,MP_Low,MP_High,aggOcc_filename,aggImg_filename):
     
 
@@ -618,6 +659,10 @@ def download_all_images_in_images_csv_multiDirs(cfg):
             validate_dir(dir_destination_csv)
 
             occ_df, images_df = read_DWC_file_multiDirs(cfg, dir_home)
+
+            # Shuffle the order of the occurrences DataFrame if the flag is set
+            if do_shuffle_occurrences:
+                occ_df = occ_df.sample(frac=1).reset_index(drop=True)
 
             # Report summary
             print(f"{bcolors.BOLD}Beginning of images file:{bcolors.ENDC}")
@@ -636,7 +681,7 @@ def download_all_images_in_images_csv_multiDirs(cfg):
             print(f"{bcolors.BOLD}Number of images in images file: {n_imgs}{bcolors.ENDC}")
             print(f"{bcolors.BOLD}Number of occurrence to search through: {n_occ}{bcolors.ENDC}")
 
-            results = process_image_batch_multiDirs(cfg, images_df, occ_df, dir_destination)
+            results = process_image_batch_multiDirs(cfg, images_df, occ_df, dir_destination, shared_counter, n_imgs_per_species, do_shuffle_occurrences)
 
 
 def download_all_images_in_images_csv(cfg):
@@ -701,16 +746,32 @@ def process_image_batch(cfg, images_df, occ_df):
                 results.append(None)
     return results
 
-def process_image_batch_multiDirs(cfg, images_df, occ_df, dir_destination):
+
+def process_image_batch_multiDirs(cfg, images_df, occ_df, dir_destination, shared_counter, n_imgs_per_species, do_shuffle_occurrences):
     futures_list = []
     results = []
 
-    lock = Lock() 
+    lock = Lock()
 
-    with th(max_workers=13) as executor:
-        for index, image_row in images_df.iterrows():
-            futures = executor.submit(process_each_image_row_multiDirs, cfg, image_row, occ_df, dir_destination, lock)
-            futures_list.append(futures)
+    if do_shuffle_occurrences:
+        images_df = images_df.sample(frac=1).reset_index(drop=True)
+
+    # Partition occ_df based on the first word of the 'specificEpithet' column
+    partition_dict = defaultdict(list)
+    for index, row in occ_df.iterrows():
+        first_word = row['specificEpithet']  # Assuming keep_first_word is defined
+        partition_dict[first_word].append(row)
+
+    # Convert lists to DataFrames
+    for key in partition_dict.keys():
+        partition_dict[key] = pd.DataFrame(partition_dict[key])
+
+    num_workers = 13
+
+    with th(max_workers=num_workers) as executor:
+        for specific_epithet, partition in partition_dict.items():
+            future = executor.submit(process_occ_chunk_multiDirs, cfg, images_df, partition, dir_destination, shared_counter, n_imgs_per_species, do_shuffle_occurrences, lock)
+            futures_list.append(future)
 
         for future in futures_list:
             try:
@@ -719,6 +780,76 @@ def process_image_batch_multiDirs(cfg, images_df, occ_df, dir_destination):
             except Exception:
                 results.append(None)
     return results
+
+def process_occ_chunk_multiDirs(cfg, images_df, occ_chunk, dir_destination, shared_counter, n_imgs_per_species, do_shuffle_occurrences, lock):
+    results = []
+    for index, occ_row in occ_chunk.iterrows():
+        result = process_each_occ_row_multiDirs(cfg, images_df, occ_row, dir_destination, shared_counter, n_imgs_per_species, do_shuffle_occurrences, lock)
+        results.append(result)
+    return results
+
+def process_each_occ_row_multiDirs(cfg, images_df, occ_row, dir_destination, shared_counter, n_imgs_per_species, do_shuffle_occurrences, lock):
+    print(f"{bcolors.BOLD}Working on occurrence: {occ_row['gbifID']}{bcolors.ENDC}")
+    gbif_id = occ_row['gbifID']
+    
+    image_row = find_gbifID_in_images(gbif_id, images_df)  # New function to find the image_row
+
+    if image_row is not None:
+        filename_image, filename_image_jpg, herb_code, specimen_id, family, genus, species, fullname = generate_image_filename(occ_row)  
+        
+        current_count = shared_counter.get_count(fullname)
+
+        # If the fullname is not in the counter yet, increment it
+        if current_count == 0:
+            shared_counter.increment(fullname)
+            
+        print(shared_counter.get_count(fullname))
+        if shared_counter.get_count(fullname) > n_imgs_per_species:
+            print(f"Reached image limit for {fullname}. Skipping.")
+            return
+        else:
+        
+            gbif_url = image_row['identifier']
+
+            image_candidate = ImageCandidateMulti(cfg, image_row, occ_row, gbif_url, dir_destination, lock)
+            if image_candidate.download_success:  
+                shared_counter.increment(fullname)
+    else:
+        pass
+
+def find_gbifID_in_images(gbif_id, images_df):
+    image_row = images_df[images_df['gbifID'] == gbif_id]
+    if image_row.empty:
+        return None
+    return image_row.iloc[0]
+
+
+def process_each_image_row_multiDirs(cfg, image_row, occ_df, dir_destination, shared_counter, n_imgs_per_species, do_shuffle_occurrences, lock):
+    print(f"{bcolors.BOLD}Working on image: {image_row['gbifID']}{bcolors.ENDC}")
+    gbif_id = image_row['gbifID']
+    gbif_url = image_row['identifier']
+
+    occ_row = find_gbifID(gbif_id,occ_df)
+
+    if occ_row is not None:
+        filename_image, filename_image_jpg, herb_code, specimen_id, family, genus, species, fullname = generate_image_filename(occ_row)  
+        
+        current_count = shared_counter.get_count(fullname)
+
+        # If the fullname is not in the counter yet, increment it
+        if current_count == 0:
+            shared_counter.increment(fullname)
+            
+        print(shared_counter.get_count(fullname))
+        if shared_counter.get_count(fullname) > n_imgs_per_species:
+            print(f"Reached image limit for {fullname}. Skipping.")
+            return
+        
+        image_candidate = ImageCandidateMulti(cfg, image_row, occ_row, gbif_url, dir_destination, lock)
+        if image_candidate.download_success:  
+            shared_counter.increment(fullname)
+    else:
+        pass
 
 
 def process_each_image_row(cfg, image_row, occ_df, lock):
@@ -733,19 +864,6 @@ def process_each_image_row(cfg, image_row, occ_df, lock):
         # ImageInfo.download_image(cfg, occ_row, image_row)
     else:
         pass
-
-def process_each_image_row_multiDirs(cfg, image_row, occ_df, dir_destination, lock):
-    print(f"{bcolors.BOLD}Working on image: {image_row['gbifID']}{bcolors.ENDC}")
-    gbif_id = image_row['gbifID']
-    gbif_url = image_row['identifier']
-
-    occ_row = find_gbifID(gbif_id,occ_df)
-
-    if occ_row is not None:
-        ImageInfo = ImageCandidateMulti(cfg, image_row, occ_row, gbif_url, dir_destination, lock)
-    else:
-        pass
-
 
 def download_from_custom_file(cfg):
     # Get DWC files

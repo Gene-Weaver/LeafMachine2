@@ -1,11 +1,12 @@
 # config_download_from_GBIF_all_images_in_file.yml
 ####################################################################################
 ### Directories ###
-dir_home: 'D:/D_Desktop'
-dir_destination_images: 'D:/D_Desktop/Richie'
-dir_destination_csv: 'D:/D_Desktop/Richie'
+dir_home: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/csv/Alismataceae_Sagittaria'
 
-is_custom_file: True
+dir_destination_images: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/Images_by_Family/Alismataceae_Sagittaria'
+dir_destination_csv: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/csv_downloaded/Alismataceae_Sagittaria'
+
+is_custom_file: False
 col_url: 'url'
 col_name: 'lab_code'
 # Use for custom
@@ -14,22 +15,22 @@ filename_img: 'P_serotina_79_urls.csv' # 'spines_images.txt' 'prickles_images.tx
 ####################################################################################
 ### Exisitng Files ###
 # Darwin Core Occurance File
-# filename_occ: 'occurrence.txt'
+filename_occ: 'occ_selected.csv'
 
 ####################################################################################
 # Darwin Core Images File
-# filename_img: 'multimedia.txt' # 'spines_images.txt' 'prickles_images.txt'
+filename_img: 'img_selected.csv' # 'spines_images.txt' 'prickles_images.txt'
 
 ####################################################################################
 ### Files that will be created ###
 # Set the filename of a new csv containing the merged records from images and occ
 #      filename_combined: 'combined_XXXXXXX.csv'
 # filename_combined: 'combined_Fagaceae.csv' # appends to this file 
-# filename_combined: 'combined_spines.csv'
+filename_combined: 'combined_downloaded.csv'
 
 ####################################################################################
 ### Set bounds ###
-MP_low: 20
+MP_low: 1
 MP_high: 200
 do_resize: False
 

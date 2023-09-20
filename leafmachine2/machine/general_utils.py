@@ -120,6 +120,37 @@ def check_for_subdirs(cfg):
 
     return run_name, dirs_list, has_subdirs
 
+def check_for_subdirs_VV(cfg):
+    original_in = cfg['leafmachine']['project']['dir_images_local']
+    dirs_list = []
+    run_name = []
+    has_subdirs = False
+    if os.path.isdir(original_in):
+        dirs_list.append(original_in)
+        run_name.append(os.path.basename(os.path.normpath(original_in)))
+        # list contents of the directory
+        contents = os.listdir(original_in)
+        
+        # check if any of the contents is a directory
+        subdirs = [f for f in contents if os.path.isdir(os.path.join(original_in, f))]
+        
+        if len(subdirs) > 0:
+            print("The directory contains subdirectories:")
+            for subdir in subdirs:
+                has_subdirs = True
+                print(os.path.join(original_in, subdir))
+                dirs_list.append(os.path.join(original_in, subdir))
+                run_name.append(subdir)
+        else:
+            print("The directory does not contain any subdirectories.")
+            dirs_list.append(original_in)
+            run_name.append(cfg['leafmachine']['project']['run_name'])
+
+    else:
+        print("The specified path is not a directory.")
+
+    return run_name, dirs_list, has_subdirs
+
 def get_datetime():
     day = "_".join([str(datetime.datetime.now().strftime("%Y")),str(datetime.datetime.now().strftime("%m")),str(datetime.datetime.now().strftime("%d"))])
     time = "-".join([str(datetime.datetime.now().strftime("%H")),str(datetime.datetime.now().strftime("%M")),str(datetime.datetime.now().strftime("%S"))])
@@ -671,6 +702,36 @@ def crop_detections_from_images_VV(cfg, logger, dir_home, Project, Dirs, batch_s
 
     t2_stop = perf_counter()
     logger.info(f"Save cropped components --- elapsed time: {round(t2_stop - t2_start)} seconds")
+# def crop_detections_from_images_VV(cfg, logger, dir_home, Project, Dirs, batch_size=50):
+#     t2_start = perf_counter()
+#     logger.name = 'Crop Components'
+    
+#     if cfg['leafmachine']['cropped_components']['do_save_cropped_annotations']:
+#         detections = cfg['leafmachine']['cropped_components']['save_cropped_annotations']
+#         logger.info(f"Cropping {detections} components from images")
+
+#         save_per_image = cfg['leafmachine']['cropped_components']['save_per_image']
+#         save_per_class = cfg['leafmachine']['cropped_components']['save_per_annotation_class']
+#         save_list = cfg['leafmachine']['cropped_components']['save_cropped_annotations']
+#         binarize_labels = cfg['leafmachine']['cropped_components']['binarize_labels']
+#         if cfg['leafmachine']['project']['batch_size'] is None:
+#             batch_size = 50
+#         else:
+#             batch_size = int(cfg['leafmachine']['project']['batch_size'])
+
+#         if binarize_labels:
+#             save_per_class = True
+
+#         for i in range(0, len(Project.project_data), batch_size):
+#             batch = list(Project.project_data.items())[i:i+batch_size]
+#             logger.info(f"Cropping {detections} from images {i} to {i+batch_size} [{len(Project.project_data)}]")
+#             for filename, analysis in batch:
+#                 if len(analysis) != 0:
+#                     crop_detections_from_images_worker_VV(filename, analysis, Project, Dirs, save_per_image, save_per_class, save_list, binarize_labels)
+
+#     t2_stop = perf_counter()
+#     logger.info(f"Save cropped components --- elapsed time: {round(t2_stop - t2_start)} seconds")
+
 
 
 def crop_detections_from_images_SpecimenCrop(cfg, logger, dir_home, Project, Dirs, original_img_dir=None):
@@ -985,21 +1046,30 @@ def crop_component_from_yolo_coords_VV(anno_type, Dirs, analysis, all_detections
                 detection_cropped = full_image[min_y:max_y, min_x:max_x]
                 cropped_images.append(detection_cropped)
                 loc = '-'.join([str(min_x), str(min_y), str(max_x), str(max_y)])
-                detection_cropped_name = '.'.join(['__'.join([filename, detection_class]), 'jpg'])
+                detection_cropped_name = '.'.join(['__'.join([filename, detection_class, loc]), 'jpg'])
+                # detection_cropped_name = '.'.join([filename,'jpg'])
 
                 # save_per_image
                 if (detection_class in save_list) and save_per_image:
-                    dir_destination = os.path.join(Dirs.save_per_image, filename, detection_class)
+                    if detection_class == 'label':
+                        detection_class2 = 'label_ind'
+                    else:
+                        detection_class2 = detection_class
+                    dir_destination = os.path.join(Dirs.save_per_image, filename, detection_class2)
                     # print(os.path.join(dir_destination,detection_cropped_name))
                     validate_dir(dir_destination)
-                    cv2.imwrite(os.path.join(dir_destination,detection_cropped_name), detection_cropped)
+                    # cv2.imwrite(os.path.join(dir_destination,detection_cropped_name), detection_cropped)
                     
                 # save_per_class
                 if (detection_class in save_list) and save_per_class:
-                    dir_destination = os.path.join(Dirs.save_per_annotation_class, detection_class)
+                    if detection_class == 'label':
+                        detection_class2 = 'label_ind'
+                    else:
+                        detection_class2 = detection_class
+                    dir_destination = os.path.join(Dirs.save_per_annotation_class, detection_class2)
                     # print(os.path.join(dir_destination,detection_cropped_name))
                     validate_dir(dir_destination)
-                    cv2.imwrite(os.path.join(dir_destination,detection_cropped_name), detection_cropped)
+                    # cv2.imwrite(os.path.join(dir_destination,detection_cropped_name), detection_cropped)
             else:
                 # print(f'detection_class: {detection_class} not in save_list: {save_list}')
                 pass
@@ -1022,24 +1092,79 @@ def crop_component_from_yolo_coords_VV(anno_type, Dirs, analysis, all_detections
     if not acceptable_cropped_images:
         combined_image = None  # Or a placeholder image here
     else:
+    #     # Recalculate max_width and total_height for acceptable images
+    #     max_width = max(img.shape[1] for img in acceptable_cropped_images)
+    #     total_height = sum(img.shape[0] for img in acceptable_cropped_images)
+
+    #     # Now, combine all the acceptable cropped images into a single image
+    #     combined_image = np.zeros((total_height, max_width, 3), dtype=np.uint8)
+
+    #     y_offset = 0
+    #     for img in acceptable_cropped_images:
+    #         combined_image[y_offset:y_offset+img.shape[0], :img.shape[1]] = img
+    #         y_offset += img.shape[0]
+        # Start with the first image
         # Recalculate max_width and total_height for acceptable images
         max_width = max(img.shape[1] for img in acceptable_cropped_images)
         total_height = sum(img.shape[0] for img in acceptable_cropped_images)
-
-        # Now, combine all the acceptable cropped images into a single image
         combined_image = np.zeros((total_height, max_width, 3), dtype=np.uint8)
 
         y_offset = 0
-        for img in acceptable_cropped_images:
+        y_offset_next_row = 0
+        x_offset = 0
+
+        # Start with the first image
+        combined_image[y_offset:y_offset+acceptable_cropped_images[0].shape[0], :acceptable_cropped_images[0].shape[1]] = acceptable_cropped_images[0]
+        y_offset_next_row += acceptable_cropped_images[0].shape[0]
+
+        # Add the second image below the first one
+        y_offset = y_offset_next_row
+        combined_image[y_offset:y_offset+acceptable_cropped_images[1].shape[0], :acceptable_cropped_images[1].shape[1]] = acceptable_cropped_images[1]
+        y_offset_next_row += acceptable_cropped_images[1].shape[0]
+
+        # Create a list to store the images that are too tall for the current row
+        too_tall_images = []
+
+        # Now try to fill in to the right with the remaining images
+        current_width = acceptable_cropped_images[1].shape[1]
+
+        for img in acceptable_cropped_images[2:]:
+            if current_width + img.shape[1] > max_width:
+                # If this image doesn't fit, start a new row
+                y_offset = y_offset_next_row
+                combined_image[y_offset:y_offset+img.shape[0], :img.shape[1]] = img
+                current_width = img.shape[1]
+                y_offset_next_row = y_offset + img.shape[0]
+            else:
+                # If this image fits, add it to the right
+                max_height = y_offset_next_row - y_offset
+                if img.shape[0] > max_height:
+                    too_tall_images.append(img)
+                else:
+                    combined_image[y_offset:y_offset+img.shape[0], current_width:current_width+img.shape[1]] = img
+                    current_width += img.shape[1]
+
+        # Process the images that were too tall for their rows
+        for img in too_tall_images:
+            y_offset = y_offset_next_row
             combined_image[y_offset:y_offset+img.shape[0], :img.shape[1]] = img
-            y_offset += img.shape[0]
+            y_offset_next_row += img.shape[0]
+
+        # Trim the combined_image to remove extra black space
+        combined_image = combined_image[:y_offset_next_row]
+
 
         # save the combined image
-        if (detection_class in save_list) and save_per_class:
-            dir_destination = os.path.join(Dirs.save_per_annotation_class, detection_class)
-            validate_dir(dir_destination)
-            combined_image_name = '__'.join([filename, detection_class]) + '.jpg'
-            cv2.imwrite(os.path.join(dir_destination, combined_image_name), combined_image)
+        # if (detection_class in save_list) and save_per_class:
+        dir_destination = os.path.join(Dirs.save_per_annotation_class, 'label')
+        validate_dir(dir_destination)
+        # combined_image_name = '__'.join([filename, detection_class]) + '.jpg'
+        combined_image_name = '.'.join([filename,'jpg'])
+        cv2.imwrite(os.path.join(dir_destination, combined_image_name), combined_image)
+
+        original_image_name = '.'.join([filename,'jpg'])
+        cv2.imwrite(os.path.join(Dirs.save_original, original_image_name), full_image)
+        
 
 
 def crop_component_from_yolo_coords(anno_type, Dirs, analysis, all_detections, full_image, filename, save_per_image, save_per_class, save_list):

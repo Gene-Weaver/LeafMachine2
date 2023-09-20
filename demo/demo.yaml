@@ -63,6 +63,8 @@ leafmachine:
         save_json_measurements: False
         save_individual_csv_files_rulers: False
         save_individual_csv_files_measurements: False
+        save_individual_csv_files_landmarks: False
+        save_individual_efd_files: False
         include_darwin_core_data_from_combined_file: False
         do_apply_conversion_factor: True
 

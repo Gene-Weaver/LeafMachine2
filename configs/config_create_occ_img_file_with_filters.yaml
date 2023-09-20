@@ -1,0 +1,27 @@
+####################################################################################
+### Directories ###
+dir_home: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/DWC_Big_Leaf/Alismataceae_Sagittaria' #'/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Acacia'
+
+dir_destination_images: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/images/Alismataceae_Sagittaria'
+dir_destination_csv: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/csv/Alismataceae_Sagittaria'
+
+####################################################################################
+### Exisitng Files ###
+# Darwin Core Occurance File
+filename_occ: 'occurrence.txt'
+
+####################################################################################
+# Darwin Core Images File
+filename_img: 'multimedia.txt'
+
+
+filename_occ_appended: 'occ_selected.csv'
+filename_img_appended: 'img_selected.csv'
+filename_combined: 'combined_selected.csv'
+
+do_shuffle_occ: True
+
+n_imgs_per_species: 3
+n_imgs_per_genus: null
+n_imgs_per_family: null
+n_imgs_total: null

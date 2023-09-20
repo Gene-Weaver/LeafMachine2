@@ -81,36 +81,48 @@ def process_file(Project, filename, analysis, line_w_archival, show_archival, ig
     else:
         plant = []
 
-    if cfg['leafmachine']['leaf_segmentation']['segment_whole_leaves']:
-        if 'Segmentation_Whole_Leaf' in analysis:
-            Segmentation_Whole_Leaf = analysis['Segmentation_Whole_Leaf']
+    try:
+        if cfg['leafmachine']['leaf_segmentation']['segment_whole_leaves']:
+            if 'Segmentation_Whole_Leaf' in analysis:
+                Segmentation_Whole_Leaf = analysis['Segmentation_Whole_Leaf']
+            else:
+                Segmentation_Whole_Leaf = []
         else:
             Segmentation_Whole_Leaf = []
-    else:
+    except:
         Segmentation_Whole_Leaf = []
 
-    if cfg['leafmachine']['leaf_segmentation']['segment_partial_leaves']:
-        if 'Segmentation_Partial_Leaf' in analysis:
-            Segmentation_Partial_Leaf = analysis['Segmentation_Partial_Leaf']
+    try:
+        if cfg['leafmachine']['leaf_segmentation']['segment_partial_leaves']:
+            if 'Segmentation_Partial_Leaf' in analysis:
+                Segmentation_Partial_Leaf = analysis['Segmentation_Partial_Leaf']
+            else:
+                Segmentation_Partial_Leaf = []
         else:
             Segmentation_Partial_Leaf = []
-    else:
+    except:
         Segmentation_Partial_Leaf = []
 
-    if cfg['leafmachine']['landmark_detector']['landmark_whole_leaves']:
-        if 'Landmarks_Whole_Leaves' in analysis:
-            Landmarks_Whole_Leaves = analysis['Landmarks_Whole_Leaves']
+    try:
+        if cfg['leafmachine']['landmark_detector']['landmark_whole_leaves']:
+            if 'Landmarks_Whole_Leaves' in analysis:
+                Landmarks_Whole_Leaves = analysis['Landmarks_Whole_Leaves']
+            else:
+                Landmarks_Whole_Leaves = []
         else:
             Landmarks_Whole_Leaves = []
-    else:
+    except:
         Landmarks_Whole_Leaves = []
 
-    if cfg['leafmachine']['landmark_detector']['landmark_partial_leaves']:
-        if 'Landmarks_Partial_Leaves' in analysis:
-            Landmarks_Partial_Leaves = analysis['Segmentation_Partial_Leaf']
+    try:
+        if cfg['leafmachine']['landmark_detector']['landmark_partial_leaves']:
+            if 'Landmarks_Partial_Leaves' in analysis:
+                Landmarks_Partial_Leaves = analysis['Segmentation_Partial_Leaf']
+            else:
+                Landmarks_Partial_Leaves = []
         else:
             Landmarks_Partial_Leaves = []
-    else:
+    except:
         Landmarks_Partial_Leaves = []
 
 
@@ -263,111 +275,125 @@ def build_custom_overlay(cfg, logger, dir_home, Project, batch, Dirs):
 
 def add_landmarks(image_overlay, Landmarks_Whole_Leaves, Landmarks_Partial_Leaves, show_landmarks, cfg):
     if show_landmarks:
-        if cfg['leafmachine']['landmark_detector']['landmark_whole_leaves']:
-            leaf_type = 0
-            for object in Landmarks_Whole_Leaves:
-                for seg_name, overlay_data in object.items():
-                    seg_name_short = seg_name.split("__")[-1]
+        try:
+            if cfg['leafmachine']['landmark_detector']['landmark_whole_leaves']:
+                leaf_type = 0
+                for object in Landmarks_Whole_Leaves:
+                    for seg_name, overlay_data in object.items():
+                        seg_name_short = seg_name.split("__")[2]
 
-                    # status = overlay_data[0]
-                    data = overlay_data[1]['landmarks']
-                    status = overlay_data[0]['landmark_status']
-                    # if status == 'incomplete':
-                    #     pass
-                    # else:
-                    image_overlay = insert_landmark(image_overlay, data, seg_name_short, cfg)
+                        # status = overlay_data[0]
+                        data = overlay_data[1]['landmarks']
+                        status = overlay_data[0]['landmark_status']
+                        # if status == 'incomplete':
+                        #     pass
+                        # else:
+                        image_overlay = insert_landmark(image_overlay, data, seg_name_short, cfg)
 
-                    '''for part in overlay_data:
-                        key, overlay_data_insert = next(iter(part.items()))   
-                        overlay_poly = overlay_data_insert['polygon_closed']
-                        overlay_rect = overlay_data_insert['bbox_min']
-                        overlay_efd = overlay_data_insert['efds']['efd_pts_PIL']
+                        '''for part in overlay_data:
+                            key, overlay_data_insert = next(iter(part.items()))   
+                            overlay_poly = overlay_data_insert['polygon_closed']
+                            overlay_rect = overlay_data_insert['bbox_min']
+                            overlay_efd = overlay_data_insert['efds']['efd_pts_PIL']
 
-                        if 'leaf' in key:
-                            c_outline, c_fill = get_color('seg_leaf_whole', 'SEG_WHOLE', cfg)
-                        elif 'petiole' in key:
-                            c_outline, c_fill = get_color('seg_leaf_whole_petiole', 'SEG_WHOLE', cfg)
-                        elif 'hole' in key:
-                            c_outline, c_fill = get_color('seg_hole', 'SEG_WHOLE', cfg)
+                            if 'leaf' in key:
+                                c_outline, c_fill = get_color('seg_leaf_whole', 'SEG_WHOLE', cfg)
+                            elif 'petiole' in key:
+                                c_outline, c_fill = get_color('seg_leaf_whole_petiole', 'SEG_WHOLE', cfg)
+                            elif 'hole' in key:
+                                c_outline, c_fill = get_color('seg_hole', 'SEG_WHOLE', cfg)
 
-                        overlay_data_insert = [overlay_poly, overlay_efd, overlay_rect, c_outline, c_fill]
-                        image_overlay = insert_seg(image_overlay, overlay_data_insert, seg_name_short, cfg)'''
-            # im_show = cv2.cvtColor(np.array(image_overlay), cv2.COLOR_RGB2BGR)
-            # cv2.imshow('overlay', im_show)
-            # cv2.waitKey(0)
-        if cfg['leafmachine']['landmark_detector']['landmark_partial_leaves']: # TODO finish this
-            leaf_type = 1
-            for object in Landmarks_Partial_Leaves:
-                for seg_name, overlay_data in object.items():
-                    seg_name_short = seg_name.split("__")[-1]
-                    for part in overlay_data:
-                        key, overlay_data_insert = next(iter(overlay_data[0].items()))   
-                        overlay_poly = overlay_data_insert['polygon_closed']
-                        overlay_rect = overlay_data_insert['bbox_min']
-                        overlay_efd = overlay_data_insert['efds']['efd_pts_PIL']
+                            overlay_data_insert = [overlay_poly, overlay_efd, overlay_rect, c_outline, c_fill]
+                            image_overlay = insert_seg(image_overlay, overlay_data_insert, seg_name_short, cfg)'''
+                # im_show = cv2.cvtColor(np.array(image_overlay), cv2.COLOR_RGB2BGR)
+                # cv2.imshow('overlay', im_show)
+                # cv2.waitKey(0)
+        except:
+            pass
 
-                        if 'leaf' in key:
-                            c_outline, c_fill = get_color('seg_leaf_partial', 'SEG_PARTIAL', cfg)
-                        elif 'petiole' in key:
-                            c_outline, c_fill = get_color('seg_leaf_partial_petiole', 'SEG_PARTIAL', cfg)
-                        elif 'hole' in key:
-                            c_outline, c_fill = get_color('seg_hole', 'SEG_PARTIAL', cfg)
+        try:
+            if cfg['leafmachine']['landmark_detector']['landmark_partial_leaves']: # TODO finish this
+                leaf_type = 1
+                for object in Landmarks_Partial_Leaves:
+                    for seg_name, overlay_data in object.items():
+                        seg_name_short = seg_name.split("__")[2]
+                        for part in overlay_data:
+                            key, overlay_data_insert = next(iter(overlay_data[0].items()))   
+                            overlay_poly = overlay_data_insert['polygon_closed']
+                            overlay_rect = overlay_data_insert['bbox_min']
+                            overlay_efd = overlay_data_insert['efds']['efd_pts_PIL']
 
-                        overlay_data_insert = [overlay_poly, overlay_efd, overlay_rect, c_outline, c_fill]
-                        image_overlay = insert_seg(image_overlay, overlay_data_insert, seg_name_short, cfg) ### *** TODO
-            # im_show = cv2.cvtColor(np.array(image_overlay), cv2.COLOR_RGB2BGR)
-            # cv2.imshow('overlay', im_show)
-            # cv2.waitKey(0)
+                            if 'leaf' in key:
+                                c_outline, c_fill = get_color('seg_leaf_partial', 'SEG_PARTIAL', cfg)
+                            elif 'petiole' in key:
+                                c_outline, c_fill = get_color('seg_leaf_partial_petiole', 'SEG_PARTIAL', cfg)
+                            elif 'hole' in key:
+                                c_outline, c_fill = get_color('seg_hole', 'SEG_PARTIAL', cfg)
+
+                            overlay_data_insert = [overlay_poly, overlay_efd, overlay_rect, c_outline, c_fill]
+                            image_overlay = insert_seg(image_overlay, overlay_data_insert, seg_name_short, cfg) ### *** TODO
+                # im_show = cv2.cvtColor(np.array(image_overlay), cv2.COLOR_RGB2BGR)
+                # cv2.imshow('overlay', im_show)
+                # cv2.waitKey(0)
+        except:
+            pass
     return image_overlay
 
 def add_segmentations(image_overlay, Segmentation_Whole_Leaf, Segmentation_Partial_Leaf, show_segmentations, cfg):
     if show_segmentations:
-        if cfg['leafmachine']['leaf_segmentation']['segment_whole_leaves']:
-            leaf_type = 0
-            for object in Segmentation_Whole_Leaf:
-                for seg_name, overlay_data in object.items():
-                    seg_name_short = seg_name.split("__")[-1]
-                    for part in overlay_data:
-                        key, overlay_data_insert = next(iter(part.items()))   
-                        overlay_poly = overlay_data_insert['polygon_closed']
-                        overlay_rect = overlay_data_insert['bbox_min']
-                        overlay_efd = overlay_data_insert['efds']['efd_pts_PIL']
+        try:
+            if cfg['leafmachine']['leaf_segmentation']['segment_whole_leaves']:
+                leaf_type = 0
+                for object in Segmentation_Whole_Leaf:
+                    for seg_name, overlay_data in object.items():
+                        seg_name_short = seg_name.split("__")[2]
+                        for part in overlay_data:
+                            key, overlay_data_insert = next(iter(part.items()))   
+                            overlay_poly = overlay_data_insert['polygon_closed']
+                            overlay_rect = overlay_data_insert['bbox_min']
+                            overlay_efd = overlay_data_insert['efds']['efd_pts_PIL']
 
-                        if 'leaf' in key:
-                            c_outline, c_fill = get_color('seg_leaf_whole', 'SEG_WHOLE', cfg)
-                        elif 'petiole' in key:
-                            c_outline, c_fill = get_color('seg_leaf_whole_petiole', 'SEG_WHOLE', cfg)
-                        elif 'hole' in key:
-                            c_outline, c_fill = get_color('seg_hole', 'SEG_WHOLE', cfg)
+                            if 'leaf' in key:
+                                c_outline, c_fill = get_color('seg_leaf_whole', 'SEG_WHOLE', cfg)
+                            elif 'petiole' in key:
+                                c_outline, c_fill = get_color('seg_leaf_whole_petiole', 'SEG_WHOLE', cfg)
+                            elif 'hole' in key:
+                                c_outline, c_fill = get_color('seg_hole', 'SEG_WHOLE', cfg)
 
-                        overlay_data_insert = [overlay_poly, overlay_efd, overlay_rect, c_outline, c_fill]
-                        image_overlay = insert_seg(image_overlay, overlay_data_insert, seg_name_short, cfg)
-            # im_show = cv2.cvtColor(np.array(image_overlay), cv2.COLOR_RGB2BGR)
-            # cv2.imshow('overlay', im_show)
-            # cv2.waitKey(0)
-        if cfg['leafmachine']['leaf_segmentation']['segment_partial_leaves']:
-            leaf_type = 1
-            for object in Segmentation_Partial_Leaf:
-                for seg_name, overlay_data in object.items():
-                    seg_name_short = seg_name.split("__")[-1]
-                    for part in overlay_data:
-                        key, overlay_data_insert = next(iter(overlay_data[0].items()))   
-                        overlay_poly = overlay_data_insert['polygon_closed']
-                        overlay_rect = overlay_data_insert['bbox_min']
-                        overlay_efd = overlay_data_insert['efds']['efd_pts_PIL']
+                            overlay_data_insert = [overlay_poly, overlay_efd, overlay_rect, c_outline, c_fill]
+                            image_overlay = insert_seg(image_overlay, overlay_data_insert, seg_name_short, cfg)
+                # im_show = cv2.cvtColor(np.array(image_overlay), cv2.COLOR_RGB2BGR)
+                # cv2.imshow('overlay', im_show)
+                # cv2.waitKey(0)
+        except:
+            pass
 
-                        if 'leaf' in key:
-                            c_outline, c_fill = get_color('seg_leaf_partial', 'SEG_PARTIAL', cfg)
-                        elif 'petiole' in key:
-                            c_outline, c_fill = get_color('seg_leaf_partial_petiole', 'SEG_PARTIAL', cfg)
-                        elif 'hole' in key:
-                            c_outline, c_fill = get_color('seg_hole', 'SEG_PARTIAL', cfg)
+        try:
+            if cfg['leafmachine']['leaf_segmentation']['segment_partial_leaves']:
+                leaf_type = 1
+                for object in Segmentation_Partial_Leaf:
+                    for seg_name, overlay_data in object.items():
+                        seg_name_short = seg_name.split("__")[2]
+                        for part in overlay_data:
+                            key, overlay_data_insert = next(iter(overlay_data[0].items()))   
+                            overlay_poly = overlay_data_insert['polygon_closed']
+                            overlay_rect = overlay_data_insert['bbox_min']
+                            overlay_efd = overlay_data_insert['efds']['efd_pts_PIL']
 
-                        overlay_data_insert = [overlay_poly, overlay_efd, overlay_rect, c_outline, c_fill]
-                        image_overlay = insert_seg(image_overlay, overlay_data_insert, seg_name_short, cfg)
-            # im_show = cv2.cvtColor(np.array(image_overlay), cv2.COLOR_RGB2BGR)
-            # cv2.imshow('overlay', im_show)
-            # cv2.waitKey(0)
+                            if 'leaf' in key:
+                                c_outline, c_fill = get_color('seg_leaf_partial', 'SEG_PARTIAL', cfg)
+                            elif 'petiole' in key:
+                                c_outline, c_fill = get_color('seg_leaf_partial_petiole', 'SEG_PARTIAL', cfg)
+                            elif 'hole' in key:
+                                c_outline, c_fill = get_color('seg_hole', 'SEG_PARTIAL', cfg)
+
+                            overlay_data_insert = [overlay_poly, overlay_efd, overlay_rect, c_outline, c_fill]
+                            image_overlay = insert_seg(image_overlay, overlay_data_insert, seg_name_short, cfg)
+                # im_show = cv2.cvtColor(np.array(image_overlay), cv2.COLOR_RGB2BGR)
+                # cv2.imshow('overlay', im_show)
+                # cv2.waitKey(0)
+        except:
+            pass
     return image_overlay
 
 def insert_landmark(full_image, data, seg_name_short, cfg):
@@ -533,18 +559,17 @@ def insert_seg(full_image, overlay_data, seg_name_short, cfg):
     full_image = Image.fromarray(full_image)
     draw = ImageDraw.Draw(full_image, "RGBA")
 
-    if len(overlay_poly) != 0:
+    if overlay_poly != []:
         overlay_poly = [(x+origin_x, y+origin_y) for x, y in overlay_poly]
         draw.polygon(overlay_poly, fill=c_fill, outline=c_outline, width=width)
-        
-    if len(overlay_rect) != 0:
+
+    if overlay_rect != []:
         overlay_rect = [(x+origin_x, y+origin_y) for x, y in overlay_rect]
         draw.polygon(overlay_rect, fill=None, outline=c_outline, width=width)
-        
-    if len(overlay_efd) != 0:
+    
+    if overlay_efd != []:
         overlay_efd = [(x+origin_x, y+origin_y) for x, y in overlay_efd]
         draw.polygon(overlay_efd, fill=None, outline=(135,30,210), width=width_efd)
-        
 
     return full_image
 

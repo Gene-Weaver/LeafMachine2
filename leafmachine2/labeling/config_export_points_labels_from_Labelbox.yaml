@@ -1,9 +1,9 @@
-dir_export_base: 'D:\Dropbox\LM2_Env\Image_Datasets\Acacia' #'D:\Dropbox\LeafMachine2\data\archival_component_detector_data\final'
-project_name: 'POINTS_Acacia_Prickles_2023-05-01'
+dir_export_base: 'D:\Dropbox/LM2_Env/Image_Datasets/GroundTruth_KEYPOINTS' #'D:\Dropbox\LeafMachine2\data\archival_component_detector_data\final'
+project_name: 'GroundTruth_POINTS_V2_uniform_spaced_oriented_traces_midvein15_petiole5'
 
 annotation_type_to_export: ['POINTS'] # 'PREP' OR 'PLANT' OR list
-include_projects: ['POINTS_Acacia_Prickles',]
-ignore_projects: [] #['POINTS_Morton_sinus_only', 'POINTS_Morton_Quercus_stellata', 'POINTS_Morton_Quercus_mohriana']
+include_projects: []
+ignore_projects: ['POINTS_Acacia_Prickles', 'POINTS_Morton_sinus_only'] #['POINTS_Morton_sinus_only', 'POINTS_Morton_Quercus_stellata', 'POINTS_Morton_Quercus_mohriana']
 
 fetch_reviewed_annotations_only: False
 do_partition_data: True
@@ -17,6 +17,14 @@ create_zip_of_project: False
 
 # Sort compound leaves and simple leaves, by image
 do_sort_compound_and_simple_leaves: False
+
+# For kepypoints, define how to space the points along the traced components
+# max_pts defines the uniform # of points allowed. 30 for midvein, 10 for petiole
+# midpoint: Takes verbatim groundtruth points. If more than max_pts, randomly deletes points
+#           If less than max_pts, adds midpoints as new points
+# uniform: midpoint + uniform -- Recompoutes the spacing so that all points are equidistant
+# curvature: midpoint + curvature -- trues to space the points relative to the density of the points to better retain sharp curvature details 
+trace_resize_method: "uniform"
 
 # Export cropped bboxes as new jpg
 do_save_cropped_bboxes_as_jpgs: True

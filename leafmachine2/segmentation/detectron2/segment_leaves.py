@@ -298,38 +298,39 @@ def save_masks_color(save_individual_masks_color, save_full_image_masks_color, u
                 img.save(os.path.join(Dirs.segmentation_masks_color_partial_leaves, '.'.join([seg_name, 'png'])))
 
         if save_full_image_masks_color:
-            origin_x = int(seg_name_short.split('-')[0])
-            origin_y = int(seg_name_short.split('-')[1])
+            if '-' in seg_name_short:
+                origin_x = int(seg_name_short.split('-')[0])
+                origin_y = int(seg_name_short.split('-')[1])
 
-            # Create a black image
-            draw = ImageDraw.Draw(full_mask)
+                # Create a black image
+                draw = ImageDraw.Draw(full_mask)
 
-            if use_polys != []:
-                for i, poly in enumerate(use_polys):
-                    this_color = overlay_color[i]
-                    poly = [(x+origin_x, y+origin_y) for x, y in poly]
-                    cls, this_color = next(iter(this_color.items()))
-                    # Set the color for the polygon based on its class
-                    if leaf_type == 0:
-                        if 'leaf' in cls:
-                            color = [46, 255, 0]
-                        elif 'petiole' in cls:
-                            color = [0, 173, 255]
-                        elif 'hole' in cls:
-                            color = [209, 0, 255]
-                        else:
-                            color = [255,255,255]
-                    elif leaf_type == 1:
-                        if 'leaf' in cls:
-                            color = [0, 200, 255]
-                        elif 'petiole' in cls:
-                            color = [255, 140, 0]
-                        elif 'hole' in cls:
-                            color = [200, 0, 255]
-                        else:
-                            color = [255, 255, 255]
-                    # Draw the filled polygon on the image
-                    draw.polygon(poly, fill=tuple(color))
+                if use_polys != []:
+                    for i, poly in enumerate(use_polys):
+                        this_color = overlay_color[i]
+                        poly = [(x+origin_x, y+origin_y) for x, y in poly]
+                        cls, this_color = next(iter(this_color.items()))
+                        # Set the color for the polygon based on its class
+                        if leaf_type == 0:
+                            if 'leaf' in cls:
+                                color = [46, 255, 0]
+                            elif 'petiole' in cls:
+                                color = [0, 173, 255]
+                            elif 'hole' in cls:
+                                color = [209, 0, 255]
+                            else:
+                                color = [255,255,255]
+                        elif leaf_type == 1:
+                            if 'leaf' in cls:
+                                color = [0, 200, 255]
+                            elif 'petiole' in cls:
+                                color = [255, 140, 0]
+                            elif 'hole' in cls:
+                                color = [200, 0, 255]
+                            else:
+                                color = [255, 255, 255]
+                        # Draw the filled polygon on the image
+                        draw.polygon(poly, fill=tuple(color))
     return full_mask
 
 def save_full_masks(save_full_image_masks_color, full_mask, filename, leaf_type, Dirs):
@@ -357,46 +358,47 @@ def save_full_overlay_images(save_each_segmentation_overlay_image, full_image, f
     
 
 def create_insert(full_image, overlay_data, seg_name_short, cfg):
-    width = cfg['leafmachine']['leaf_segmentation']['overlay_line_width']
-    origin_x = int(seg_name_short.split('-')[0])
-    origin_y = int(seg_name_short.split('-')[1])
-    # unpack
-    overlay_poly, overlay_efd, overlay_rect, overlay_color = overlay_data
-    # fill_color = overlay_color[0][0]
-    # outline_color =  overlay_color[0][1]
+    if '-' in seg_name_short:
+        width = cfg['leafmachine']['leaf_segmentation']['overlay_line_width']
+        origin_x = int(seg_name_short.split('-')[0])
+        origin_y = int(seg_name_short.split('-')[1])
+        # unpack
+        overlay_poly, overlay_efd, overlay_rect, overlay_color = overlay_data
+        # fill_color = overlay_color[0][0]
+        # outline_color =  overlay_color[0][1]
 
-    # initialize
-    full_image = np.asarray(full_image)
-    full_image = Image.fromarray(full_image)
-    draw = ImageDraw.Draw(full_image, "RGBA")
+        # initialize
+        full_image = np.asarray(full_image)
+        full_image = Image.fromarray(full_image)
+        draw = ImageDraw.Draw(full_image, "RGBA")
 
-    if overlay_poly != []:
-        for i, poly in enumerate(overlay_poly):
-            this_color = overlay_color[i]
-            key, this_color = next(iter(this_color.items()))
-            # outline_color =(this_color[1][2],this_color[1][1],this_color[1][0])
-            # fill_color = (this_color[0][2],this_color[0][1],this_color[0][0],this_color[0][3])
-            outline_color = (this_color[1][2],this_color[1][1],this_color[1][0])
-            fill_color = (this_color[0][2],this_color[0][1],this_color[0][0],this_color[0][3])
-            poly = [(x+origin_x, y+origin_y) for x, y in poly]
-            # poly = np.asarray(poly)
-            # first_point = poly[0]
-            # poly_closed = np.vstack((poly, first_point))
-            draw.polygon(poly, fill=fill_color, outline=outline_color, width=width)
+        if overlay_poly != []:
+            for i, poly in enumerate(overlay_poly):
+                this_color = overlay_color[i]
+                key, this_color = next(iter(this_color.items()))
+                # outline_color =(this_color[1][2],this_color[1][1],this_color[1][0])
+                # fill_color = (this_color[0][2],this_color[0][1],this_color[0][0],this_color[0][3])
+                outline_color = (this_color[1][2],this_color[1][1],this_color[1][0])
+                fill_color = (this_color[0][2],this_color[0][1],this_color[0][0],this_color[0][3])
+                poly = [(x+origin_x, y+origin_y) for x, y in poly]
+                # poly = np.asarray(poly)
+                # first_point = poly[0]
+                # poly_closed = np.vstack((poly, first_point))
+                draw.polygon(poly, fill=fill_color, outline=outline_color, width=width)
 
-    if overlay_rect != []:
-        for i, rect in enumerate(overlay_rect):
-            this_color = overlay_color[i]
-            key, this_color = next(iter(this_color.items()))
-            outline_color = (this_color[1][2],this_color[1][1],this_color[1][0])
+        if overlay_rect != []:
+            for i, rect in enumerate(overlay_rect):
+                this_color = overlay_color[i]
+                key, this_color = next(iter(this_color.items()))
+                outline_color = (this_color[1][2],this_color[1][1],this_color[1][0])
 
-            rect = [(x+origin_x, y+origin_y) for x, y in rect]
-            draw.polygon(rect, fill=None, outline=outline_color, width=width)
-    
-    if overlay_efd != []:
-        for efd in overlay_efd:
-            efd = [(x+origin_x, y+origin_y) for x, y in efd]
-            draw.polygon(efd, fill=None, outline=(135,30,210), width=width)
+                rect = [(x+origin_x, y+origin_y) for x, y in rect]
+                draw.polygon(rect, fill=None, outline=outline_color, width=width)
+        
+        if overlay_efd != []:
+            for efd in overlay_efd:
+                efd = [(x+origin_x, y+origin_y) for x, y in efd]
+                draw.polygon(efd, fill=None, outline=(135,30,210), width=width)
 
     return full_image
 

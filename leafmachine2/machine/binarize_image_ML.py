@@ -80,145 +80,145 @@ class DocEnTR:
         binarize_labels_skeletonize = cfg['leafmachine']['cropped_components']['binarize_labels_skeletonize']
 
         dir_root = os.path.dirname(os.path.dirname(__file__))
+        if os.path.exists(dir_to_clean):
+            image_list = os.listdir(dir_to_clean)
 
-        image_list = os.listdir(dir_to_clean)
+            # output_dir = dir_component
 
-        # output_dir = dir_component
+            device = torch.device(f'cuda:0' if torch.cuda.is_available() else 'cpu')
 
-        device = torch.device(f'cuda:0' if torch.cuda.is_available() else 'cpu')
+            SPLITSIZE = self.SPLITSIZE
+            SETTING = self.SETTING
+            TPS = self.patch_size
 
-        SPLITSIZE = self.SPLITSIZE
-        SETTING = self.SETTING
-        TPS = self.patch_size
+            # batch_size = cfg.batch_size
 
-        # batch_size = cfg.batch_size
+            experiment = SETTING +'_'+ str(SPLITSIZE)+'_' + str(TPS)
 
-        experiment = SETTING +'_'+ str(SPLITSIZE)+'_' + str(TPS)
-
-        patch_size = TPS
-        image_size =  (SPLITSIZE,SPLITSIZE)
-
-
-        if SETTING == 'base':
-            ENCODERLAYERS = 6
-            ENCODERHEADS = 8
-            ENCODERDIM = 768
-
-        if SETTING == 'small':
-            ENCODERLAYERS = 3
-            ENCODERHEADS = 4
-            ENCODERDIM = 512
-
-        if SETTING == 'large':
-            ENCODERLAYERS = 12
-            ENCODERHEADS = 16
-            ENCODERDIM = 1024
-
-        v = ViT(
-            image_size = image_size,
-            patch_size = patch_size,
-            num_classes = 1000,
-            dim = ENCODERDIM,
-            depth = ENCODERLAYERS,
-            heads = ENCODERHEADS,
-            mlp_dim = 2048
-        )
-
-        hyper_params = {"base": [6, 8, 768],
-                        "small": [3, 4, 512],
-                        "large": [12, 16, 1024]} 
-
-        encoder_layers = hyper_params[SETTING][0]
-        encoder_heads = hyper_params[SETTING][1]
-        encoder_dim = hyper_params[SETTING][2]
-
-        model = BinModel(
-            encoder = v,
-            decoder_dim = encoder_dim,      
-            decoder_depth = encoder_layers,
-            decoder_heads = encoder_heads  
-        )
-
-        dir_models = os.path.join(dir_root,'machine','DocEnTR','model_zoo')
-        # model_chosen = "best-model_16_2018large_256_16.pt"
-        model_chosen = 'small_256_8__epoch-10.pt'
-        model_path = os.path.join(dir_models,model_chosen)
-        model.load_state_dict(torch.load(model_path, map_location=device))
-        model = model.to(device)
-
-        for i, img in tqdm(enumerate(image_list), desc=f'{bcolors.BOLD}     Binarizing images from {dir_to_clean}{bcolors.ENDC}',colour="yellow",position=0,total = len(image_list)):
-            # print(f'       Working on image {i}/{n_images} --> {img}')
-            deg_image = cv2.imread(os.path.join(dir_to_clean,img)) / 255
-
-            ## Split the image into patches, an image is padded first to make it dividable by the split size
-            h =  ((deg_image.shape[0] // 256) +1)*256 
-            w =  ((deg_image.shape[1] // 256 ) +1)*256
-            deg_image_padded=np.ones((h,w,3))
-            deg_image_padded[:deg_image.shape[0],:deg_image.shape[1],:] = deg_image
-            patches = self.split(deg_image_padded, deg_image.shape[0], deg_image.shape[1])
-            ## preprocess the patches (images)
-            mean = [0.485, 0.456, 0.406]
-            std = [0.229, 0.224, 0.225]
-
-            out_patches=[]
-            for p in patches:
-                out_patch = np.zeros([3, *p.shape[:-1]])
-                for i in range(3):
-                    out_patch[i] = (p[:,:,i] - mean[i]) / std[i]
-                out_patches.append(out_patch)
-
-            result = []
-            for patch_idx, p in enumerate(out_patches):
-                # print(f"(              {patch_idx} / {len(out_patches) - 1}) processing patch...")
-                p = np.array(p, dtype='float32')
-                train_in = torch.from_numpy(p)
-
-                with torch.no_grad():
-                    train_in = train_in.view(1,3,self.SPLITSIZE,self.SPLITSIZE).to(device)
-                    _ = torch.rand((train_in.shape)).to(device)
+            patch_size = TPS
+            image_size =  (SPLITSIZE,SPLITSIZE)
 
 
-                    loss,_, pred_pixel_values = model(train_in,_)
-                    
-                    rec_patches = pred_pixel_values
+            if SETTING == 'base':
+                ENCODERLAYERS = 6
+                ENCODERHEADS = 8
+                ENCODERDIM = 768
 
-                    rec_image = torch.squeeze(rearrange(rec_patches, 'b (h w) (p1 p2 c) -> b c (h p1) (w p2)', p1 = self.patch_size, p2 = self.patch_size,  h=self.image_size[0]//self.patch_size))
-                    
-                    impred = rec_image.cpu().numpy()
-                    impred = np.transpose(impred, (1, 2, 0))
-                    
-                    for ch in range(3):
-                        impred[:,:,ch] = (impred[:,:,ch] *std[ch]) + mean[ch]
+            if SETTING == 'small':
+                ENCODERLAYERS = 3
+                ENCODERHEADS = 4
+                ENCODERDIM = 512
 
-                    impred[np.where(impred>1)] = 1
-                    impred[np.where(impred<0)] = 0
-                result.append(impred)
+            if SETTING == 'large':
+                ENCODERLAYERS = 12
+                ENCODERHEADS = 16
+                ENCODERDIM = 1024
 
-            clean_image = self.merge_image(result, deg_image_padded.shape[0], deg_image_padded.shape[1])
-            clean_image = clean_image[:deg_image.shape[0], :deg_image.shape[1],:]
+            v = ViT(
+                image_size = image_size,
+                patch_size = patch_size,
+                num_classes = 1000,
+                dim = ENCODERDIM,
+                depth = ENCODERLAYERS,
+                heads = ENCODERHEADS,
+                mlp_dim = 2048
+            )
 
-            clean_image = (clean_image<self.THRESHOLD)*255
-            # clean_image = cv2.adaptiveThreshold(clean_image,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,11,2)
-            # clean_image = cv2.bitwise_not(clean_image)
-            
-            # plt.imshow(clean_image)
+            hyper_params = {"base": [6, 8, 768],
+                            "small": [3, 4, 512],
+                            "large": [12, 16, 1024]} 
 
-            # Step 1: Create an empty skeleton
-            clean_image = np.array(clean_image,dtype='uint8')
-            
-            clean_image = cv2.cvtColor(clean_image, cv2.COLOR_RGB2GRAY)
-            
-            ret,clean_image = cv2.threshold(clean_image, 127, 255, 0)
+            encoder_layers = hyper_params[SETTING][0]
+            encoder_heads = hyper_params[SETTING][1]
+            encoder_dim = hyper_params[SETTING][2]
 
-            if binarize_labels_skeletonize:
-                clean_image = cv2.ximgproc.thinning(clean_image)
+            model = BinModel(
+                encoder = v,
+                decoder_dim = encoder_dim,      
+                decoder_depth = encoder_layers,
+                decoder_heads = encoder_heads  
+            )
 
-            # model_name = pathlib.Path(model_path).stem
-            image_path = pathlib.Path(img)
-            # output_path = os.path.join(dir_component,(f'{image_path.stem}__{model_name}{image_path.suffix}'))
-            output_path = os.path.join(dir_component,(f'{img}{image_path.suffix}'))
+            dir_models = os.path.join(dir_root,'machine','DocEnTR','model_zoo')
+            # model_chosen = "best-model_16_2018large_256_16.pt"
+            model_chosen = 'small_256_8__epoch-10.pt'
+            model_path = os.path.join(dir_models,model_chosen)
+            model.load_state_dict(torch.load(model_path, map_location=device))
+            model = model.to(device)
 
-            cv2.imwrite(output_path, clean_image)
+            for i, img in tqdm(enumerate(image_list), desc=f'{bcolors.BOLD}     Binarizing images from {dir_to_clean}{bcolors.ENDC}',colour="yellow",position=0,total = len(image_list)):
+                # print(f'       Working on image {i}/{n_images} --> {img}')
+                deg_image = cv2.imread(os.path.join(dir_to_clean,img)) / 255
+
+                ## Split the image into patches, an image is padded first to make it dividable by the split size
+                h =  ((deg_image.shape[0] // 256) +1)*256 
+                w =  ((deg_image.shape[1] // 256 ) +1)*256
+                deg_image_padded=np.ones((h,w,3))
+                deg_image_padded[:deg_image.shape[0],:deg_image.shape[1],:] = deg_image
+                patches = self.split(deg_image_padded, deg_image.shape[0], deg_image.shape[1])
+                ## preprocess the patches (images)
+                mean = [0.485, 0.456, 0.406]
+                std = [0.229, 0.224, 0.225]
+
+                out_patches=[]
+                for p in patches:
+                    out_patch = np.zeros([3, *p.shape[:-1]])
+                    for i in range(3):
+                        out_patch[i] = (p[:,:,i] - mean[i]) / std[i]
+                    out_patches.append(out_patch)
+
+                result = []
+                for patch_idx, p in enumerate(out_patches):
+                    # print(f"(              {patch_idx} / {len(out_patches) - 1}) processing patch...")
+                    p = np.array(p, dtype='float32')
+                    train_in = torch.from_numpy(p)
+
+                    with torch.no_grad():
+                        train_in = train_in.view(1,3,self.SPLITSIZE,self.SPLITSIZE).to(device)
+                        _ = torch.rand((train_in.shape)).to(device)
+
+
+                        loss,_, pred_pixel_values = model(train_in,_)
+                        
+                        rec_patches = pred_pixel_values
+
+                        rec_image = torch.squeeze(rearrange(rec_patches, 'b (h w) (p1 p2 c) -> b c (h p1) (w p2)', p1 = self.patch_size, p2 = self.patch_size,  h=self.image_size[0]//self.patch_size))
+                        
+                        impred = rec_image.cpu().numpy()
+                        impred = np.transpose(impred, (1, 2, 0))
+                        
+                        for ch in range(3):
+                            impred[:,:,ch] = (impred[:,:,ch] *std[ch]) + mean[ch]
+
+                        impred[np.where(impred>1)] = 1
+                        impred[np.where(impred<0)] = 0
+                    result.append(impred)
+
+                clean_image = self.merge_image(result, deg_image_padded.shape[0], deg_image_padded.shape[1])
+                clean_image = clean_image[:deg_image.shape[0], :deg_image.shape[1],:]
+
+                clean_image = (clean_image<self.THRESHOLD)*255
+                # clean_image = cv2.adaptiveThreshold(clean_image,255,cv2.ADAPTIVE_THRESH_GAUSSIAN_C,cv2.THRESH_BINARY,11,2)
+                # clean_image = cv2.bitwise_not(clean_image)
+                
+                # plt.imshow(clean_image)
+
+                # Step 1: Create an empty skeleton
+                clean_image = np.array(clean_image,dtype='uint8')
+                
+                clean_image = cv2.cvtColor(clean_image, cv2.COLOR_RGB2GRAY)
+                
+                ret,clean_image = cv2.threshold(clean_image, 127, 255, 0)
+
+                if binarize_labels_skeletonize:
+                    clean_image = cv2.ximgproc.thinning(clean_image)
+
+                # model_name = pathlib.Path(model_path).stem
+                image_path = pathlib.Path(img)
+                # output_path = os.path.join(dir_component,(f'{image_path.stem}__{model_name}{image_path.suffix}'))
+                output_path = os.path.join(dir_component,(f'{img}{image_path.suffix}'))
+
+                cv2.imwrite(output_path, clean_image)
 
     def load_DocEnTR_model(self, logger):
         # binarize_labels_skeletonize = cfg['leafmachine']['cropped_components']['binarize_labels_skeletonize']

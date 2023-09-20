@@ -181,23 +181,37 @@ class Dir_Structure():
 
         self.data_csv_project_EFD = os.path.join(self.dir_project,'Data','EFD') 
         self.data_csv_project_batch_EFD = os.path.join(self.dir_project,'Data','Batch','EFD') 
+        self.data_csv_project_landmarks = os.path.join(self.dir_project,'Data','Landmarks') 
+        self.data_csv_project_batch_landmarks = os.path.join(self.dir_project,'Data','Batch','Landmarks') 
+        
         if cfg['leafmachine']['leaf_segmentation']['calculate_elliptic_fourier_descriptors']:
             validate_dir(self.data_csv_project_EFD)
             validate_dir(self.data_csv_project_batch_EFD)
 
-        self.data_csv_individual_rulers = os.path.join(self.dir_project,'Data', 'CSV', 'Rulers') 
+        if cfg['leafmachine']['landmark_detector']['landmark_whole_leaves'] or cfg['leafmachine']['landmark_detector']['landmark_partial_leaves']:
+            validate_dir(self.data_csv_project_landmarks)
+            validate_dir(self.data_csv_project_batch_landmarks)
+
+        self.data_csv_individual_rulers = os.path.join(self.dir_project,'Data', 'Rulers') 
         self.data_json_rulers = os.path.join(self.dir_project,'Data', 'JSON', 'Rulers') 
+        self.data_csv_individual_landmarks = os.path.join(self.dir_project,'Data', 'Landmarks_by_Image') 
         if cfg['leafmachine']['data']['save_json_rulers']:
             validate_dir(self.data_json_rulers)
         if cfg['leafmachine']['data']['save_individual_csv_files_rulers']:
             validate_dir(self.data_csv_individual_rulers)
+        if cfg['leafmachine']['data']['save_individual_csv_files_landmarks']:
+            validate_dir(self.data_csv_individual_landmarks)
+            
 
-        self.data_csv_individual_measurements = os.path.join(self.dir_project,'Data', 'CSV', 'Measurements') 
-        self.data_json_measurements = os.path.join(self.dir_project,'Data', 'JSON', 'Measurements') 
+        self.data_csv_individual_measurements = os.path.join(self.dir_project,'Data', 'Measurements_by_Image') 
+        self.data_json_measurements = os.path.join(self.dir_project,'Data', 'JSON', 'Measurements_by_Image') 
+        self.data_efd_individual_measurements = os.path.join(self.dir_project,'Data', 'EFD_by_Image') 
         if cfg['leafmachine']['data']['save_json_measurements']:
             validate_dir(self.data_json_measurements)
         if cfg['leafmachine']['data']['save_individual_csv_files_measurements']:
             validate_dir(self.data_csv_individual_measurements)
+        if cfg['leafmachine']['data']['save_individual_efd_files']:
+            validate_dir(self.data_efd_individual_measurements)
 
 
         self.dir_images_subset = os.path.join(self.dir_project,'Subset') 
