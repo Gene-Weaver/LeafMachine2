@@ -647,12 +647,14 @@ This configuration is for the `SpecimenCrop.py` script and relies on the `LeafMa
     - EXIF data is copied from the RAW files and added to the EXIF data of the created TIFFs and JPGs
 
 ## Before and After
+
 These images were processed with 150 pixel padding around the detected objects. The only items excluded from these crops were 'weights' class objects.
 
 | Original | After SpecimenCrop (150 pixel padding) | After SpecimenCrop (50 pixel padding) |
 |:--------:|:------------------:|:------------------:|
-| ![Before Image](https://leafmachine.org/img/BA_1_before.jpg) | ![After Image 150](https://leafmachine.org/img/BA_1_after.jpg) | ![After Image 50](https://leafmachine.org/img/BA_1_after_50.jpg) |
-| ![Before Image](https://leafmachine.org/img/BA_2_before.jpg) | ![After Image 150](https://leafmachine.org/img/BA_2_after.jpg) | ![After Image 50](https://leafmachine.org/img/BA_2_after_50.jpg) |
+| <img src="https://leafmachine.org/img/BA_1_before.jpg" width="300"> | <img src="https://leafmachine.org/img/BA_1_after.jpg" width="300"> | <img src="https://leafmachine.org/img/BA_1_after_50.jpg" width="300"> |
+| <img src="https://leafmachine.org/img/BA_2_before.jpg" width="300"> | <img src="https://leafmachine.org/img/BA_2_after.jpg" width="300"> | <img src="https://leafmachine.org/img/BA_2_after_50.jpg" width="300"> |
+
 
 ### Example Workflow
 
