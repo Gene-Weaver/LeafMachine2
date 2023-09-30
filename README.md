@@ -31,6 +31,7 @@ Table of Contents
       * [Primary options (landmark_detector)](#primary-options-landmark_detector)
       * [Primary options (ruler_detection)](#primary-options-ruler_detection)
       * [Primary options (leaf_segmentation)](#primary-options-leaf_segmentation)
+   * [SpecimenCrop - Removing blank space from images](#specimencrop-configuration-guide)
    * [Downloading Images from GBIF](#downloading-images-from-gbif)
 
 
