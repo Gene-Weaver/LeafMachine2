@@ -8,16 +8,20 @@
 # 
 # Cite:
 # Weaver, W. N., and S. A.Smith. 2023. From leaves to labels: Building modular
-#     machine learning networks for rapid herbariumspecimen analysis with LeafMachine2.
-#     Applications inPlant Sciences. e11548. https://doi.org/10.1002/aps3.11548
+#     machine learning networks for rapid herbarium specimen analysis with LeafMachine2.
+#     Applications in Plant Sciences. e11548. https://doi.org/10.1002/aps3.11548
 # 
 # 
-# This config is for the SpecimenCrop.py file and relies on LeafMachine2 ML.
-# 
-# 
-# This code will locate all desired objects inside of a specimen image and then
-# crop the image to minimize blank space. The intended use case is for creating 
-# XMP sidecar files to make working in Lightroom much faster. 
+# This configuration is for the `SpecimenCrop.py` script and relies on the `LeafMachine2` machine learning model. The primary purpose of this script is to locate all the desired objects inside a specimen image and crop the image to minimize blank space. The primary use case for this is the creation of XMP sidecar files to enhance the efficiency of working in Adobe Lightroom. There are two general usages:
+#   1. (Recommended) Only create XMP sidecar files
+#       - Contains cropping and orientation settings
+#       - Applied to RAW images when imported into Adobe Lightroom
+#       - Original RAW files are not edited/changed at all by LeafMachine2
+#       - For crops to be applied, open and export using Lightroom
+#   2. Use LeafMachine2 to create TIFFs or JPGs from the original RAW files
+#       - Color accuracy is not guaranteed
+#       - Quality retention is not guaranteed
+#       - EXIF data is copied from the RAW files and added to the EXIF data of the created TIFFs and JPGs
 #
 #
 # Example workflow:

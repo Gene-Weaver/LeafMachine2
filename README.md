@@ -633,9 +633,97 @@ leafmachine:
         overlay_dpi: 300 # int |FROM| 100 to 300
         overlay_background_color: 'black' # str |FROM| 'white' or 'black'
 ```
+## SpecimenCrop Configuration Guide
+
+This configuration is for the `SpecimenCrop.py` script and relies on the `LeafMachine2` machine learning model. The primary purpose of this script is to locate all the desired objects inside a specimen image and crop the image to minimize blank space. The primary use case for this is the creation of XMP sidecar files to enhance the efficiency of working in Adobe Lightroom. There are two general usages:
+1. (Recommended) Only create XMP sidecar files
+    - Contains cropping and orientation settings
+    - Applied to RAW images when imported into Adobe Lightroom
+    - Original RAW files are not edited/changed at all by LeafMachine2
+    - For crops to be applied, open and export using Lightroom
+2. Use LeafMachine2 to create TIFFs or JPGs from the original RAW files
+    - Color accuracy is not guaranteed
+    - Quality retention is not guaranteed
+    - EXIF data is copied from the RAW files and added to the EXIF data of the created TIFFs and JPGs
+
+## Before and After
+These images were processed with 150 pixel padding around the detected objects. The only items excluded from these crops were 'weights' class objects.
+
+<table>
+  <tr>
+    <td>Original</td>
+     <td>After SpecimenCrop</td>
+  </tr>
+  <tr>
+    <td><img src="https://leafmachine.org/img/BA_1_before.jpg" width=270></td>
+    <td><img src="https://leafmachine.org/img/BA_1_after.jpg" width=270></td>
+  </tr>
+  <tr>
+    <td><img src="https://leafmachine.org/img/BA_2_before.jpg" width=270></td>
+    <td><img src="https://leafmachine.org/img/BA_2_after.jpg" width=270></td>
+  </tr>
+</table>
+
+### Example Workflow
+
+1. **Locate Raw Files:** Find the folder containing the raw files you intend to process. The code is validated with CR2 files, but other raw file formats should work.
+2. **Set Image Directory:** The path to the folder with the raw files should be assigned to the `dir_images_local` argument.
+3. **Set Output Directory:** This is determined by the `dir_output` argument.
+   - LeafMachine2 will generate intermediate files during the analysis. Make sure to assign a directory for them.
+   - If you only need the XMP files, you can delete this directory after the processing is complete.
+   - For debugging purposes, set both component detector `do_save_prediction_overlay_images` arguments to `True` to get useful overlay images.
+4. **Input Image Type:**
+   - **If Raw:** Set `save_XMP_to_original_dir` to `True` to save XMP files in the `dir_images_local` directory. Optionally, save TIFF versions of the cropped images to either `dir_images_local` or `dir_output`, and/or JPG versions to `dir_output`.
+   - **If JPG:** Save JPG versions of the cropped images to `dir_output`.
+5. **Set Orientation:** For raw images only. This is trial and error to get the images oriented correctly.
+6. **Set Pixel Padding:** The default is 150 pixels, which is typically adequate. For lower resolution images, consider reducing this value.
+7. **Adjust Optional Settings:** Set any other optional or remaining arguments as needed.
+8. **Test a Subset:** Run a small subset of images and adjust settings accordingly.
+9. **Import to Lightroom:** Import the combined RAW + XMP files into Lightroom to confirm everything works seamlessly.
+   - If you need to rerun the images with new settings, first delete the old images from Lightroom. This ensures the new XMP settings are applied when you reopen the modified images.
+10. **Editing in Lightroom:** Proceed with your usual editing and exporting process in Lightroom.
+
+### Important Arguments
+
+#### Input Images are Raw Files
+
+- `save_XMP_to_original_dir: True`: 
+   - Saves an XMP sidecar file that contains cropping and orientation information without altering the original raw file.
+   - Cropping and orientation information is added to the XMP file, which is then applied when the image is imported into Adobe Lightroom.
+- `save_TIFF_to_original_dir: False` and `save_TIFF_to_dir_output: False`: 
+   - OPTIONAL: Uses `rawpy` to produce cropped tiffs, although the colorspace may change undesirably.
+- `orientation`: Specifies the orientation of the image.
+   - Options are:
+     - "1" - Normal
+     - "2" - Flipped horizontally
+     - "3" - Upside down
+     - "4" - Flipped vertically
+     - "5" - Rotated 90° CCW and flipped vertically
+     - "6" - Rotated 90° CCW
+     - "7" - Rotated 90° CW and flipped vertically
+     - "8" - Rotated 90° CW
+
+#### Input Images are JPG Files
+
+- `save_JPG_to_dir_output`: Uses `rawpy` to generate cropped JPGs. The colorspace may undergo undesirable changes.
+
+### Components to Include in Crop
+
+- `include_these_objects_in_specimen_crop`: Defines which components will be used to establish the final crop boundary. Start with all items and remove any that cause the final crop to be too large or include undesired items.
+- choose from archival components:
+    - ruler, barcode, colorcard, label, map, envelope, photo, attached_item, weights
+- and plant components:
+    - leaf_whole, leaf_partial, leaflet, seed_fruit_one, seed_fruit_many, flower_one, flower_many, bud, specimen, roots, wood
+
+
+### Configuration Settings
+
+For the complete list of settings and their descriptions, refer to the provided config file.
 
 
 ## Downloading Images from GBIF
+
+### An interative Streamlit GUI is in the works, stay tuned!
 
 ```yaml
 leafmachine:
