@@ -32,6 +32,10 @@ Table of Contents
       * [Primary options (ruler_detection)](#primary-options-ruler_detection)
       * [Primary options (leaf_segmentation)](#primary-options-leaf_segmentation)
    * [SpecimenCrop - Removing blank space from images](#specimencrop-configuration-guide)
+        * [Before and After :camera:](#before-and-after)
+        * [Example Workflow](#example-workflow)
+        * [Important Arguments](#important-arguments)
+        * [Configuration Settings](#configuration-settings)
    * [Downloading Images from GBIF](#downloading-images-from-gbif)
 
 
@@ -647,7 +651,7 @@ This configuration is for the `SpecimenCrop.py` script and relies on the `LeafMa
     - Quality retention is not guaranteed
     - EXIF data is copied from the RAW files and added to the EXIF data of the created TIFFs and JPGs
 
-## Before and After
+### Before and After
 
 The only items excluded from these crops were 'weights' class objects.
 
@@ -679,7 +683,7 @@ Original | After SpecimenCrop (150 pixel padding) | After SpecimenCrop (50 pixel
 
 ### Important Arguments
 
-#### Input Images are Raw Files
+Input Images are Raw Files
 
 - `save_XMP_to_original_dir: True`: 
    - Saves an XMP sidecar file that contains cropping and orientation information without altering the original raw file.
@@ -697,11 +701,11 @@ Original | After SpecimenCrop (150 pixel padding) | After SpecimenCrop (50 pixel
      - "7" - Rotated 90° CW and flipped vertically
      - "8" - Rotated 90° CW
 
-#### Input Images are JPG Files
+Input Images are JPG Files
 
 - `save_JPG_to_dir_output`: Uses `rawpy` to generate cropped JPGs. The colorspace may undergo undesirable changes.
 
-### Components to Include in Crop
+Components to Include in Crop
 
 - `include_these_objects_in_specimen_crop`: Defines which components will be used to establish the final crop boundary. Start with all items and remove any that cause the final crop to be too large or include undesired items.
 - choose from archival components:
@@ -712,7 +716,7 @@ Original | After SpecimenCrop (150 pixel padding) | After SpecimenCrop (50 pixel
 
 ### Configuration Settings
 
-For the complete list of settings and their descriptions, refer to the provided config file.
+- For the complete list of settings and their descriptions, refer to the `SpecimenCrop.yaml` config file.
 
 
 ## Downloading Images from GBIF
