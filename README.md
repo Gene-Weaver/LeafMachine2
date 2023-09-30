@@ -652,8 +652,8 @@ These images were processed with 150 pixel padding around the detected objects. 
 
 | Original | After SpecimenCrop (150 pixel padding) | After SpecimenCrop (50 pixel padding) |
 |:--------:|:------------------:|:------------------:|
-| <img src="https://leafmachine.org/img/BA_1_before.jpg" width="300"> | <img src="https://leafmachine.org/img/BA_1_after.jpg" width="300"> | <img src="https://leafmachine.org/img/BA_1_after_50.jpg" width="300"> |
-| <img src="https://leafmachine.org/img/BA_2_before.jpg" width="300"> | <img src="https://leafmachine.org/img/BA_2_after.jpg" width="300"> | <img src="https://leafmachine.org/img/BA_2_after_50.jpg" width="300"> |
+| ![Original 1](https://leafmachine.org/img/BA_1_before.jpg) | ![After 150px padding 1](https://leafmachine.org/img/BA_1_after.jpg) | ![After 50px padding 1](https://leafmachine.org/img/BA_1_after_50.jpg) |
+| ![Original 2](https://leafmachine.org/img/BA_2_before.jpg) | ![After 150px padding 2](https://leafmachine.org/img/BA_2_after.jpg) | ![After 50px padding 2](https://leafmachine.org/img/BA_2_after_50.jpg) |
 
 
 ### Example Workflow
