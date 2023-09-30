@@ -648,12 +648,13 @@ This configuration is for the `SpecimenCrop.py` script and relies on the `LeafMa
 
 ## Before and After
 
-These images were processed with 150 pixel padding around the detected objects. The only items excluded from these crops were 'weights' class objects.
+The only items excluded from these crops were 'weights' class objects.
 
-| Original | After SpecimenCrop (150 pixel padding) | After SpecimenCrop (50 pixel padding) |
-|:--------:|:------------------:|:------------------:|
-| ![Original 1](https://leafmachine.org/img/BA_1_before.jpg) | ![After 150px padding 1](https://leafmachine.org/img/BA_1_after.jpg) | ![After 50px padding 1](https://leafmachine.org/img/BA_1_after_50.jpg) |
-| ![Original 2](https://leafmachine.org/img/BA_2_before.jpg) | ![After 150px padding 2](https://leafmachine.org/img/BA_2_after.jpg) | ![After 50px padding 2](https://leafmachine.org/img/BA_2_after_50.jpg) |
+Original | After SpecimenCrop (150 pixel padding) | After SpecimenCrop (50 pixel padding)
+:---:|:---:|:---:
+![Original 1](https://leafmachine.org/img/BA_1_before.jpg) | ![After 150px padding 1](https://leafmachine.org/img/BA_1_after.jpg) | ![After 50px padding 1](https://leafmachine.org/img/BA_1_after_50.jpg)
+![Original 2](https://leafmachine.org/img/BA_2_before.jpg) | ![After 150px padding 2](https://leafmachine.org/img/BA_2_after.jpg) | ![After 50px padding 2](https://leafmachine.org/img/BA_2_after_50.jpg)
+
 
 
 ### Example Workflow
