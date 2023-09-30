@@ -1,9 +1,9 @@
 ####################################################################################
 ### Directories ###
-dir_home: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/DWC_Big_Leaf/Alismataceae_Sagittaria' #'/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Acacia'
+dir_home: 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/DWC_Big_Leaf/Araceae_Monstera' #'/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Acacia'
 
-dir_destination_images: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/images/Alismataceae_Sagittaria'
-dir_destination_csv: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/csv/Alismataceae_Sagittaria'
+dir_destination_images: 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/images/Araceae_Monstera'
+dir_destination_csv: 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/csv/Araceae_Monstera'
 
 ####################################################################################
 ### Exisitng Files ###
@@ -21,7 +21,7 @@ filename_combined: 'combined_selected.csv'
 
 do_shuffle_occ: True
 
-n_imgs_per_species: 3
+n_imgs_per_species: 25
 n_imgs_per_genus: null
 n_imgs_per_family: null
 n_imgs_total: null

@@ -1,10 +1,10 @@
 # config_download_from_GBIF_all_images_in_file.yml
 ####################################################################################
 ### Directories ###
-dir_home: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/csv/Alismataceae_Sagittaria'
+dir_home: 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/csv/Araceae_Monstera'
 
-dir_destination_images: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/Images_by_Family/Alismataceae_Sagittaria'
-dir_destination_csv: '/home/brlab/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/csv_downloaded/Alismataceae_Sagittaria'
+dir_destination_images: 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/Images_by_Family/Araceae_Monstera'
+dir_destination_csv: 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/csv_downloaded/Araceae_Monstera'
 
 is_custom_file: False
 col_url: 'url'

@@ -120,9 +120,12 @@ class KeypointMapping:
 class Points:
     IMG_FILENAME: str 
     IMG_NAME: str 
+    VERSION: str
 
     # New dictionary to hold 52 keypoints
-    KEYPOINTS: List[List[Tuple[int, int, int]]] = field(default_factory=lambda: [None] * 51)
+    KEYPOINTS_51: List[List[Tuple[int, int, int]]] = field(default_factory=lambda: [None] * 51)
+    KEYPOINTS_31: List[List[Tuple[int, int, int]]] = field(default_factory=lambda: [None] * 31)
+    KEYPOINTS: List[tuple] = field(init=False)
 
     M_LOBE_COUNT: int = 0
     M_DEEPEST_SINUS_ANGLE: int = 0
@@ -173,8 +176,12 @@ class Points:
     OUTER: list = field(init=False,default_factory=list)
     OUTER_N: int = field(init=False) 
 
-    # def __post_init__(self) -> None:
-    #     self.LOBE_TIP = []
+    def __post_init__(self) -> None:
+        if self.VERSION == 'mid15_pet5':
+            self.KEYPOINTS = self.KEYPOINTS_31
+        elif self.VERSION == 'mid30_pet10':
+            self.KEYPOINTS = self.KEYPOINTS_51
+
     def total_distance(self,pts, is_multi=False):
         if is_multi:
             totals = []
@@ -961,7 +968,7 @@ def export_points(opt, cfg):
                                 img_filename = img_name #+'.jpg'
                                 
                                 keypoint_mapper = KeypointMapping(trace_version = 'mid15_pet5') # mid30_pet10 or 
-                                Labels = Points(IMG_NAME=img_name,IMG_FILENAME=img_filename)
+                                Labels = Points(IMG_NAME=img_name,IMG_FILENAME=img_filename,VERSION = 'mid15_pet5')
 
                                 # Check to see if apex/base points exist as reference for orienting the traces
                                 ref_lamina_tip = any(label['value'] == 'lamina_tip' for label in img['Label']['objects'])

@@ -60,4 +60,4 @@ def check_image_compliance(cfg, Dirs):
         cfg['leafmachine']['project']['dir_images_local'] = dir_out
         return cfg, dir_in#, dir_out_tiff
     else:
-        return cfg, None, None
+        return cfg, None

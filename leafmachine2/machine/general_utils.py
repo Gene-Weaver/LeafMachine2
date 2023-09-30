@@ -15,6 +15,9 @@ import pyexiv2
 from colour.temperature import xy_to_CCT, CCT_to_xy #pip install colour-science
 import subprocess
 import platform
+from xml.etree.ElementTree import Element, SubElement, tostring, register_namespace
+from xml.dom import minidom
+
 '''
 TIFF --> DNG
 Install
@@ -825,10 +828,153 @@ def crop_detections_from_images(cfg, dir_home, Project, Dirs):
                 if has_plant and (save_per_image or save_per_class):
                     crop_component_from_yolo_coords('PLANT', Dirs, analysis, plant, full_image, filename, save_per_image, save_per_class, save_list)
 '''
+# def extract_exif_data(cr2_file):
+#     try:
+#         with pyexiv2.Image(cr2_file) as img:
+#             return img.read_exif()
+#     except Exception as e:
+#         raise ValueError(f"Error reading EXIF data from {cr2_file}: {str(e)}")
+    
+# def add_crop_to_description(description, cr2_file, min_x, min_y, max_x, max_y):
+#     # Extracting just the filename
+#     name_CR2 = cr2_file.split(os.path.sep)[-1]
+    
+#     try:
+#         with rawpy.imread(cr2_file) as raw:
+#             width, height = raw.sizes.raw_width, raw.sizes.raw_height
+#     except Exception as e:
+#         raise ValueError(f"Error reading image dimensions from {cr2_file}: {str(e)}")
+
+#     top = min_y / height
+#     left = min_x / width
+#     bottom = max_y / height
+#     right = max_x / width
+
+#     # Set the cropping info as attributes of the description element
+#     description.set('crs:CropTop', str(top))
+#     description.set('crs:CropLeft', str(left))
+#     description.set('crs:CropBottom', str(bottom))
+#     description.set('crs:CropRight', str(right))
+    
+#     # Add other attributes
+#     description.set('crs:Version', "15.1")
+#     description.set('crs:ProcessVersion', "11.0")
+#     description.set('crs:HasSettings', "True")
+#     description.set('crs:CropAngle', "0")
+#     description.set('crs:CropConstrainToWarp', "0")
+#     description.set('crs:HasCrop', "True")
+#     description.set('crs:AlreadyApplied', "False")
+#     description.set('crs:RawFileName', name_CR2)
+
+def create_XMP(cr2_file, xmp_file_path, min_x, min_y, max_x, max_y, orientation):
+    # Extracting just the filename
+    name_CR2 = cr2_file.split(os.path.sep)[-1]
+    
+    try:
+        with rawpy.imread(cr2_file) as raw:
+            width, height = raw.sizes.raw_width, raw.sizes.raw_height
+    except Exception as e:
+        raise ValueError(f"Error reading image dimensions from {cr2_file}: {str(e)}")
+
+    # If image is in landscape orientation, adjust the coordinates
+    # If top of image is on east/west side:
+    if width > height:
+        top = min_x / height # left
+        left = 1 - (min_y / width) # top
+        bottom = max_x / height # right
+        right = 1 - (max_y / width) # bottom
+    else:
+        top = min_y / height
+        left = min_x / width
+        bottom = max_y / height
+        right = max_x / width
+
+    # Clamp values between 0 and 1
+    top = max(0, min(1, top))
+    left = max(0, min(1, left))
+    bottom = max(0, min(1, bottom))
+    right = max(0, min(1, right))
+    
+    # Create the root element
+    xmpmeta = Element('x:xmpmeta', {
+        'xmlns:x': "adobe:ns:meta/",
+        'x:xmptk': "Adobe XMP Core 7.0-c000 1.000000, 0000/00/00-00:00:00        "
+    })
+    
+    # Create the RDF element
+    rdf = SubElement(xmpmeta, 'rdf:RDF', {
+        'xmlns:rdf': "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    })
+
+    # Create the Description element with appropriate namespaces
+    description_attribs = {
+        'rdf:about': "",
+        'xmlns:tiff': "http://ns.adobe.com/tiff/1.0/",
+        'xmlns:exif': "http://ns.adobe.com/exif/1.0/",
+        'xmlns:dc': "http://purl.org/dc/elements/1.1/",
+        'xmlns:aux': "http://ns.adobe.com/exif/1.0/aux/",
+        'xmlns:exifEX': "http://cipa.jp/exif/1.0/",
+        'xmlns:xmp': "http://ns.adobe.com/xap/1.0/",
+        'xmlns:photoshop': "http://ns.adobe.com/photoshop/1.0/",
+        'xmlns:xmpMM': "http://ns.adobe.com/xap/1.0/mm/",
+        'xmlns:stEvt': "http://ns.adobe.com/xap/1.0/sType/ResourceEvent#",
+        'xmlns:crd': "http://ns.adobe.com/camera-raw-defaults/1.0/",
+        'xmlns:xmpRights': "http://ns.adobe.com/xap/1.0/rights/",
+        'xmlns:Iptc4xmpCore': "http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/",
+        'xmlns:crs': "http://ns.adobe.com/camera-raw-settings/1.0/",
+        'tiff:Orientation': str(orientation),
+        'crs:Version': "15.1",
+        'crs:ProcessVersion': "11.0",
+        'crs:HasSettings': "True",
+        'crs:CropTop': str(top),
+        'crs:CropLeft': str(left),
+        'crs:CropBottom': str(bottom),
+        'crs:CropRight': str(right),
+        'crs:CropAngle': "0",
+        'crs:CropConstrainToWarp': "0",
+        'crs:HasCrop': "True",
+        'crs:AlreadyApplied': "False",
+        'crs:RawFileName': name_CR2
+    }
+    description = SubElement(rdf, 'rdf:Description', description_attribs)
+    
+    # Now we add the attributes that were inside the Description tag
+    attributes_inside_description = {
+        'crs:Version': "15.1",
+        'crs:ProcessVersion': "11.0",
+        'crs:HasSettings': "True",
+        'crs:CropTop': str(top),
+        'crs:CropLeft': str(left),
+        'crs:CropBottom': str(bottom),
+        'crs:CropRight': str(right),
+        'crs:CropAngle': "0",
+        'crs:CropConstrainToWarp': "0",
+        'crs:HasCrop': "True",
+        'crs:AlreadyApplied': "False",
+        'crs:RawFileName': name_CR2
+    }
+
+    for attribute, value in attributes_inside_description.items():
+        description.set(attribute, value)
+    
+    # Prettify and save the XML
+    rough_string = tostring(xmpmeta, 'utf-8')
+    reparsed = minidom.parseString(rough_string)
+    formatted_xml = reparsed.toprettyxml(indent="  ")
+
+    # Removing the XML declaration as it's not present in the desired format
+    formatted_xml = '\n'.join(formatted_xml.split('\n')[1:])
+
+    with open(xmp_file_path, 'w') as xmp_file:
+        xmp_file.write(formatted_xml)
+
+
+
+
 
 def crop_image_raw(img, output_image_path, min_x, min_y, max_x, max_y):
     cropped = img.crop((min_x, min_y, max_x, max_y))
-    cropped.save(output_image_path)
+    cropped.save(output_image_path, quality='keep')
 
         
 def create_temp_tiffs_dir(new_tiff_dir):
@@ -900,12 +1046,45 @@ def get_colorspace(colorspace_choice):
     else:
         raise ValueError("Invalid colorspace choice")
 
+def process_detections(success, save_list, detections, detection_type, height, width, min_x, min_y, max_x, max_y):
+    for detection in detections:
+        detection_class = detection[0]
+        detection_class = set_index_for_annotation(detection_class, detection_type)
+
+        if (detection_class in save_list) or ('save_all' in save_list):
+            location = yolo_to_position_ruler(detection, height, width)
+            ruler_polygon = [
+                (location[1], location[2]), 
+                (location[3], location[2]), 
+                (location[3], location[4]), 
+                (location[1], location[4])
+            ]
+
+            x_coords = [x for x, y in ruler_polygon]
+            y_coords = [y for x, y in ruler_polygon]
+
+            min_x = min(min_x, *x_coords)
+            min_y = min(min_y, *y_coords)
+            max_x = max(max_x, *x_coords)
+            max_y = max(max_y, *y_coords)
+            success = True
+
+    return min_x, min_y, max_x, max_y, success
 
 def crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archival, has_plant, archival_detections, 
                                                  plant_detections, full_image, filename, save_list, original_img_dir):
     
     padding = int(cfg['leafmachine']['project']['padding_for_crop'])
-    save_to_original_dir = cfg['leafmachine']['project']['save_to_original_dir']
+    dir_images_local = cfg['leafmachine']['project']['dir_images_local']
+    orientation = str(cfg['leafmachine']['project']['orientation'])
+
+    save_tiff_to_original_dir = cfg['leafmachine']['project']['save_TIFF_to_original_dir']
+    save_tiff_to_dir_output = cfg['leafmachine']['project']['save_TIFF_to_dir_output']
+
+    save_jpg_to_original_dir = cfg['leafmachine']['project']['save_JPG_to_original_dir']
+    save_jpg_to_dir_output = cfg['leafmachine']['project']['save_JPG_to_dir_output']
+        
+    save_XMP = cfg['leafmachine']['project']['save_XMP_to_original_dir']
 
     colorspace_choice = cfg['leafmachine']['project']['colorspace']
     colorspace = get_colorspace(colorspace_choice)
@@ -929,89 +1108,91 @@ def crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archiv
         # Use rawpy to convert the raw CR2 file to TIFF
         temporary_tiff_path = os.path.join(temp_tiffs_dir, filename_stem + "_temp.TIFF")
 
-        # adjust_white_balance(cr2_file, cr2_file, 4450, 7)
-
         with rawpy.imread(cr2_file) as raw:
             # Get RGB image
             rgb = raw.postprocess(use_camera_wb=True, use_auto_wb=False, output_bps=16, output_color=colorspace, half_size=False)
             imageio.imsave(temporary_tiff_path, rgb)
         # Load the temporary TIFF as full_image
-        # adjust_white_balance(temporary_tiff_path, temporary_tiff_path, 4450, 7)
-        full_image = Image.open(temporary_tiff_path)
-        
+        full_image_tiff = Image.open(temporary_tiff_path)
 
+    if has_archival:
+        min_x, min_y, max_x, max_y, success = process_detections(success, save_list, archival_detections, "ARCHIVAL", height, width, min_x, min_y, max_x, max_y)
 
-    if not has_archival:
-        pass
-    else:
-        success = True
-        for detection in archival_detections:
-            detection_class = detection[0]
-            detection_class = set_index_for_annotation(detection_class, "ARCHIVAL")
-
-            if (detection_class in save_list) or ('save_all' in save_list):
-
-                location = yolo_to_position_ruler(detection, height, width)
-                ruler_polygon = [(location[1], location[2]), (location[3], location[2]), (location[3], location[4]), (location[1], location[4])]
-
-                x_coords = [x for x, y in ruler_polygon]
-                y_coords = [y for x, y in ruler_polygon]
-
-                min_x = min(min_x, *x_coords)
-                min_y = min(min_y, *y_coords)
-                max_x = max(max_x, *x_coords)
-                max_y = max(max_y, *y_coords)
-
-    if not has_plant:
-        pass
-    else:
-        success = True
-        for detection in plant_detections:
-            detection_class = detection[0]
-            detection_class = set_index_for_annotation(detection_class, "PLANT")
-
-            if (detection_class in save_list) or ('save_all' in save_list):
-
-                location = yolo_to_position_ruler(detection, height, width)
-                ruler_polygon = [(location[1], location[2]), (location[3], location[2]), (location[3], location[4]), (location[1], location[4])]
-
-                x_coords = [x for x, y in ruler_polygon]
-                y_coords = [y for x, y in ruler_polygon]
-
-                min_x = min(min_x, *x_coords)
-                min_y = min(min_y, *y_coords)
-                max_x = max(max_x, *x_coords)
-                max_y = max(max_y, *y_coords)
+    if has_plant:
+        min_x, min_y, max_x, max_y, success = process_detections(success, save_list, plant_detections, "PLANT", height, width, min_x, min_y, max_x, max_y)
 
     if success:
+        ### Add padding, apply crop, save images ###
         # Calculate new min/max coordinates, ensuring they are within image bounds
         min_x = max(0, min_x - padding)
         min_y = max(0, min_y - padding)
-        max_x = min(full_image.width, max_x + padding)
-        max_y = min(full_image.height, max_y + padding)
+        try:
+            max_x = min(full_image.width, max_x + padding)
+            max_y = min(full_image.height, max_y + padding)
+        except:
+            try:
+                max_x = min(full_image.shape[1], max_x + padding)
+                max_y = min(full_image.shape[0], max_y + padding)
+            except:
+                max_x = min(full_image_tiff.shape[1], max_x + padding)
+                max_y = min(full_image_tiff.shape[0], max_y + padding)
         detection_cropped_name = '.'.join([filename, 'jpg'])
 
         # Save the cropped image
-        if original_img_dir is not None:
-            # Save the image as a TIFF in the new_tiff_dir
-            if save_to_original_dir:
-                cropped_tiff_path = os.path.join(original_img_dir, detection_cropped_name.replace('.jpg', '.TIFF'))
-                crop_image_raw(full_image, cropped_tiff_path, min_x, min_y, max_x, max_y)
-                copy_exif_data(cr2_file, cropped_tiff_path)
-            
-            cropped_tiff_path = os.path.join(Dirs.save_specimen_crop, detection_cropped_name.replace('.jpg', '.TIFF'))
-            crop_image_raw(full_image, cropped_tiff_path, min_x, min_y, max_x, max_y)
+        # if original_img_dir is None, then the images are already jpgs or pngs
+        # Save the image as a TIFF in the new_tiff_dir
+        if save_tiff_to_original_dir and original_img_dir is not None: # Must have started with raw images
+            cropped_tiff_path = os.path.join(original_img_dir, detection_cropped_name.replace('.jpg', '.TIFF'))
+            crop_image_raw(full_image_tiff, cropped_tiff_path, min_x, min_y, max_x, max_y)
             copy_exif_data(cr2_file, cropped_tiff_path)
-            # Convert the TIFF to DNG
-            # https://helpx.adobe.com/camera-raw/using/adobe-dng-converter.html
-            # Convert the TIFF to DNG
-            # cropped_dng_path = cropped_tiff_path.replace('.TIFF', '.DNG')
-            # convert_to_dng(cr2_file, cropped_dng_path)
-            
-        else:
-            # Perform a single crop using the minimum and maximum coordinates
-            detection_cropped = full_image[min_y:max_y, min_x:max_x]
-            cv2.imwrite(os.path.join(Dirs.save_specimen_crop, detection_cropped_name), detection_cropped)
+        
+        if save_tiff_to_dir_output and original_img_dir is not None:
+            cropped_tiff_path = os.path.join(Dirs.save_specimen_crop, detection_cropped_name.replace('.jpg', '.TIFF'))
+            crop_image_raw(full_image_tiff, cropped_tiff_path, min_x, min_y, max_x, max_y)
+            copy_exif_data(cr2_file, cropped_tiff_path)
+
+        if save_XMP and original_img_dir is not None:
+            path_XMP = os.path.join(original_img_dir, detection_cropped_name.replace('.jpg', '.XMP'))
+            create_XMP(cr2_file, path_XMP, min_x, min_y, max_x, max_y, orientation)
+
+        # Convert the TIFF to DNG
+        # https://helpx.adobe.com/camera-raw/using/adobe-dng-converter.html
+        # Convert the TIFF to DNG
+        # cropped_dng_path = cropped_tiff_path.replace('.TIFF', '.DNG')
+        # convert_to_dng(cr2_file, cropped_dng_path)
+
+        # JPG only
+        # Since not raw, dir_images_local is the original folder location
+        if save_jpg_to_original_dir or save_jpg_to_dir_output:
+
+            if save_jpg_to_original_dir and original_img_dir is not None: # For saving jpgs to original dir
+                cropped_jpg_path = os.path.join(dir_images_local, detection_cropped_name)
+                detection_cropped = full_image[min_y:max_y, min_x:max_x]
+                cv2.imwrite(cropped_jpg_path, detection_cropped)
+                copy_exif_data(cr2_file, cropped_jpg_path)
+
+            if save_jpg_to_dir_output: # cannot save jpgs to original dir if original images were jpgs
+                detection_cropped = full_image[min_y:max_y, min_x:max_x]
+                cropped_jpg_path = os.path.join(dir_images_local, detection_cropped_name)
+                cv2.imwrite(os.path.join(Dirs.save_specimen_crop, detection_cropped_name), detection_cropped)
+                copy_exif_data(cropped_jpg_path, os.path.join(Dirs.save_specimen_crop, detection_cropped_name))
+
+
+        # if save_jpg_to_original_dir and original_img_dir is not None: # For saving jpgs to original dir
+        #     params = [int(cv2.IMWRITE_JPEG_QUALITY), 100]
+        #     cropped_jpg_path = os.path.join(dir_images_local, detection_cropped_name)
+        #     # Perform a single crop using the minimum and maximum coordinates
+        #     detection_cropped = full_image[min_y:max_y, min_x:max_x]
+        #     cv2.imwrite(os.path.join(cropped_jpg_path, detection_cropped_name), detection_cropped, params)
+        #     copy_exif_data(cr2_file, cropped_jpg_path)
+
+        # if save_jpg_to_dir_output: # cannot save jpgs to original dir if original images were jpgs
+        #     params = [int(cv2.IMWRITE_JPEG_QUALITY), 100]
+        #     cropped_jpg_path = os.path.join(dir_images_local, detection_cropped_name)
+        #     # Perform a single crop using the minimum and maximum coordinates
+        #     detection_cropped = full_image[min_y:max_y, min_x:max_x]
+        #     cv2.imwrite(os.path.join(Dirs.save_specimen_crop, detection_cropped_name), detection_cropped, [cv2.IMWRITE_JPEG_QUALITY, 100])
+        #     copy_exif_data(cr2_file, cropped_jpg_path)
 
     else:
         print('Failed')

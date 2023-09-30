@@ -66,6 +66,7 @@ def machine(cfg_file_path, dir_home, cfg_test):
 
         # Check image dir for correct extensions
         # cfg, original_img_dir, new_tiff_dir = check_image_compliance(cfg, Dirs)
+        # if original_img_dir is None, then the images are already jpgs or pngs
         cfg, original_img_dir = check_image_compliance(cfg, Dirs)
 
 
