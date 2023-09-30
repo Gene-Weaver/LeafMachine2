@@ -652,8 +652,8 @@ The only items excluded from these crops were 'weights' class objects.
 
 Original | After SpecimenCrop (150 pixel padding) | After SpecimenCrop (50 pixel padding)
 :---:|:---:|:---:
-![Original 1](https://leafmachine.org/img/BA_1_before.jpg) | ![After 150px padding 1](https://leafmachine.org/img/BA_1_after.jpg) | ![After 50px padding 1](https://leafmachine.org/img/BA_1_after_50.jpg)
-![Original 2](https://leafmachine.org/img/BA_2_before.jpg) | ![After 150px padding 2](https://leafmachine.org/img/BA_2_after.jpg) | ![After 50px padding 2](https://leafmachine.org/img/BA_2_after_50.jpg)
+![Original 1](docs/img/SpecimenCrop_BA/BA_1_before.jpg) | ![After 150px padding 1](docs/img/SpecimenCrop_BA/BA_1_after.jpg) | ![After 50px padding 1](docs/img/SpecimenCrop_BA/BA_1_after_50.jpg)
+![Original 2](docs/img/SpecimenCrop_BA/BA_2_before.jpg) | ![After 150px padding 2](docs/img/SpecimenCrop_BA/BA_2_after.jpg) | ![After 50px padding 2](docs/img/SpecimenCrop_BA/BA_2_after_50.jpg)
 
 
 
