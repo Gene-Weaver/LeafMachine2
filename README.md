@@ -649,20 +649,10 @@ This configuration is for the `SpecimenCrop.py` script and relies on the `LeafMa
 ## Before and After
 These images were processed with 150 pixel padding around the detected objects. The only items excluded from these crops were 'weights' class objects.
 
-<table>
-  <tr>
-    <td>Original</td>
-     <td>After SpecimenCrop</td>
-  </tr>
-  <tr>
-    <td><img src="https://leafmachine.org/img/BA_1_before.jpg" width=270></td>
-    <td><img src="https://leafmachine.org/img/BA_1_after.jpg" width=270></td>
-  </tr>
-  <tr>
-    <td><img src="https://leafmachine.org/img/BA_2_before.jpg" width=270></td>
-    <td><img src="https://leafmachine.org/img/BA_2_after.jpg" width=270></td>
-  </tr>
-</table>
+| Original | After SpecimenCrop (150 pixel padding) | After SpecimenCrop (50 pixel padding) |
+|:--------:|:------------------:|:------------------:|
+| ![Before Image](https://leafmachine.org/img/BA_1_before.jpg) | ![After Image 150](https://leafmachine.org/img/BA_1_after.jpg) | ![After Image 50](https://leafmachine.org/img/BA_1_after_50.jpg) |
+| ![Before Image](https://leafmachine.org/img/BA_2_before.jpg) | ![After Image 150](https://leafmachine.org/img/BA_2_after.jpg) | ![After Image 50](https://leafmachine.org/img/BA_2_after_50.jpg) |
 
 ### Example Workflow
 

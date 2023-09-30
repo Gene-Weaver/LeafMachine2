@@ -1081,7 +1081,7 @@ def crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archiv
     save_tiff_to_original_dir = cfg['leafmachine']['project']['save_TIFF_to_original_dir']
     save_tiff_to_dir_output = cfg['leafmachine']['project']['save_TIFF_to_dir_output']
 
-    save_jpg_to_original_dir = cfg['leafmachine']['project']['save_JPG_to_original_dir']
+    # save_jpg_to_original_dir = cfg['leafmachine']['project']['save_JPG_to_original_dir']
     save_jpg_to_dir_output = cfg['leafmachine']['project']['save_JPG_to_dir_output']
         
     save_XMP = cfg['leafmachine']['project']['save_XMP_to_original_dir']
@@ -1163,19 +1163,18 @@ def crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archiv
 
         # JPG only
         # Since not raw, dir_images_local is the original folder location
-        if save_jpg_to_original_dir or save_jpg_to_dir_output:
 
-            if save_jpg_to_original_dir and original_img_dir is not None: # For saving jpgs to original dir
-                cropped_jpg_path = os.path.join(dir_images_local, detection_cropped_name)
-                detection_cropped = full_image[min_y:max_y, min_x:max_x]
-                cv2.imwrite(cropped_jpg_path, detection_cropped)
-                copy_exif_data(cr2_file, cropped_jpg_path)
+        # if save_jpg_to_original_dir and original_img_dir is not None: # For saving jpgs to original dir
+        #     cropped_jpg_path = os.path.join(dir_images_local, detection_cropped_name)
+        #     detection_cropped = full_image[min_y:max_y, min_x:max_x]
+        #     cv2.imwrite(cropped_jpg_path, detection_cropped)
+        #     copy_exif_data(cr2_file, cropped_jpg_path)
 
-            if save_jpg_to_dir_output: # cannot save jpgs to original dir if original images were jpgs
-                detection_cropped = full_image[min_y:max_y, min_x:max_x]
-                cropped_jpg_path = os.path.join(dir_images_local, detection_cropped_name)
-                cv2.imwrite(os.path.join(Dirs.save_specimen_crop, detection_cropped_name), detection_cropped)
-                copy_exif_data(cropped_jpg_path, os.path.join(Dirs.save_specimen_crop, detection_cropped_name))
+        if save_jpg_to_dir_output: # cannot save jpgs to original dir if original images were jpgs
+            detection_cropped = full_image[min_y:max_y, min_x:max_x]
+            cropped_jpg_path = os.path.join(dir_images_local, detection_cropped_name)
+            cv2.imwrite(os.path.join(Dirs.save_specimen_crop, detection_cropped_name), detection_cropped)
+            copy_exif_data(cropped_jpg_path, os.path.join(Dirs.save_specimen_crop, detection_cropped_name))
 
 
         # if save_jpg_to_original_dir and original_img_dir is not None: # For saving jpgs to original dir
