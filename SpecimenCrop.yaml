@@ -109,20 +109,20 @@ leafmachine:
     # Overall Project Input Settings
     project:
         # Image to Process
-        dir_images_local: 'D:\Dropbox\LM2_Env\Image_Datasets\Fungarium\CR2'
+        dir_images_local: 'path/to/input/images'
         run_name: 'project_run_name'
 
         # Project Output Dir
         # Can set this to a temp location if the intermediate files are not needed
-        dir_output: 'D:\D_Desktop\Fungarium'
+        dir_output: path/to/output/dir'
 
         # Save an XMP sidecar file 
         save_XMP_to_original_dir: True   # Default: True  | Input images must be raw files
         # Raw file orientation code
-        orientation: "8"                 # Default: "1"   | Input images must be raw files
+        orientation: "6"                 # Default: "1"   | Input images must be raw files
         
         # Image Padding
-        padding_for_crop: 50            # Default: 150   | Sets pixel padding around the bounds of detected objects
+        padding_for_crop: 150            # Default: 150   | Sets pixel padding around the bounds of detected objects
         
         # Optional: Save TIFFs or JPGs
         save_TIFF_to_original_dir: False # Default: False | Input images must be raw files
@@ -189,7 +189,7 @@ leafmachine:
         detector_iteration: 'PLANT_GroupAB_200'
         detector_weights: 'best.pt'
         minimum_confidence_threshold: 0.2 # 0.2 = default
-        do_save_prediction_overlay_images: False
+        do_save_prediction_overlay_images: True
         ignore_objects_for_overlay: []
     
     # Configure Archival Component Detector
@@ -200,7 +200,7 @@ leafmachine:
         detector_iteration: 'PREP_final'
         detector_weights: 'best.pt'
         minimum_confidence_threshold: 0.2 # 0.2 = default
-        do_save_prediction_overlay_images: False
+        do_save_prediction_overlay_images: True
         ignore_objects_for_overlay: [] 
 
     print:

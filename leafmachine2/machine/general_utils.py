@@ -866,7 +866,7 @@ def crop_detections_from_images(cfg, dir_home, Project, Dirs):
 #     description.set('crs:AlreadyApplied', "False")
 #     description.set('crs:RawFileName', name_CR2)
 
-def create_XMP(cr2_file, xmp_file_path, min_x, min_y, max_x, max_y, orientation):
+def create_XMP(cr2_file, xmp_file_path, min_x, min_y, max_x, max_y, orientation, padding):
     # Extracting just the filename
     name_CR2 = cr2_file.split(os.path.sep)[-1]
     
@@ -879,21 +879,43 @@ def create_XMP(cr2_file, xmp_file_path, min_x, min_y, max_x, max_y, orientation)
     # If image is in landscape orientation, adjust the coordinates
     # If top of image is on east/west side:
     if width > height:
-        top = min_x / height # left
-        left = 1 - (min_y / width) # top
-        bottom = max_x / height # right
-        right = 1 - (max_y / width) # bottom
-    else:
-        top = min_y / height
-        left = min_x / width
-        bottom = max_y / height
-        right = max_x / width
+        if (min_x - padding) < 0:
+            top = 0
+        else:
+            top = (min_x - padding) / height # left
 
-    # Clamp values between 0 and 1
-    top = max(0, min(1, top))
-    left = max(0, min(1, left))
-    bottom = max(0, min(1, bottom))
-    right = max(0, min(1, right))
+        if (max_x + padding) > height:
+            bottom = 1
+        else:
+            bottom = (max_x + (2*padding)) / height # right
+
+
+        if (min_y - padding) < 0:
+            left = 0
+        else:
+            left = 1 - ((min_y - padding) / width) # top
+
+        if ((max_y + padding) > width) or (max_y + (2*padding) > width):
+            right = 0
+        else:
+            right = 1 - ((max_y + (2*padding)) / width) # bottom
+        
+        # Clamp values between 0 and 1
+        top = max(0, min(1, top))
+        left = max(0, min(1, left))
+        bottom = max(0, min(1, bottom))
+        right = max(0, min(1, right))
+    else:
+        top = (min_y - padding) / height
+        left = (min_x - padding) / width
+        bottom = (max_y + padding) / height
+        right = (max_x + padding) / width
+
+        # Clamp values between 0 and 1
+        top = max(0, min(1, top))
+        left = max(0, min(1, left))
+        bottom = max(0, min(1, bottom))
+        right = max(0, min(1, right))
     
     # Create the root element
     xmpmeta = Element('x:xmpmeta', {
@@ -1093,8 +1115,8 @@ def crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archiv
     width = analysis['width']
 
     # Initialize variables for minimum and maximum coordinates
-    min_x, min_y = float('inf'), float('inf')
-    max_x, max_y = float('-inf'), float('-inf')
+    min_x_init, min_y_init = float('inf'), float('inf')
+    max_x_init, max_y_init = float('-inf'), float('-inf')
 
     success = False
 
@@ -1116,26 +1138,26 @@ def crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archiv
         full_image_tiff = Image.open(temporary_tiff_path)
 
     if has_archival:
-        min_x, min_y, max_x, max_y, success = process_detections(success, save_list, archival_detections, "ARCHIVAL", height, width, min_x, min_y, max_x, max_y)
+        min_x_init, min_y_init, max_x_init, max_y_init, success = process_detections(success, save_list, archival_detections, "ARCHIVAL", height, width, min_x_init, min_y_init, max_x_init, max_y_init)
 
     if has_plant:
-        min_x, min_y, max_x, max_y, success = process_detections(success, save_list, plant_detections, "PLANT", height, width, min_x, min_y, max_x, max_y)
+        min_x_init, min_y_init, max_x_init, max_y_init, success = process_detections(success, save_list, plant_detections, "PLANT", height, width, min_x_init, min_y_init, max_x_init, max_y_init)
 
     if success:
         ### Add padding, apply crop, save images ###
         # Calculate new min/max coordinates, ensuring they are within image bounds
-        min_x = max(0, min_x - padding)
-        min_y = max(0, min_y - padding)
+        min_x = max(0, min_x_init - padding)
+        min_y = max(0, min_y_init - padding)
         try:
-            max_x = min(full_image.width, max_x + padding)
-            max_y = min(full_image.height, max_y + padding)
+            max_x = min(full_image.width, max_x_init + padding)
+            max_y = min(full_image.height, max_y_init + padding)
         except:
             try:
-                max_x = min(full_image.shape[1], max_x + padding)
-                max_y = min(full_image.shape[0], max_y + padding)
+                max_x = min(full_image.shape[1], max_x_init + padding)
+                max_y = min(full_image.shape[0], max_y_init + padding)
             except:
-                max_x = min(full_image_tiff.shape[1], max_x + padding)
-                max_y = min(full_image_tiff.shape[0], max_y + padding)
+                max_x = min(full_image_tiff.shape[1], max_x_init + padding)
+                max_y = min(full_image_tiff.shape[0], max_y_init + padding)
         detection_cropped_name = '.'.join([filename, 'jpg'])
 
         # Save the cropped image
@@ -1153,7 +1175,7 @@ def crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archiv
 
         if save_XMP and original_img_dir is not None:
             path_XMP = os.path.join(original_img_dir, detection_cropped_name.replace('.jpg', '.XMP'))
-            create_XMP(cr2_file, path_XMP, min_x, min_y, max_x, max_y, orientation)
+            create_XMP(cr2_file, path_XMP, min_x_init, min_y_init, max_x_init, max_y_init, orientation, padding)
 
         # Convert the TIFF to DNG
         # https://helpx.adobe.com/camera-raw/using/adobe-dng-converter.html

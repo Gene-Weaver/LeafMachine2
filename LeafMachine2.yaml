@@ -1,3 +1,8 @@
+# Cite:
+# Weaver, W. N., and S. A.Smith. 2023. From leaves to labels: Building modular
+#     machine learning networks for rapid herbarium specimen analysis with LeafMachine2.
+#     Applications in Plant Sciences. e11548. https://doi.org/10.1002/aps3.11548
+
 # To use default value, set to null
 leafmachine:
     do:
