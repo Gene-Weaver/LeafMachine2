@@ -278,36 +278,38 @@ def save_labels_to_txt(opt, project, file, annoType, data, saveNameJSON_YOLO_ori
                         if annoType == 'ACACIA':
                             # img_crop = img_crop.resize((img_crop.width * 10, img_crop.height * 10), resample=Image.BICUBIC)
                             img_crop = img_crop.resize((img_crop.width * 10, img_crop.height * 10), resample=Image.LANCZOS)
-                        else:
-                            continue
 
+                        save_crop_name_base = remove_extension(img["External ID"])
                         if opt.DO_PARTITION_DATA:
                             if pc in TRAIN:
-                                save_crop_name = img["External ID"] + '__' + str(label_ind)
+                                save_crop_name = save_crop_name_base + '__' + str(label_ind)
                                 save_crop_dir = os.path.join(path_cropped, cls, 'train')
                                 save_crop_path = os.path.join(save_crop_dir, save_crop_name)
                                 validate_dir(save_crop_dir)
                                 img_crop.save(Path(save_crop_path).with_suffix('.jpg'), quality=100, subsampling=0)
 
                             if pc in VAL:
-                                save_crop_name = img["External ID"] + '__' + str(label_ind)
+                                save_crop_name = save_crop_name_base + '__' + str(label_ind)
                                 save_crop_dir = os.path.join(path_cropped, cls, 'val')
                                 save_crop_path = os.path.join(save_crop_dir, save_crop_name)
                                 validate_dir(save_crop_dir)
                                 img_crop.save(Path(save_crop_path).with_suffix('.jpg'), quality=100, subsampling=0)
                             if pc in TEST:
-                                save_crop_name = img["External ID"] + '__' + str(label_ind)
+                                save_crop_name = save_crop_name_base + '__' + str(label_ind)
                                 save_crop_dir = os.path.join(path_cropped, cls, 'test')
                                 save_crop_path = os.path.join(save_crop_dir, save_crop_name)
                                 validate_dir(save_crop_dir)
                                 img_crop.save(Path(save_crop_path).with_suffix('.jpg'), quality=100, subsampling=0)
                         else:
-                            save_crop_name = img["External ID"] + '__' + str(label_ind)
+                            save_crop_name = save_crop_name_base + '__' + str(label_ind)
                             save_crop_dir = os.path.join(path_cropped, cls)
                             save_crop_path = os.path.join(save_crop_dir, save_crop_name)
                             validate_dir(save_crop_dir)
                             img_crop.save(Path(save_crop_path).with_suffix('.jpg'), quality=100, subsampling=0)
             pc += 1
+
+def remove_extension(filename):
+    return '.'.join(filename.split('.')[:-1]) if '.' in filename else filename
 
 
 def export_bbox_labels():

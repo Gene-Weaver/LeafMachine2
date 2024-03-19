@@ -13,6 +13,9 @@ from re import S
 from threading import Lock
 from random import shuffle
 from collections import defaultdict
+import streamlit
+import random
+from tqdm import tqdm
 
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
@@ -74,29 +77,67 @@ class ImageCandidate:
         self.filename_image, self.filename_image_jpg, self.herb_code, self.specimen_id, self.family, self.genus, self.species, self.fullname = generate_image_filename(occ_row)
         self.download_image(lock)
 
+    # def download_image(self, lock) -> None:
+    #     dir_destination = self.cfg['dir_destination_images']
+    #     MP_low = self.cfg['MP_low']
+    #     MP_high = self.cfg['MP_high']
+    #     # Define URL get parameters
+    #     sep = '_'
+    #     session = requests.Session()
+    #     retry = Retry(connect=1) #2, backoff_factor=0.5)
+    #     adapter = HTTPAdapter(max_retries=retry)
+    #     session.mount('http://', adapter)
+    #     session.mount('https://', adapter)
+
+    #     print(f"{bcolors.BOLD}      {self.fullname}{bcolors.ENDC}")
+    #     print(f"{bcolors.BOLD}           URL: {self.url}{bcolors.ENDC}")
+    #     try:
+    #         response = session.get(self.url, stream=True, timeout=1.0)
+    #         img = Image.open(response.raw)
+    #         self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)
+    #         print(f"{bcolors.OKGREEN}                SUCCESS{bcolors.ENDC}")
+    #     except Exception as e: 
+    #         print(f"{bcolors.FAIL}                SKIP No Connection or ERROR --> {e}{bcolors.ENDC}")
+    #         print(f"{bcolors.WARNING}                Status Code --> {response.status_code}{bcolors.ENDC}")
+    #         print(f"{bcolors.WARNING}                Reason --> {response.reason}{bcolors.ENDC}")
     def download_image(self, lock) -> None:
         dir_destination = self.cfg['dir_destination_images']
         MP_low = self.cfg['MP_low']
         MP_high = self.cfg['MP_high']
-        # Define URL get parameters
-        sep = '_'
+        
+        # Set up a session with retry strategy
         session = requests.Session()
-        retry = Retry(connect=1) #2, backoff_factor=0.5)
-        adapter = HTTPAdapter(max_retries=retry)
+        retries = Retry(connect=3, backoff_factor=1)
+        adapter = HTTPAdapter(max_retries=retries)
         session.mount('http://', adapter)
         session.mount('https://', adapter)
 
         print(f"{bcolors.BOLD}      {self.fullname}{bcolors.ENDC}")
         print(f"{bcolors.BOLD}           URL: {self.url}{bcolors.ENDC}")
+
         try:
             response = session.get(self.url, stream=True, timeout=1.0)
+            response.raise_for_status()  # Check for HTTP errors
+
             img = Image.open(response.raw)
             self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)
             print(f"{bcolors.OKGREEN}                SUCCESS{bcolors.ENDC}")
-        except Exception as e: 
-            print(f"{bcolors.FAIL}                SKIP No Connection or ERROR --> {e}{bcolors.ENDC}")
-            print(f"{bcolors.WARNING}                Status Code --> {response.status_code}{bcolors.ENDC}")
-            print(f"{bcolors.WARNING}                Reasone --> {response.reason}{bcolors.ENDC}")
+
+        except requests.exceptions.HTTPError as http_err:
+            print(f"{bcolors.FAIL}                HTTP Error --> {http_err}{bcolors.ENDC}")
+
+        except requests.exceptions.ConnectionError as conn_err:
+            # Handle connection-related errors, ignore if you don't want to print them
+            pass
+
+        except Exception as e:
+            # This will ignore the "No active exception to reraise" error
+            if str(e) != "No active exception to reraise":
+                print(f"{bcolors.FAIL}                SKIP --- No Connection or Rate Limited --> {e}{bcolors.ENDC}")
+
+        finally:
+            # Randomized delay
+            time.sleep(1 + random.uniform(0, 1))
 
     def _save_matching_image(self, img, MP_low, MP_high, dir_destination, lock) -> None:
         img_mp, img_w, img_h = check_image_size(img)
@@ -132,7 +173,15 @@ class ImageCandidate:
     
     def _add_occ_and_img_data(self, lock) -> None:
         self.image_row = self.image_row.to_frame().transpose().rename(columns={"identifier": "url"}) 
-        self.image_row = self.image_row.rename(columns={"gbifID": "gbifID_images"}) 
+        if 'gbifID' in self.image_row.columns:
+            id_column = 'gbifID'
+            self.image_row = self.image_row.rename(columns={id_column: 'gbifID_images'}) 
+        # If 'gbifID' is not a key, check if 'id' is a key
+        elif 'id' in self.image_row.columns:
+            id_column = 'id'
+            self.image_row = self.image_row.rename(columns={id_column: 'id_images'}) 
+        else:
+            raise
 
         new_data = {'fullname': [self.fullname], 'filename_image': [self.filename_image], 'filename_image_jpg': [self.filename_image_jpg]}
         new_data = pd.DataFrame(data=new_data)
@@ -163,6 +212,42 @@ class ImageCandidate:
                 combined.to_csv(path_csv_combined, mode='w', header=True, index=False)
 
 
+def create_subset_file(cfg):
+    # Read the original files
+    occ_df, images_df = read_DWC_file(cfg)
+
+    # Generate 'fullname' for each row
+    occ_df['fullname'] = occ_df.apply(lambda row: generate_image_filename2(row)[7], axis=1)
+
+    # Initialize a dictionary to keep track of counts for each fullname
+    fullname_counts = {}
+
+    # Prepare DataFrame for the subset
+    subset_rows = []
+
+    # Process chunks based on unique values in 'specificEpithet'
+    for fullname, group_df in tqdm(occ_df.groupby('fullname'), desc="Processing fullnames"):
+        # Shuffle the group DataFrame
+        shuffled_group_df = group_df.sample(frac=1, random_state=2023).reset_index(drop=True)
+
+        for _, row in tqdm(shuffled_group_df.iterrows(), total=shuffled_group_df.shape[0], desc=f"Processing rows for {fullname}", leave=False):
+            # Check if fullname has reached the limit of 20
+            if fullname_counts.get(fullname, 0) < 10:
+                subset_rows.append(row)
+                fullname_counts[fullname] = fullname_counts.get(fullname, 0) + 1
+
+    # Convert subset rows to a DataFrame
+    subset_df = pd.DataFrame(subset_rows)
+
+    # Define the new filename
+    original_filename = cfg['filename_occ']
+    base, extension = os.path.splitext(original_filename)
+    new_filename = f"{base}_subset{extension}"
+
+    # Write to a new CSV file
+    subset_df.to_csv(os.path.join(cfg['dir_home'], new_filename), sep='\t', index=False)
+
+    return new_filename
 
 @dataclass
 class ImageCandidateMulti:
@@ -202,7 +287,7 @@ class ImageCandidateMulti:
         self.url = url
         self.cfg = cfg
 
-        self.filename_image, self.filename_image_jpg, self.herb_code, self.specimen_id, self.family, self.genus, self.species, self.fullname = generate_image_filename(occ_row)
+        self.filename_image, self.filename_image_jpg, self.herb_code, self.specimen_id, self.family, self.genus, self.species, self.fullname = generate_image_filename2(occ_row)
 
         self.download_success = self.download_image(dir_destination, lock)
 
@@ -267,8 +352,20 @@ class ImageCandidateMulti:
                 print(f"{bcolors.OKCYAN}                SKIP: {image_path}{bcolors.ENDC}")
     
     def _add_occ_and_img_data(self, lock) -> None:
+        
+
         self.image_row = self.image_row.to_frame().transpose().rename(columns={"identifier": "url"}) 
-        self.image_row = self.image_row.rename(columns={"gbifID": "gbifID_images"}) 
+        
+        if 'gbifID' in self.image_row.columns:
+            id_column = 'gbifID'
+            self.image_row = self.image_row.rename(columns={id_column: 'gbifID_images'}) 
+        # If 'gbifID' is not a key, check if 'id' is a key
+        elif 'id' in self.image_row.columns:
+            id_column = 'id'
+            self.image_row = self.image_row.rename(columns={id_column: 'id_images'}) 
+        else:
+            raise
+
 
         new_data = {'fullname': [self.fullname], 'filename_image': [self.filename_image], 'filename_image_jpg': [self.filename_image_jpg]}
         new_data = pd.DataFrame(data=new_data)
@@ -349,29 +446,86 @@ class ImageCandidateCustom:
         
         self.download_image(lock)
 
+    # def download_image(self, lock) -> None:
+    #     dir_destination = self.cfg['dir_destination_images']
+    #     MP_low = self.cfg['MP_low']
+    #     MP_high = self.cfg['MP_high']
+    #     # Define URL get parameters
+    #     sep = '_'
+    #     session = requests.Session()
+    #     retry = Retry(connect=1) #2, backoff_factor=0.5)
+    #     adapter = HTTPAdapter(max_retries=retry)
+    #     session.mount('http://', adapter)
+    #     session.mount('https://', adapter)
+
+    #     print(f"{bcolors.BOLD}      {self.fullname}{bcolors.ENDC}")
+    #     print(f"{bcolors.BOLD}           URL: {self.url}{bcolors.ENDC}")
+    #     try:
+    #         response = session.get(self.url, stream=True, timeout=1.0)
+    #         img = Image.open(response.raw)
+    #         self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)
+    #         print(f"{bcolors.OKGREEN}                SUCCESS{bcolors.ENDC}")
+    #     except Exception as e: 
+    #         print(f"{bcolors.FAIL}                SKIP No Connection or ERROR --> {e}{bcolors.ENDC}")
+    #         print(f"{bcolors.WARNING}                Status Code --> {response.status_code}{bcolors.ENDC}")
+    #         print(f"{bcolors.WARNING}                Reasone --> {response.reason}{bcolors.ENDC}")
     def download_image(self, lock) -> None:
         dir_destination = self.cfg['dir_destination_images']
         MP_low = self.cfg['MP_low']
         MP_high = self.cfg['MP_high']
-        # Define URL get parameters
-        sep = '_'
+        
+        # Set up a session with retry strategy
         session = requests.Session()
-        retry = Retry(connect=1) #2, backoff_factor=0.5)
-        adapter = HTTPAdapter(max_retries=retry)
+        retries = Retry(connect=3, backoff_factor=1)
+        adapter = HTTPAdapter(max_retries=retries)
         session.mount('http://', adapter)
         session.mount('https://', adapter)
 
         print(f"{bcolors.BOLD}      {self.fullname}{bcolors.ENDC}")
         print(f"{bcolors.BOLD}           URL: {self.url}{bcolors.ENDC}")
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+            'DNT': '1',  # Do Not Track Request Header
+            'Upgrade-Insecure-Requests': '1',
+            'Cache-Control': 'max-age=0',
+            'Sec-Fetch-Site': 'same-origin',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-User': '?1',
+            'Sec-Fetch-Dest': 'document'
+        }
+
+
         try:
-            response = session.get(self.url, stream=True, timeout=1.0)
+            response = session.get(self.url, headers=headers, stream=True, timeout=1.0, verify=False)
+            response.raise_for_status()  # Check for HTTP errors
+
             img = Image.open(response.raw)
-            self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)
+
+            self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)  # TODO make this occ + img code work for MICH *and* GBIF, right now they are seperate 
             print(f"{bcolors.OKGREEN}                SUCCESS{bcolors.ENDC}")
-        except Exception as e: 
-            print(f"{bcolors.FAIL}                SKIP No Connection or ERROR --> {e}{bcolors.ENDC}")
-            print(f"{bcolors.WARNING}                Status Code --> {response.status_code}{bcolors.ENDC}")
-            print(f"{bcolors.WARNING}                Reasone --> {response.reason}{bcolors.ENDC}")
+
+            self.download_success = True
+
+
+        except requests.exceptions.HTTPError as http_err:
+            print(f"{bcolors.FAIL}                HTTP Error --> {http_err}{bcolors.ENDC}")
+
+        except requests.exceptions.ConnectionError as conn_err:
+            # Handle connection-related errors, ignore if you don't want to print them
+            pass
+
+        except Exception as e:
+            # This will ignore the "No active exception to reraise" error
+            if str(e) != "No active exception to reraise":
+                print(f"{bcolors.FAIL}                SKIP --- No Connection or Rate Limited --> {e}{bcolors.ENDC}")
+
+        finally:
+            # Randomized delay
+            time.sleep(2 + random.uniform(0, 2))
 
     def _save_matching_image(self, img, MP_low, MP_high, dir_destination, lock) -> None:
         img_mp, img_w, img_h = check_image_size(img)
@@ -485,35 +639,58 @@ Functions for --> download_GBIF_from_user_file.py
 
 # Return entire row of file_to_search that matches the gbif_id, else return []
 def find_gbifID(gbif_id,file_to_search):
-    row_found = file_to_search.loc[file_to_search['gbifID'].astype(str).str.match(str(gbif_id)),:]
+    # Check if 'gbifID' is a key in the DataFrame
+    if 'gbifID' in file_to_search.columns:
+        row_found = file_to_search.loc[file_to_search['gbifID'].astype(str).str.match(str(gbif_id)), :]
+        
+    # If 'gbifID' is not a key, check if 'id' is a key
+    elif 'id' in file_to_search.columns:
+        row_found = file_to_search.loc[file_to_search['id'].astype(str).str.match(str(gbif_id)), :]
+    elif 'coreid' in file_to_search.columns:
+        row_found = file_to_search.loc[file_to_search['coreid'].astype(str).str.match(str(gbif_id)), :]
+    # If neither 'gbifID' nor 'id' is a key, raise an error
+    else:
+        raise KeyError("Neither 'gbifID' nor 'id' found in the column names for the Occurrences file")
+
+
     if row_found.empty:
         print(f"{bcolors.WARNING}      gbif_id: {gbif_id} not found in occurrences file{bcolors.ENDC}")
-        row_found = None
+        return None
     else:
         print(f"{bcolors.OKGREEN}      gbif_id: {gbif_id} successfully found in occurrences file{bcolors.ENDC}")
-    return row_found
+        return row_found
 
 def validate_herb_code(occ_row):
+    possible_keys = ['institutionCode', 'institutionID', 'ownerInstitutionCode', 
+                    'collectionCode', 'publisher', 'occurrenceID']
     # print(occ_row)
     # Herbarium codes are not always in the correct column, we need to find the right one
-    try:
-        opts = [occ_row['institutionCode'],
-            occ_row['institutionID'],
-            occ_row['ownerInstitutionCode'],
-            occ_row['collectionCode'],
-            occ_row['publisher'],
-            occ_row['occurrenceID']]
-        opts = [item for item in opts if not(pd.isnull(item.values)) == True]
-    except:
-        opts = [str(occ_row['institutionCode']),
-            str(occ_row['institutionID']),
-            str(occ_row['ownerInstitutionCode']),
-            str(occ_row['collectionCode']),
-            str(occ_row['publisher']),
-            str(occ_row['occurrenceID'])]
-        opts = pd.DataFrame(opts)
-        opts = opts.dropna()
-        opts = opts.apply(lambda x: x[0]).tolist()
+    # try:
+    #     opts = [occ_row['institutionCode'],
+    #         occ_row['institutionID'],
+    #         occ_row['ownerInstitutionCode'],
+    #         occ_row['collectionCode'],
+    #         occ_row['publisher'],
+    #         occ_row['occurrenceID']]
+    #     opts = [item for item in opts if not(pd.isnull(item.values)) == True]
+    # except:
+    #     opts = [str(occ_row[key]) for key in possible_keys if key in occ_row and not pd.isnull(occ_row[key])]  ######### TODO see if this should be the default
+    #     opts = pd.DataFrame(opts)
+    #     opts = opts.dropna()
+    #     opts = opts.apply(lambda x: x[0]).tolist()
+    opts = []
+    for key in possible_keys:
+        if key in occ_row:
+            value = occ_row[key]
+            if isinstance(value, pd.Series):
+                # Iterate through each element in the Series
+                for item in value:
+                    if pd.notnull(item) and isinstance(item, str):
+                        opts.append(item)
+            else:
+                # Handle the case where value is not a Series
+                if pd.notnull(value) and isinstance(value, str):
+                    opts.append(value)
 
     opts_short = []
 
@@ -535,15 +712,24 @@ def validate_herb_code(occ_row):
         inst_ID = occ_row['institutionID'].values[0]
         occ_ID = occ_row['occurrenceID'].values[0]
     except:
-        inst_ID = occ_row['institutionID']
-        occ_ID = occ_row['occurrenceID']
+        try:
+            inst_ID = occ_row['institutionID']
+            occ_ID = occ_row['occurrenceID']
+        
+            occ_ID = str(occ_row['occID']) if 'occID' in occ_row and pd.notna(occ_row['occID']) else "" ############## new NOTE
+        except:
+            inst_ID = ''
+            occ_ID = occ_row['occurrenceID']
+        
+            occ_ID = str(occ_row['occID']) if 'occID' in occ_row and pd.notna(occ_row['occID']) else "" ############## new NOTE
+
     if inst_ID == "UBC Herbarium":
         herb_code = "UBC"
     elif inst_ID == "Naturalis Biodiversity Center":
         herb_code = "L"
     elif inst_ID == "Forest Herbarium Ibadan (FHI)":
         herb_code = "FHI"
-    elif 'id.luomus.fi' in occ_ID:
+    elif 'id.luomus.fi' in occ_ID: 
         herb_code = "FinBIF"
     else:
         if len(opts_short) > 0:
@@ -584,14 +770,24 @@ def keep_first_word(text):
 # In the case sensitive format:
 #        HERBARIUM_barcode_Family_Genus_species.jpg
 def generate_image_filename(occ_row):
+    if 'gbifID' in occ_row:
+        id_column = 'gbifID'
+    # If 'gbifID' is not a key, check if 'id' is a key
+    elif 'id' in occ_row:
+        id_column = 'id'
+    elif 'coreid' in occ_row:
+        id_column = 'coreid'
+    else:
+        raise
+
     herb_code = remove_illegal_chars(validate_herb_code(occ_row))
     try:
-        specimen_id = str(occ_row['gbifID'].values[0])
+        specimen_id = str(occ_row[id_column].values[0])
         family = remove_illegal_chars(occ_row['family'].values[0])
         genus = remove_illegal_chars(occ_row['genus'].values[0])
         species = remove_illegal_chars(keep_first_word(occ_row['specificEpithet'].values[0]))
     except:
-        specimen_id = str(occ_row['gbifID'])
+        specimen_id = str(occ_row[id_column])
         family = remove_illegal_chars(occ_row['family'])
         genus = remove_illegal_chars(occ_row['genus'])
         species = remove_illegal_chars(keep_first_word(occ_row['specificEpithet']))
@@ -601,6 +797,39 @@ def generate_image_filename(occ_row):
     filename_image_jpg = '.'.join([filename_image, 'jpg'])
 
     return filename_image, filename_image_jpg, herb_code, specimen_id, family, genus, species, fullname
+
+def generate_image_filename2(occ_row):
+    if 'gbifID' in occ_row:
+        id_column = 'gbifID'
+    # If 'gbifID' is not a key, check if 'id' is a key
+    elif 'id' in occ_row:
+        id_column = 'id'
+    elif 'coreid' in occ_row:
+        id_column = 'coreid'
+    else:
+        raise
+
+    herb_code = remove_illegal_chars(validate_herb_code(occ_row))
+    try:
+        # Assuming gbifID is a string, no need for .values[0]
+        specimen_id = str(occ_row[id_column])
+        family = remove_illegal_chars(occ_row['family'])
+        genus = remove_illegal_chars(occ_row['genus'])
+        # Convert to string in case of float and use keep_first_word
+        specificEpithet = str(occ_row['specificEpithet']) if pd.notna(occ_row['specificEpithet']) else ""
+        species = remove_illegal_chars(keep_first_word(specificEpithet))
+    except Exception as e:
+        # Handle exceptions or log errors as needed
+        print(f"Error processing row: {e}")
+        # Set default values or handle the error as appropriate
+        specimen_id, family, genus, species = "", "", "", ""
+    fullname = '_'.join([family, genus, species])
+
+    filename_image = '_'.join([herb_code, specimen_id, fullname])
+    filename_image_jpg = '.'.join([filename_image, 'jpg'])
+
+    return filename_image, filename_image_jpg, herb_code, specimen_id, family, genus, species, fullname
+
 
 def read_DWC_file(cfg):
     dir_home = cfg['dir_home']
@@ -620,12 +849,32 @@ def read_DWC_file_multiDirs(cfg, dir_sub):
     return occ_df, images_df
 
 def ingest_DWC(DWC_csv_or_txt_file,dir_home):
-    if DWC_csv_or_txt_file.split('.')[1] == 'txt':
-        df = pd.read_csv(os.path.join(dir_home,DWC_csv_or_txt_file), sep="\t",header=0, low_memory=False, dtype=str)
-    elif DWC_csv_or_txt_file.split('.')[1] == 'csv':
-        df = pd.read_csv(os.path.join(dir_home,DWC_csv_or_txt_file), sep=",",header=0, low_memory=False, dtype=str)
-    else:
-        print(f"{bcolors.FAIL}DWC file {DWC_csv_or_txt_file} is not '.txt' or '.csv' and was not opened{bcolors.ENDC}")
+    file_path = os.path.join(dir_home, DWC_csv_or_txt_file)
+    file_extension = DWC_csv_or_txt_file.split('.')[1]
+
+    try:
+        if file_extension == 'txt':
+            df = pd.read_csv(file_path, sep="\t", header=0, low_memory=False, dtype=str)
+        elif file_extension == 'csv':
+            # Attempt to read with comma separator
+            try:
+                df = pd.read_csv(file_path, sep=",", header=0, low_memory=False, dtype=str)
+            except pd.errors.ParserError:
+                try:
+                    # If failed, try with a different separator, e.g., semicolon
+                    df = pd.read_csv(file_path, sep="\t", header=0, low_memory=False, dtype=str)
+                except:
+                    try:
+                        df = pd.read_csv(file_path, sep="|", header=0, low_memory=False, dtype=str)
+                    except:
+                        df = pd.read_csv(file_path, sep=";", header=0, low_memory=False, dtype=str)
+        else:
+            print(f"{bcolors.FAIL}DWC file {DWC_csv_or_txt_file} is not '.txt' or '.csv' and was not opened{bcolors.ENDC}")
+            return None
+    except Exception as e:
+        print(f"Error while reading file: {e}")
+        return None
+
     return df
     
 '''
@@ -708,6 +957,14 @@ def download_all_images_in_images_csv(cfg):
         if cfg['ignore_banned_herb']:
             for banned_url in cfg['banned_url_stems']:
                 images_df = images_df[~images_df['identifier'].str.contains(banned_url, na=False)]
+
+        ### TODO NEW, needs to match the gbif version
+        # Find common 'id' values in both dataframes
+        common_ids = set(occ_df['id']).intersection(set(images_df['coreid']))
+
+        # Filter both dataframes to keep only rows with these common 'id' values
+        # occ_df_filtered = occ_df[occ_df['id'].isin(common_ids)]
+        images_df = images_df[images_df['coreid'].isin(common_ids)]
         
         # Report summary
         n_imgs = images_df.shape[0]
@@ -720,10 +977,11 @@ def download_all_images_in_images_csv(cfg):
 def process_image_batch(cfg, images_df, occ_df):
     futures_list = []
     results = []
+    lock = Lock() 
 
     # single threaded, useful for debugging
     # for index, image_row in images_df.iterrows():
-    #     futures = process_each_image_row( cfg, image_row, occ_df)
+    #     futures = process_each_image_row( cfg, image_row, occ_df, lock)
     #     futures_list.append(futures)
     # for future in futures_list:
     #     try:
@@ -731,9 +989,9 @@ def process_image_batch(cfg, images_df, occ_df):
     #         results.append(result)
     #     except Exception:
     #         results.append(None)
-    lock = Lock() 
 
-    with th(max_workers=13) as executor:
+
+    with th(max_workers=cfg['n_threads']) as executor:
         for index, image_row in images_df.iterrows():
             futures = executor.submit(process_each_image_row, cfg, image_row, occ_df, lock)
             futures_list.append(futures)
@@ -789,8 +1047,18 @@ def process_occ_chunk_multiDirs(cfg, images_df, occ_chunk, dir_destination, shar
     return results
 
 def process_each_occ_row_multiDirs(cfg, images_df, occ_row, dir_destination, shared_counter, n_imgs_per_species, do_shuffle_occurrences, lock):
-    print(f"{bcolors.BOLD}Working on occurrence: {occ_row['gbifID']}{bcolors.ENDC}")
-    gbif_id = occ_row['gbifID']
+    if 'gbifID' in occ_row:
+        id_column = 'gbifID'
+    # If 'gbifID' is not a key, check if 'id' is a key
+    elif 'id' in occ_row:
+        id_column = 'id'
+    elif 'coreid' in occ_row:
+        id_column = 'coreid'
+    else:
+        raise
+
+    print(f"{bcolors.BOLD}Working on occurrence: {occ_row[id_column]}{bcolors.ENDC}")
+    gbif_id = occ_row[id_column]
     
     image_row = find_gbifID_in_images(gbif_id, images_df)  # New function to find the image_row
 
@@ -818,15 +1086,35 @@ def process_each_occ_row_multiDirs(cfg, images_df, occ_row, dir_destination, sha
         pass
 
 def find_gbifID_in_images(gbif_id, images_df):
-    image_row = images_df[images_df['gbifID'] == gbif_id]
+    if 'gbifID' in images_df.columns:
+        id_column = 'gbifID'
+    # If 'gbifID' is not a key, check if 'id' is a key
+    elif 'id' in images_df.columns:
+        id_column = 'id'
+    elif 'coreid' in  images_df.columns:
+        id_column = 'coreid'
+    else:
+        raise
+
+    image_row = images_df[images_df[id_column] == gbif_id]
     if image_row.empty:
         return None
     return image_row.iloc[0]
 
 
 def process_each_image_row_multiDirs(cfg, image_row, occ_df, dir_destination, shared_counter, n_imgs_per_species, do_shuffle_occurrences, lock):
-    print(f"{bcolors.BOLD}Working on image: {image_row['gbifID']}{bcolors.ENDC}")
-    gbif_id = image_row['gbifID']
+    if 'gbifID' in image_row:
+        id_column = 'gbifID'
+    # If 'gbifID' is not a key, check if 'id' is a key
+    elif 'id' in image_row:
+        id_column = 'id'
+    elif 'coreid' in image_row:
+        id_column = 'coreid'
+    else:
+        raise
+    
+    print(f"{bcolors.BOLD}Working on image: {image_row[id_column]}{bcolors.ENDC}")
+    gbif_id = image_row[id_column]
     gbif_url = image_row['identifier']
 
     occ_row = find_gbifID(gbif_id,occ_df)
@@ -853,14 +1141,25 @@ def process_each_image_row_multiDirs(cfg, image_row, occ_df, dir_destination, sh
 
 
 def process_each_image_row(cfg, image_row, occ_df, lock):
-    print(f"{bcolors.BOLD}Working on image: {image_row['gbifID']}{bcolors.ENDC}")
-    gbif_id = image_row['gbifID']
+    if 'gbifID' in image_row:
+        id_column = 'gbifID'
+    # If 'gbifID' is not a key, check if 'id' is a key
+    elif 'id' in image_row:
+        id_column = 'id'
+    elif 'coreid' in image_row:
+        id_column = 'coreid'
+    else:
+        raise
+
+    print(f"{bcolors.BOLD}Working on image: {image_row[id_column]}{bcolors.ENDC}")
+    gbif_id = image_row[id_column]
     gbif_url = image_row['identifier'] 
 
     occ_row = find_gbifID(gbif_id,occ_df)
 
     if occ_row is not None:
         ImageInfo = ImageCandidate(cfg, image_row, occ_row, gbif_url, lock)
+        return pd.DataFrame(occ_row)
         # ImageInfo.download_image(cfg, occ_row, image_row)
     else:
         pass

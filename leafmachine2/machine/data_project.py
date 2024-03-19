@@ -8,7 +8,7 @@ sys.path.append(currentdir)
 from leafmachine2.machine.general_utils import import_csv, import_tsv
 from leafmachine2.machine.general_utils import Print_Verbose, print_main_warn, print_main_success, make_file_names_valid, make_images_in_dir_vertical
 from leafmachine2.machine.utils_GBIF import generate_image_filename
-from leafmachine2.machine.download_from_GBIF_all_images_in_file import download_all_images_from_GBIF_LM2
+from leafmachine2.downloading.download_from_GBIF_all_images_in_file import download_all_images_from_GBIF_LM2
 from PIL import Image
 
 @dataclass
@@ -54,13 +54,17 @@ class Project_Info():
         elif self.image_location in ['GBIF','g','G','gbif']:
             self.__import_GBIF_files_post_download(cfg, logger, dir_home)
 
-        self.__make_project_dict() #, self.batch_size)
+        # self.__make_project_dict() #, self.batch_size)
 
         # Make sure image file names are legal
         make_file_names_valid(self.dir_images, cfg)
         
         # Make all images vertical
         make_images_in_dir_vertical(self.dir_images, cfg)
+
+        self.__make_project_dict() #, self.batch_size)
+
+
 
     @property
     def has_valid_images(self):
@@ -227,15 +231,17 @@ class Project_Info():
                         im.save(os.path.join(self.dir_images, new_img_name), quality=100)
                         self.project_data[img_split] = {}
 
-                        # move the original file to the INVALID_FILE directory
-                        if invalid_dir is None:
-                            invalid_dir = os.path.join(os.path.dirname(self.dir_images), 'INVALID_FILES')
-                            os.makedirs(invalid_dir, exist_ok=True)
+                        # Prepare the INVALID_FILES directory
+                        # if invalid_dir is None:
+                        #     invalid_dir = os.path.join(os.path.dirname(self.dir_images), 'INVALID_FILES')
+                        #     os.makedirs(invalid_dir, exist_ok=True)
 
-                        # skip if the file already exists in the INVALID_FILE directory
-                        if not os.path.exists(os.path.join(invalid_dir, img)):
-                            shutil.move(os.path.join(self.dir_images, img), os.path.join(invalid_dir, img))
+                        # # Copy the original file to the INVALID_FILES directory instead of moving it
+                        # invalid_file_path = os.path.join(invalid_dir, img)
+                        # if not os.path.exists(invalid_file_path):
+                        #     shutil.copy2(os.path.join(self.dir_images, img), invalid_file_path)
 
+                        # Update the img variable to the new image name
                         img = new_img_name
                 img_name = os.path.splitext(img)[0]
                 self.project_data[img_split] = {}

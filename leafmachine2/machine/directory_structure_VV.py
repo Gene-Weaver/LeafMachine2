@@ -82,6 +82,10 @@ class Dir_Structure():
         validate_dir(self.transcription_ind_helper)
         self.transcription_ind_OCR = os.path.join(self.dir_project,'Transcription','Individual_OCR') 
         validate_dir(self.transcription_ind_OCR)
+        self.transcription_ind_OCR_bounds = os.path.join(self.dir_project,'Transcription','Individual_OCR_Bounds') 
+        validate_dir(self.transcription_ind_OCR_bounds)
+        self.transcription_ind_OCR_helper = os.path.join(self.dir_project,'Transcription','Individual_OCR_Helper') 
+        validate_dir(self.transcription_ind_OCR_helper)
 
         self.save_original = os.path.join(self.dir_project,'Original_Images') 
         validate_dir(self.save_original)

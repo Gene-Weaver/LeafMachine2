@@ -3,10 +3,7 @@ currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
 sys.path.append(currentdir)
-try:
-    from leafmachine2.machine.utils_GBIF import download_all_images_in_images_csv, get_cfg_from_full_path, download_all_images_in_images_csv_multiDirs
-except:
-    from utils_GBIF import download_all_images_in_images_csv, get_cfg_from_full_path, download_all_images_in_images_csv_multiDirs
+from leafmachine2.machine.utils_GBIF import download_all_images_in_images_csv, get_cfg_from_full_path, download_all_images_in_images_csv_multiDirs
 
 
 '''

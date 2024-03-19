@@ -1,25 +1,25 @@
 # config_download_from_GBIF_all_images_in_file.yml
 ####################################################################################
 ### Directories ###
-dir_home: 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/csv/Araceae_Monstera'
+dir_home: 'D:/Dropbox/LM2_Env/Image_Datasets/OSU_Bryophytes/input'
 
-dir_destination_images: 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/Images_by_Family/Araceae_Monstera'
-dir_destination_csv: 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Big_Leaf/csv_downloaded/Araceae_Monstera'
+dir_destination_images: 'D:/Dropbox/LM2_Env/Image_Datasets/OSU_Bryophytes/img'
+dir_destination_csv: 'D:/Dropbox/LM2_Env/Image_Datasets/OSU_Bryophytes/csv'
 
-is_custom_file: False
-col_url: 'url'
-col_name: 'lab_code'
+is_custom_file: True
+col_url: 'goodQualityAccessURI'
+col_name: 'coreid'
 # Use for custom
-filename_img: 'P_serotina_79_urls.csv' # 'spines_images.txt' 'prickles_images.txt'
+filename_img: 'multimedia.csv' # 'spines_images.txt' 'prickles_images.txt'
 
 ####################################################################################
 ### Exisitng Files ###
 # Darwin Core Occurance File
-filename_occ: 'occ_selected.csv'
+filename_occ: 'occurrence.txt'
 
 ####################################################################################
 # Darwin Core Images File
-filename_img: 'img_selected.csv' # 'spines_images.txt' 'prickles_images.txt'
+filename_img: 'multimedia.csv' # 'spines_images.txt' 'prickles_images.txt'
 
 ####################################################################################
 ### Files that will be created ###

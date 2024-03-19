@@ -159,3 +159,5 @@ yacs==0.1.8
 zenodo-get==1.3.4
 pyexiv2
 colour-science
+objgraph
+memory_profiler

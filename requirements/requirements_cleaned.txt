@@ -137,3 +137,5 @@ Werkzeug
 wget
 yacs
 zenodo-get
+objgraph 
+memory_profiler

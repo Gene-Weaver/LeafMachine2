@@ -492,16 +492,22 @@ class LeafSkeleton:
         if self.has_lamina_base and self.has_lamina_tip:
             self.lamina_length = self.distance(self.lamina_base, self.lamina_tip)
             ends = np.array([self.lamina_base, self.lamina_tip])
-            self.lamina_fit = np.polyfit(ends[:, 0], ends[:, 1], 1)
-            self.has_lamina_length = True
-            # r_base = 0
-            r_base = 16
-            # col = (0, 100, 0)
-            col = (0, 0, 0)
-            if QC_or_final == 'QC':
-                cv2.line(self.image, self.lamina_base, self.lamina_tip, col, 2 + r_base)
-            else:
-                cv2.line(self.image_final, self.lamina_base, self.lamina_tip, col, 2 + r_base)
+            try:
+                self.lamina_fit = np.polyfit(ends[:, 0], ends[:, 1], 1)
+                self.has_lamina_length = True
+                # r_base = 0
+                r_base = 16
+                # col = (0, 100, 0)
+                col = (0, 0, 0)
+                if QC_or_final == 'QC':
+                    cv2.line(self.image, self.lamina_base, self.lamina_tip, col, 2 + r_base)
+                else:
+                    cv2.line(self.image_final, self.lamina_base, self.lamina_tip, col, 2 + r_base)
+            except:
+                self.lamina_length = None
+                self.lamina_fit = None
+                self.has_lamina_length = False
+            
         else:
             col = (0, 0, 0)
             r_base = 16
