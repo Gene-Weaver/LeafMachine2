@@ -4,7 +4,7 @@ Table of Contents
 =================
 
 * [Table of Contents](#table-of-contents)
-* [Updates](#updates)
+* [Updates :rocket:](#updates)
 * [Installing LeafMachine2](#installing-leafmachine2)
    * [Prerequisites](#prerequisites)
    * [Hardware](#hardware)
@@ -42,14 +42,15 @@ Table of Contents
 
 ---
 
-# Updates
-* March 18, 2024
+# Updates 
+* March 18, 2024 :rocket:
     * Many, many changes. I recommend creating a new venv to use the updated LM2.
     * Added a Streamlit GUI
         * Run the `run_LeafMachine2.py` script to launch the GUI
         * Activate the virtual env, then `python run_LeafMachine2.py`
     * Fixed installation bugs
-To get the latest updates, use `cd` to move into your LeafMachine2 directory, build and activate your virtual environment, then run `git pull`. We recommend rebuilding your venv from scratch for this update. If you made local changes to your repo, you may have to stash or --force overwrite your local changes (or just install LM2 in a new local directory).
+
+> **Note:** To get the latest updates, use `cd` to move into your LeafMachine2 directory, build and activate your virtual environment, then run `git pull`. We recommend rebuilding your venv from scratch for this update. If you made local changes to your repo, you may have to stash or --force overwrite your local changes (or just install LM2 in a new local directory).
 
 # Installing LeafMachine2
 
@@ -257,7 +258,7 @@ As of March 18, 2024 LeafMachine2 has a Stramlit GUI. To launch the GUI, run:
 This will open a new tab in your browser with a simple user interface. Please refer to the guide below for more information about how everything works.
 The GUI has most of the setting described below and is a great place to start. 
 
-Note: If you previously installed LeafMachine2, we recommend rebuilding your venv from scratch before trying to run the latest updates. To get the latest updates, use `cd` to move into your LeafMachine2 directory, build and activate your virtual environment, then run `git pull`. If you made local changes to your repo, you may have to stash or --force overwrite your local changes (or just install LM2 in a new local directory).
+> **Note:** If you previously installed LeafMachine2, we recommend rebuilding your venv from scratch before trying to run the latest updates. To get the latest updates, use `cd` to move into your LeafMachine2 directory, build and activate your virtual environment, then run `git pull`. If you made local changes to your repo, you may have to stash or --force overwrite your local changes (or just install LM2 in a new local directory).
 
 # Using LeafMachine2
 
