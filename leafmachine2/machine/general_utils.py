@@ -1,4 +1,4 @@
-import os, yaml, datetime, argparse, re, cv2, random, shutil
+import os, yaml, datetime, argparse, re, cv2, random, shutil, time
 import pandas as pd
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -8,10 +8,8 @@ import numpy as np
 import concurrent.futures
 from time import perf_counter
 import glob
-import rawpy
 import imageio
 from PIL import Image
-import pyexiv2
 from colour.temperature import xy_to_CCT, CCT_to_xy #pip install colour-science
 import subprocess
 import platform
@@ -32,7 +30,7 @@ https://helpx.adobe.com/content/dam/help/en/photoshop/pdf/dng_commandline.pdf
 
 def validate_dir(dir):
     if not os.path.exists(dir):
-        os.makedirs(dir)
+        os.makedirs(dir, exist_ok=True)
 
 def get_cfg_from_full_path(path_cfg):
     with open(path_cfg, "r") as ymlfile:
@@ -176,43 +174,127 @@ def split_into_batches(Project, logger, cfg):
     logger.info(m)
     return Project, n_batches, m 
 
-def make_images_in_dir_vertical(dir_images_unprocessed, cfg):
+# Define shared variables and their locks
+import threading
+import concurrent.futures
+n_rotate = 0
+n_rotate_lock = threading.Lock()
+n_corrupt = 0
+n_corrupt_lock = threading.Lock()
+
+def process_image_vertical(image_path, dir_images_unprocessed, rotate_lock, corrupt_lock):
+    global n_rotate, n_corrupt
+
+    try:
+        image = cv2.imread(os.path.join(dir_images_unprocessed, image_path))
+        h, w, img_c = image.shape
+        image, img_h, img_w, did_rotate = make_image_vertical(image, h, w, do_rotate_180=False)
+        if did_rotate:
+            with rotate_lock:
+                n_rotate += 1
+        os.remove(os.path.join(dir_images_unprocessed, image_path))
+        cv2.imwrite(os.path.join(dir_images_unprocessed, image_path), image)
+    except:
+        with corrupt_lock:
+            n_corrupt += 1
+        os.remove(os.path.join(dir_images_unprocessed, image_path))
+
+def make_images_in_dir_vertical(dir_images_unprocessed, cfg, N_THREADS=16):
+    global n_rotate, n_corrupt
+
     if cfg['leafmachine']['do']['check_for_corrupt_images_make_vertical']:
         n_rotate = 0
         n_corrupt = 0
         n_total = len(os.listdir(dir_images_unprocessed))
-        for image_name_jpg in tqdm(os.listdir(dir_images_unprocessed), desc=f'{bcolors.BOLD}     Checking Image Dimensions{bcolors.ENDC}',colour="cyan",position=0,total = n_total):
-            if image_name_jpg.endswith((".jpg",".JPG",".jpeg",".JPEG")):
-                try:
-                    image = cv2.imread(os.path.join(dir_images_unprocessed, image_name_jpg))
-                    h, w, img_c = image.shape
-                    image, img_h, img_w, did_rotate = make_image_vertical(image, h, w, do_rotate_180=False)
-                    if did_rotate:
-                        n_rotate += 1
-                    cv2.imwrite(os.path.join(dir_images_unprocessed,image_name_jpg), image)
-                except:
-                    n_corrupt +=1
-                    os.remove(os.path.join(dir_images_unprocessed, image_name_jpg))
-            # TODO check that below works as intended 
-            elif image_name_jpg.endswith((".tiff",".tif",".png",".PNG",".TIFF",".TIF",".jp2",".JP2",".bmp",".BMP",".dib",".DIB")):
-                try:
-                    image = cv2.imread(os.path.join(dir_images_unprocessed, image_name_jpg))
-                    h, w, img_c = image.shape
-                    image, img_h, img_w, did_rotate = make_image_vertical(image, h, w, do_rotate_180=False)
-                    if did_rotate:
-                        n_rotate += 1
-                    image_name_jpg = '.'.join([image_name_jpg.split('.')[0], 'jpg'])
-                    cv2.imwrite(os.path.join(dir_images_unprocessed,image_name_jpg), image)
-                except:
-                    n_corrupt +=1
-                    os.remove(os.path.join(dir_images_unprocessed, image_name_jpg))
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=N_THREADS) as executor:
+            image_paths = [image_name for image_name in os.listdir(dir_images_unprocessed) if image_name.lower().endswith((".jpg", ".jpeg", ".tiff", ".tif", ".png", ".jp2", ".bmp", ".dib"))]
+            futures = [executor.submit(process_image_vertical, image_path, dir_images_unprocessed, n_rotate_lock, n_corrupt_lock) for image_path in image_paths]
+            for _ in tqdm(concurrent.futures.as_completed(futures), desc=f'{bcolors.BOLD}     Checking Image Dimensions{bcolors.ENDC}', colour="cyan", position=0, total=n_total):
+                pass
+
         m = ''.join(['Number of Images Rotated: ', str(n_rotate)])
         Print_Verbose(cfg, 2, m).bold()
         m2 = ''.join(['Number of Images Corrupted: ', str(n_corrupt)])
         if n_corrupt > 0:
-            Print_Verbose(cfg, 2, m2).warning
+            Print_Verbose(cfg, 2, m2).warning()
         else:
-            Print_Verbose(cfg, 2, m2).bold
+            Print_Verbose(cfg, 2, m2).bold()
+
+# def process_image_vertical(image_path, dir_images_unprocessed):
+#     try:
+#         image = cv2.imread(os.path.join(dir_images_unprocessed, image_path))
+#         h, w, img_c = image.shape
+#         image, img_h, img_w, did_rotate = make_image_vertical(image, h, w, do_rotate_180=False)
+#         if did_rotate:
+#             n_rotate += 1
+#         cv2.imwrite(os.path.join(dir_images_unprocessed, image_path), image)
+#     except:
+#         n_corrupt += 1
+#         os.remove(os.path.join(dir_images_unprocessed, image_path))
+
+# def make_images_in_dir_vertical(dir_images_unprocessed, cfg, N_THREADS=16):
+#     if cfg['leafmachine']['do']['check_for_corrupt_images_make_vertical']:
+#         n_rotate = 0
+#         n_corrupt = 0
+#         n_total = len(os.listdir(dir_images_unprocessed))
+
+#         # Create a ThreadPoolExecutor with N_THREADS
+#         with concurrent.futures.ThreadPoolExecutor(max_workers=N_THREADS) as executor:
+#             image_paths = [image_name_jpg for image_name_jpg in os.listdir(dir_images_unprocessed) if
+#                            image_name_jpg.endswith((".jpg", ".JPG", ".jpeg", ".JPEG", ".tiff", ".tif", ".png", ".PNG",
+#                                                      ".TIFF", ".TIF", ".jp2", ".JP2", ".bmp", ".BMP", ".dib", ".DIB"))]
+#             for _ in tqdm(executor.map(process_image_vertical, image_paths, [dir_images_unprocessed] * len(image_paths)),
+#                           desc=f'{bcolors.BOLD}     Checking Image Dimensions{bcolors.ENDC}', colour="cyan",
+#                           position=0, total=n_total):
+#                 pass
+
+#         m = ''.join(['Number of Images Rotated: ', str(n_rotate)])
+#         Print_Verbose(cfg, 2, m).bold()
+#         m2 = ''.join(['Number of Images Corrupted: ', str(n_corrupt)])
+#         if n_corrupt > 0:
+#             Print_Verbose(cfg, 2, m2).warning
+#         else:
+#             Print_Verbose(cfg, 2, m2).bold()
+
+
+# def make_images_in_dir_vertical(dir_images_unprocessed, cfg):
+#     if cfg['leafmachine']['do']['check_for_corrupt_images_make_vertical']:
+#         n_rotate = 0
+#         n_corrupt = 0
+#         n_total = len(os.listdir(dir_images_unprocessed))
+#         for image_name_jpg in tqdm(os.listdir(dir_images_unprocessed), desc=f'{bcolors.BOLD}     Checking Image Dimensions{bcolors.ENDC}',colour="cyan",position=0,total = n_total):
+#             if image_name_jpg.endswith((".jpg",".JPG",".jpeg",".JPEG")):
+#                 try:
+#                     image = cv2.imread(os.path.join(dir_images_unprocessed, image_name_jpg))
+#                     h, w, img_c = image.shape
+#                     image, img_h, img_w, did_rotate = make_image_vertical(image, h, w, do_rotate_180=False)
+#                     if did_rotate:
+#                         n_rotate += 1
+#                     cv2.imwrite(os.path.join(dir_images_unprocessed,image_name_jpg), image)
+#                 except:
+#                     n_corrupt +=1
+#                     os.remove(os.path.join(dir_images_unprocessed, image_name_jpg))
+#             # TODO check that below works as intended 
+#             elif image_name_jpg.endswith((".tiff",".tif",".png",".PNG",".TIFF",".TIF",".jp2",".JP2",".bmp",".BMP",".dib",".DIB")):
+#                 try:
+#                     image = cv2.imread(os.path.join(dir_images_unprocessed, image_name_jpg))
+#                     h, w, img_c = image.shape
+#                     image, img_h, img_w, did_rotate = make_image_vertical(image, h, w, do_rotate_180=False)
+#                     if did_rotate:
+#                         n_rotate += 1
+#                     image_name_jpg = '.'.join([image_name_jpg.split('.')[0], 'jpg'])
+#                     cv2.imwrite(os.path.join(dir_images_unprocessed,image_name_jpg), image)
+#                 except:
+#                     n_corrupt +=1
+#                     os.remove(os.path.join(dir_images_unprocessed, image_name_jpg))
+#         m = ''.join(['Number of Images Rotated: ', str(n_rotate)])
+#         Print_Verbose(cfg, 2, m).bold()
+#         m2 = ''.join(['Number of Images Corrupted: ', str(n_corrupt)])
+#         if n_corrupt > 0:
+#             Print_Verbose(cfg, 2, m2).warning
+#         else:
+#             Print_Verbose(cfg, 2, m2).bold
 
 def make_image_vertical(image, h, w, do_rotate_180):
     did_rotate = False
@@ -431,15 +513,17 @@ def make_file_names_valid(dir, cfg):
             name = Path(file).stem
             ext = Path(file).suffix
             name_cleaned = re.sub(r"[^a-zA-Z0-9_-]","-",name)
-            name_new = ''.join([name_cleaned,ext])
-            i = 0
-            try:
-                os.rename(os.path.join(dir,file), os.path.join(dir,name_new))
-            except:
-                while os.path.exists(os.path.join(dir,name_new)):
-                    i += 1
-                    name_new = '_'.join([name_cleaned, str(i), ext])
-                os.rename(os.path.join(dir,file), os.path.join(dir,name_new))
+            if name_cleaned != name:
+                name_new = ''.join([name_cleaned,ext])
+                i = 0
+                try:
+                    os.rename(os.path.join(dir,file), os.path.join(dir,name_new))
+                except:
+                    time.sleep(0.1)
+                    while os.path.exists(os.path.join(dir,name_new)):
+                        i += 1
+                        name_new = '_'.join([name_cleaned, str(i), ext])
+                    os.rename(os.path.join(dir,file), os.path.join(dir,name_new))
 
 # def load_config_file(dir_home, cfg_file_path):
 #     if cfg_file_path == None: # Default path
@@ -867,6 +951,7 @@ def crop_detections_from_images(cfg, dir_home, Project, Dirs):
 #     description.set('crs:RawFileName', name_CR2)
 
 def create_XMP(cr2_file, xmp_file_path, min_x, min_y, max_x, max_y, orientation, padding):
+    import rawpy
     # Extracting just the filename
     name_CR2 = cr2_file.split(os.path.sep)[-1]
     
@@ -1009,6 +1094,8 @@ def create_temp_tiffs_dir(new_tiff_dir):
     return temp_tiffs_dir
 
 def copy_exif_data(input_image_path, output_image_path):
+    import pyexiv2
+
     # Open the original image file
     with pyexiv2.Image(input_image_path) as img:
         exif_data = img.read_exif()
@@ -1036,6 +1123,7 @@ def convert_to_dng(tiff_path, dng_path):
     subprocess.run(command, shell=False)
 
 def crop_and_save_dng(input_path, output_path, x, y, width, height):
+    import rawpy
     # Read the raw DNG file
     raw = rawpy.imread(input_path)
 
@@ -1052,6 +1140,7 @@ def crop_and_save_dng(input_path, output_path, x, y, width, height):
 
 
 def get_colorspace(colorspace_choice):
+    import rawpy
     # Match the string from YAML to the corresponding rawpy.ColorSpace attribute
     if colorspace_choice == 'raw':
         return rawpy.ColorSpace.raw
@@ -1095,6 +1184,8 @@ def process_detections(success, save_list, detections, detection_type, height, w
 
 def crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archival, has_plant, archival_detections, 
                                                  plant_detections, full_image, filename, save_list, original_img_dir):
+    import rawpy
+    import pyexiv2
     
     padding = int(cfg['leafmachine']['project']['padding_for_crop'])
     dir_images_local = cfg['leafmachine']['project']['dir_images_local']

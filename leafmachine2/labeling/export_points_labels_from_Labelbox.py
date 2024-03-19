@@ -106,27 +106,11 @@ class Points:
                         isReflex = True
                 elif location == 'sinus':
                     isReflex = False
-            a = np.array(pts[0])
-            b = np.array(pts[1])
-            c = np.array(pts[2])
 
-            ba = a - b
-            bc = c - b
-
-            cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
-            angle = np.arccos(cosine_angle)
-            angle = np.degrees(angle)
-
-            if isReflex:
-                angle = 360 - angle
-            return angle 
-        else:
-            angles = []
-            for pt in pts:
-        
-                a = np.array(pt[0])
-                b = np.array(pt[1])
-                c = np.array(pt[2])
+            if len(pts)==3:
+                a = np.array(pts[0])
+                b = np.array(pts[1])
+                c = np.array(pts[2])
 
                 ba = a - b
                 bc = c - b
@@ -137,8 +121,81 @@ class Points:
 
                 if isReflex:
                     angle = 360 - angle
-                angles.append(angle)
+                return angle 
+            elif len(pts)==4:    
+                return self.find_angle_4pts(pts)
+                 
+        else:
+            angles = []
+            for pt in pts:
+                if len(pt) == 3:
+        
+                    a = np.array(pt[0])
+                    b = np.array(pt[1])
+                    c = np.array(pt[2])
+
+                    ba = a - b
+                    bc = c - b
+
+                    cosine_angle = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+                    angle = np.arccos(cosine_angle)
+                    angle = np.degrees(angle)
+
+                    if isReflex:
+                        angle = 360 - angle
+                    angles.append(angle)
+                elif len(pt)==4:
+                    angles.append(self.find_angle_4pts(pt))
             return angles 
+        
+    def find_angle_4pts(self, pts):
+        ### Main angle
+        # Extracting the points
+        A = np.array(pts[0])
+        B = np.array(pts[1])
+        C = np.array(pts[2])
+        D = np.array(pts[3])
+
+        # Computing direction vectors for the lines
+        dir_vector1 = B - A
+        dir_vector2 = C - D
+        # Computing the cosine of the angle between the direction vectors
+        cosine_angle = np.dot(dir_vector1, dir_vector2) / (np.linalg.norm(dir_vector1) * np.linalg.norm(dir_vector2))
+        # Computing the angle in radians
+        angle_rad = np.arccos(cosine_angle)
+        # Converting the angle to degrees
+        angle_deg = np.degrees(angle_rad)
+
+        # Computing direction vectors for the lines
+        dir_vector1 = B - A
+        dir_vector2 = D - C
+        # Computing the cosine of the angle between the direction vectors
+        cosine_angle = np.dot(dir_vector1, dir_vector2) / (np.linalg.norm(dir_vector1) * np.linalg.norm(dir_vector2))
+        # Computing the angle in radians
+        angle_rad = np.arccos(cosine_angle)
+        # Converting the angle to degrees
+        angle_deg2 = np.degrees(angle_rad)
+
+        ### Angle A
+        ba = A - B
+        bc = C - B
+        cosine_angle_A = np.dot(ba, bc) / (np.linalg.norm(ba) * np.linalg.norm(bc))
+        angle_A = np.arccos(cosine_angle_A)
+        angle_A = np.degrees(angle_A)
+        ### Angle B
+        cb = B - C
+        cd = D - C
+        cosine_angle_B = np.dot(cb, cd) / (np.linalg.norm(cb) * np.linalg.norm(cd))
+        angle_B = np.arccos(cosine_angle_B)
+        angle_B = np.degrees(angle_B)
+
+        # if angle_A + angle_B < 180 then make the main angle negative
+        if angle_A + angle_B < 180:
+            return (-angle_deg)
+        else:
+            return angle_deg
+
+
 
     def calculate_cm(self):
         # 2 points
@@ -189,6 +246,7 @@ class Points:
 
         try:
             self.M_DEEPEST_SINUS_ANGLE = self.find_angle(self.DEEPEST_SINUS_ANGLE,self.ANGLE_TYPES,'sinus')
+
             # print(f'M_BASE_ANGLE: {self.M_BASE_ANGLE}\n')
         except:
             self.M_DEEPEST_SINUS_ANGLE = 0
@@ -386,8 +444,8 @@ def export_points(opt):
         if project.name in opt.IGNORE:
             continue
         else:
-            # if project.name == "PLANT_REU_All_Leaves":
-            if project.review_metrics(None) >= 0:#0: 
+            if project.name in opt.INCLUDE: #'include_projects':
+            # if project.review_metrics(None) >= 0:#0: 
                 sep = '_'
                 annoType = project.name.split('_')[0]
                 setType = project.name.split('_')[1]
@@ -507,19 +565,20 @@ def export_points(opt):
                                         im = Image.open(requests.get(im_path, stream=True).raw if im_path.startswith('http') else im_path)  # open
                                 width, height = im.size  # image size
                                 fname = Path(img['External ID']).with_suffix('.txt').name
+                                print(f"\n{img['External ID']}")
+                                label_path_train = os.path.join(saveNameJSON_YOLO,'labels','train')
+                                images_path_train = os.path.join(saveNameJSON_YOLO,'images','train')
+                                label_path_val = os.path.join(saveNameJSON_YOLO,'labels','val')
+                                images_path_val = os.path.join(saveNameJSON_YOLO,'images','val')
+                                label_path_test = os.path.join(saveNameJSON_YOLO,'labels','test')
+                                images_path_test = os.path.join(saveNameJSON_YOLO,'images','test')
+                                validate_dir(label_path_train)
+                                validate_dir(label_path_val)
+                                validate_dir(label_path_test)
+                                validate_dir(images_path_train)
+                                validate_dir(images_path_val)
+                                validate_dir(images_path_test)
                                 if opt.DO_PARTITION_DATA:
-                                    label_path_train = os.path.join(saveNameJSON_YOLO,'labels','train')
-                                    images_path_train = os.path.join(saveNameJSON_YOLO,'images','train')
-                                    label_path_val = os.path.join(saveNameJSON_YOLO,'labels','val')
-                                    images_path_val = os.path.join(saveNameJSON_YOLO,'images','val')
-                                    label_path_test = os.path.join(saveNameJSON_YOLO,'labels','test')
-                                    images_path_test = os.path.join(saveNameJSON_YOLO,'images','test')
-                                    validate_dir(label_path_train)
-                                    validate_dir(label_path_val)
-                                    validate_dir(label_path_test)
-                                    validate_dir(images_path_train)
-                                    validate_dir(images_path_val)
-                                    validate_dir(images_path_test)
 
                                     # image_path = os.path.join(saveNameJSON_YOLO_label, img['External ID'])
                                     # im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0)
@@ -680,6 +739,10 @@ def export_points(opt):
                                             img_data_counts = Labels.export(add_pts_counts=True)
                                             combine_data_counts_test = [project_data_counts_test,img_data_counts]
                                             project_data_counts_test = pd.concat(combine_data_counts_test,ignore_index=True)
+                                    else:
+                                        img_data_counts = Labels.export(add_pts_counts=True)
+                                        combine_data_counts_train = [project_data_counts_train,img_data_counts]
+                                        project_data_counts_train = pd.concat(combine_data_counts_train,ignore_index=True)
                                     
 
                                     # label_locations = Labels.export_ind_gt_labels_for_PD(label_path_train,label_path_val,label_path_test) label_path
@@ -750,9 +813,13 @@ def export_points(opt):
                             # print(f"{bcolors.OKGREEN}      Conversion successful :) {project.name} {project.uid} {bcolors.ENDC}")
                             project_data.to_csv(project_data_path,index=False)
 
-                            get_point_locations(project_data_counts_train,saveNameJSON_YOLO_label,'train')
-                            get_point_locations(project_data_counts_val,saveNameJSON_YOLO_label,'val')
-                            get_point_locations(project_data_counts_test,saveNameJSON_YOLO_label,'test')
+                            if opt.DO_PARTITION_DATA:
+                                get_point_locations(project_data_counts_train,saveNameJSON_YOLO_label,'train')
+                                get_point_locations(project_data_counts_val,saveNameJSON_YOLO_label,'val')
+                                get_point_locations(project_data_counts_test,saveNameJSON_YOLO_label,'test')
+                            else:
+                                get_point_locations(project_data_counts_train,saveNameJSON_YOLO_label,'train')
+
                             
 
                         

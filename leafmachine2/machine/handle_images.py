@@ -1,10 +1,10 @@
 import os
-import rawpy
 import imageio
 
 # Call the function with the path to your directory
 # dir_out = convert_cr2_to_jpg('/path/to/your/directory')
 def convert_cr2_to_jpg(dir_in, Dirs):
+    import rawpy
     # Define the output directory
     dir_out = os.path.join(Dirs.dir_project, 'Cropped_Images', 'temp_jpgs')
     # dir_out_tiff = os.path.join(Dirs.dir_project, 'Cropped_Images', 'cropped_tiffs')

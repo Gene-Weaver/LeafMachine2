@@ -441,20 +441,22 @@ def save_full_image_segmentations(save_overlay_pdf, dict_name_seg, full_images, 
                 # Acquire the lock before accessing the list
                 with lock:
                     # Create a new figure
-
-                    fig = plt.figure()
-                    fig.set_facecolor(color_bg)
-                    plt.tight_layout(pad=0)
-                    # plt.subplots_adjust(left=1, right=1, bottom=1, top=1)
-                    # Add the image to the figure
-                    plt.imshow(img)
-                    # plt.annotate(xy=(0, 0), xycoords='axes fraction', fontsize=6,
-                    #             xytext=(1, 1), textcoords='offset points',
-                    #             ha='left', va='bottom')
-                    plt.suptitle(filenames[idx], fontsize=10, y=0.95, color=color_text)
-                    # Save the current figure to the PDF
-                    pdf.savefig(fig, dpi=overlay_dpi)
-                    plt.close()
+                    try:
+                        fig = plt.figure()
+                        fig.set_facecolor(color_bg)
+                        plt.tight_layout(pad=0)
+                        # plt.subplots_adjust(left=1, right=1, bottom=1, top=1)
+                        # Add the image to the figure
+                        plt.imshow(img)
+                        # plt.annotate(xy=(0, 0), xycoords='axes fraction', fontsize=6,
+                        #             xytext=(1, 1), textcoords='offset points',
+                        #             ha='left', va='bottom')
+                        plt.suptitle(filenames[idx], fontsize=10, y=0.95, color=color_text)
+                        # Save the current figure to the PDF
+                        pdf.savefig(fig, dpi=overlay_dpi)
+                        plt.close()
+                    except:
+                        pass
 
 def keep_rows(list1, list2, list3, list4, string_indices):
     leaf_index, petiole_index, hole_indices = string_indices

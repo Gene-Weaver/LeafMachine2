@@ -1,6 +1,8 @@
 # Files
 requirements-d2.txt
 PRIVATE_DATA.yaml
+*PRIVATE_DATA*
+*PRIVATE*
 LeafMachine2_TRAINING_ONLY.yaml
 LeafMachine2_TEMPLATE.yaml
 LeafMachine2_WW.yaml
@@ -20,6 +22,7 @@ tests/
 .vscode/
 runs/
 KP_Test/
+KP_Test_DELETE/
 
 
 leafmachine2/*/.gitignore

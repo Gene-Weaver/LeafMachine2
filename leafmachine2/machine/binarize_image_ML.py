@@ -211,7 +211,10 @@ class DocEnTR:
                 ret,clean_image = cv2.threshold(clean_image, 127, 255, 0)
 
                 if binarize_labels_skeletonize:
-                    clean_image = cv2.ximgproc.thinning(clean_image)
+                    try:
+                        clean_image = cv2.ximgproc.thinning(clean_image)
+                    except:
+                        pass
 
                 # model_name = pathlib.Path(model_path).stem
                 image_path = pathlib.Path(img)
