@@ -118,12 +118,12 @@ For more information about virtual environments, please see [Creation of virtual
     - Update pip
         <pre><code class="language-python">python3 -m pip install --upgrade pip setuptools</code></pre>
         <button class="btn" data-clipboard-target="#code-snippet"></button>
-    - Allow bash file to run
+    <!-- - Allow bash file to run
         <pre><code class="language-python">chmod +x install_dependencies.sh</code></pre>
         <button class="btn" data-clipboard-target="#code-snippet"></button>
     - Then install dependencies
         <pre><code class="language-python">bash install_dependencies.sh</code></pre>
-        <button class="btn" data-clipboard-target="#code-snippet"></button>
+        <button class="btn" data-clipboard-target="#code-snippet"></button> -->
     - If you encounter an error, you can try running the following install command instead
         <pre><code class="language-python">pip install streamlit memory-profiler objgraph memory_profiler astropy asttokens beautifulsoup4 colour-science cachetools certifi cloudpickle colorama contourpy cycler Cython dask dataclasses debugpy decorator einops entrypoints executing fairscale filelock fonttools fsspec future fuzzywuzzy fvcore geojson gitdb GitPython grpcio huggingface-hub hydra-core idna imageio imagesize imutils iopath ipykernel ipython jedi joblib jsonpatch jsonpointer jupyter_client jupyter_core kiwisolver labelbox Levenshtein locket Markdown MarkupSafe matplotlib matplotlib-inline mypy-extensions ndjson nest-asyncio networkx numpy oauthlib omegaconf packaging pandas parso partd pathspec pathtools pickleshare Pillow platformdirs pooch portalocker promise prompt-toolkit protobuf psutil pure-eval py-cpuinfo pyamg pyasn1 pyasn1-modules pydantic pydot pyefd pyerfa pyGeoTile Pygments pyparsing pyproj python-dateutil python-Levenshtein pytz PyWavelets PyYAML pyzenodo3 pyzmq pyexiv2 QtPy rapidfuzz rawpy reportlab requests requests-oauthlib rsa scikit-image scikit-learn scipy seaborn sentry-sdk setproctitle Shapely shortuuid SimpleITK six smmap soupsieve stack-data tabulate termcolor threadpoolctl tifffile timm tomli toolz tornado tqdm traitlets typing_extensions urllib3 wandb wcwidth websocket-client Werkzeug wget yacs zenodo-get</code></pre>
         <button class="btn" data-clipboard-target="#code-snippet"></button>
