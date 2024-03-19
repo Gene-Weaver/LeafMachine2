@@ -18,6 +18,7 @@ Table of Contents
       * [Installing Packages](#installing-packages-1)
    * [Troubleshooting CUDA](#troubleshooting-cuda)
 * [Testing the LeafMachine2 Installation](#testing-the-leafmachine2-installation)
+* [Using LeafMachine2 GUI](#using-leafmachine2-gui)
 * [Using LeafMachine2](#using-leafmachine2)
    * [LeafMachine2 Data Cleaning and Prep (preprocessing steps to be aware of)](#leafmachine2-data-cleaning-and-prep-preprocessing-steps-to-be-aware-of)
    * [LeafMachine2 Configuration File](#leafmachine2-configuration-file)
@@ -39,7 +40,6 @@ Table of Contents
         * [Configuration Settings](#configuration-settings)
    * [Downloading Images from GBIF](#downloading-images-from-gbif)
 
-
 ---
 
 # Updates
@@ -49,7 +49,7 @@ Table of Contents
         * Run the `run_LeafMachine2.py` script to launch the GUI
         * Activate the virtual env, then `python run_LeafMachine2.py`
     * Fixed installation bugs
-
+To get the latest updates, use `cd` to move into your LeafMachine2 directory, build and activate your virtual environment, then run `git pull`. We recommend rebuilding your venv from scratch for this update. If you made local changes to your repo, you may have to stash or --force overwrite your local changes (or just install LM2 in a new local directory).
 
 # Installing LeafMachine2
 
@@ -61,7 +61,6 @@ Table of Contents
     * see [Troubleshooting CUDA](#Troubleshooting-CUDA)
 
 
-
 ## Hardware
 - A GPU with at least 8 GB of VRAM is required
 - LeafMachine2 v.2.1 is RAM limited. A batch size of 50 images could potentially utilize 48 GB+ of system memory. Setting batch sizes to 20 will only increase the number of summary and data files, but performance speed differences are minimal.
@@ -69,7 +68,6 @@ Table of Contents
 - The number of leaves per image dictates RAM usage. Taxa with hundred of leaves per image (e.g. _Diospyros buxifolia_) will require much more RAM than taxa with few leaves per image (e.g. _Quercus alba_)
 - For most PCs, set the number of workers to 2 or 4. If you have a high performance PC with 128 GB+ of RAM and a powerful CPU, then 8 workers and batch sizes of 100+ are possible. 
 > **Note:** An average PC with 32 GB of RAM and a consumer-grade GPU is more than capable of running LeafMachine2, just dial back the batch size. With the right configs, a PC with 16 GB of RAM can run LeafMachine2 if the batch size is set to 10 or 20. 
-
 
 ## Installation - Cloning the LeafMachine2 Repository
 1. First, install Python 3.8.10, or greater, on your machine of choice.
@@ -250,6 +248,16 @@ If you plan on changing lots of settings, we recommend running LeafMachine2 in d
     - Otherwise, double check that you followed each step and reach out by submitting an inquiry in the form at [LeafMachine.org](https://LeafMachine.org/)
 
 ---
+
+# Using LeafMachine2 GUI
+
+As of March 18, 2024 LeafMachine2 has a Stramlit GUI. To launch the GUI, run:
+<pre><code class="language-python">python run_LeafMachine2.py</code></pre>
+<button class="btn" data-clipboard-target="#code-snippet"></button>
+This will open a new tab in your browser with a simple user interface. Please refer to the guide below for more information about how everything works.
+The GUI has most of the setting described below and is a great place to start. 
+
+Note: If you previously installed LeafMachine2, we recommend rebuilding your venv from scratch before trying to run the latest updates. To get the latest updates, use `cd` to move into your LeafMachine2 directory, build and activate your virtual environment, then run `git pull`. If you made local changes to your repo, you may have to stash or --force overwrite your local changes (or just install LM2 in a new local directory).
 
 # Using LeafMachine2
 
@@ -681,7 +689,6 @@ Original | After SpecimenCrop (150 pixel padding) | After SpecimenCrop (50 pixel
 ![Original 2](docs/img/SpecimenCrop_BA/BA_2_before.jpg) | ![After 150px padding 2](docs/img/SpecimenCrop_BA/BA_2_after.jpg) | ![After 50px padding 2](docs/img/SpecimenCrop_BA/BA_2_after_50.jpg)
 
 
-
 ### Example Workflow
 
 1. **Locate Raw Files:** Find the folder containing the raw files you intend to process. The code is validated with CR2 files, but other raw file formats should work.
@@ -733,11 +740,9 @@ Components to Include in Crop
 - and plant components:
     - leaf_whole, leaf_partial, leaflet, seed_fruit_one, seed_fruit_many, flower_one, flower_many, bud, specimen, roots, wood
 
-
 ### Configuration Settings
 
 - For the complete list of settings and their descriptions, refer to the `SpecimenCrop.yaml` config file.
-
 
 ## Downloading Images from GBIF
 
@@ -754,5 +759,3 @@ leafmachine:
         # filter = config_download_from_GBIF_all_images_in_filter.yml
         GBIF_mode: 'all'  # str |FROM| 'all' or 'filter'. 
 ```
-
-
