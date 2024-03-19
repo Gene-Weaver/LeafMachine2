@@ -4,7 +4,7 @@ Table of Contents
 =================
 
 * [Table of Contents](#table-of-contents)
-* [Updates :rocket:](#updates)
+* [Updates :rocket:](#updates-march-18-2024)
 * [Installing LeafMachine2](#installing-leafmachine2)
    * [Prerequisites](#prerequisites)
    * [Hardware](#hardware)
@@ -42,7 +42,7 @@ Table of Contents
 
 ---
 
-# Updates 
+# Updates (March 18, 2024)
 * March 18, 2024 :rocket:
     * Many, many changes. I recommend creating a new venv to use the updated LM2.
     * Added a Streamlit GUI
