@@ -18,6 +18,7 @@ Table of Contents
       * [Installing Packages](#installing-packages-1)
    * [Troubleshooting CUDA](#troubleshooting-cuda)
 * [Testing the LeafMachine2 Installation](#testing-the-leafmachine2-installation)
+* [Using LeafMachine2 GUI](#using-leafmachine2-gui)
 * [Using LeafMachine2](#using-leafmachine2)
    * [LeafMachine2 Data Cleaning and Prep (preprocessing steps to be aware of)](#leafmachine2-data-cleaning-and-prep-preprocessing-steps-to-be-aware-of)
    * [LeafMachine2 Configuration File](#leafmachine2-configuration-file)
@@ -49,6 +50,7 @@ Table of Contents
         * Run the `run_LeafMachine2.py` script to launch the GUI
         * Activate the virtual env, then `python run_LeafMachine2.py`
     * Fixed installation bugs
+To get the latest updates, use `cd` to move into your LeafMachine2 directory, build and activate your virtual environment, then run `git pull`. We recommend rebuilding your venv from scratch for this update. If you made local changes to your repo, you may have to stash or --force overwrite your local changes (or just install LM2 in a new local directory).
 
 
 # Installing LeafMachine2
@@ -250,6 +252,16 @@ If you plan on changing lots of settings, we recommend running LeafMachine2 in d
     - Otherwise, double check that you followed each step and reach out by submitting an inquiry in the form at [LeafMachine.org](https://LeafMachine.org/)
 
 ---
+
+# Using LeafMachine2 GUI
+
+As of March 18, 2024 LeafMachine2 has a Stramlit GUI. To launch the GUI, run:
+<pre><code class="language-python">python run_LeafMachine2.py</code></pre>
+<button class="btn" data-clipboard-target="#code-snippet"></button>
+This will open a new tab in your browser with a simple user interface. Please refer to the guide below for more information about how everything works.
+The GUI has most of the setting described below and is a great place to start. 
+
+Note: If you previously installed LeafMachine2, we recommend rebuilding your venv from scratch before trying to run the latest updates. To get the latest updates, use `cd` to move into your LeafMachine2 directory, build and activate your virtual environment, then run `git pull`. If you made local changes to your repo, you may have to stash or --force overwrite your local changes (or just install LM2 in a new local directory).
 
 # Using LeafMachine2
 
