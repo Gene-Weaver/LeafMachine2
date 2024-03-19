@@ -247,8 +247,12 @@ with tab_settings:
         st.session_state.config['leafmachine']['project']['GBIF_mode'] = "all"
 
     with col_GBIF_1:
-        use_existing_plant_component_detections = st.text_input("Use existing plant component detections (full path to existing `.../Plant_Components/labels` folder)", st.session_state.config['leafmachine']['project'].get('use_existing_plant_component_detections', ''))
-        use_existing_archival_component_detections = st.text_input("Use existing archival component detections (full path to existing `.../Archival_Components/labels` folder)", st.session_state.config['leafmachine']['project'].get('use_existing_archival_component_detections', ''))
+        use_existing_plant_component_detections = st.text_input("Use existing plant component detections (full path to existing `.../Plant_Components/labels` folder)", 
+                                                                placeholder="Optional", 
+                                                                value=st.session_state.config['leafmachine']['project'].get('use_existing_plant_component_detections', ''))
+        use_existing_archival_component_detections = st.text_input("Use existing archival component detections (full path to existing `.../Archival_Components/labels` folder)", 
+                                                                placeholder="Optional",
+                                                                value=st.session_state.config['leafmachine']['project'].get('use_existing_archival_component_detections', ''))
         
         if use_existing_plant_component_detections == '':
             st.session_state.config['leafmachine']['project']['use_existing_plant_component_detections']  = None

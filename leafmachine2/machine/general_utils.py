@@ -10,7 +10,6 @@ from time import perf_counter
 import glob
 import imageio
 from PIL import Image
-import pyexiv2
 from colour.temperature import xy_to_CCT, CCT_to_xy #pip install colour-science
 import subprocess
 import platform
@@ -1095,6 +1094,8 @@ def create_temp_tiffs_dir(new_tiff_dir):
     return temp_tiffs_dir
 
 def copy_exif_data(input_image_path, output_image_path):
+    import pyexiv2
+
     # Open the original image file
     with pyexiv2.Image(input_image_path) as img:
         exif_data = img.read_exif()
@@ -1184,6 +1185,7 @@ def process_detections(success, save_list, detections, detection_type, height, w
 def crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archival, has_plant, archival_detections, 
                                                  plant_detections, full_image, filename, save_list, original_img_dir):
     import rawpy
+    import pyexiv2
     
     padding = int(cfg['leafmachine']['project']['padding_for_crop'])
     dir_images_local = cfg['leafmachine']['project']['dir_images_local']

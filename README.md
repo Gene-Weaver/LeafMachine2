@@ -4,6 +4,7 @@ Table of Contents
 =================
 
 * [Table of Contents](#table-of-contents)
+* [Updates](#updates)
 * [Installing LeafMachine2](#installing-leafmachine2)
    * [Prerequisites](#prerequisites)
    * [Hardware](#hardware)
@@ -40,6 +41,15 @@ Table of Contents
 
 
 ---
+
+# Updates
+* March 18, 2024
+    * Many, many changes. I recommend creating a new venv to use the updated LM2.
+    * Added a Streamlit GUI
+        * Run the `run_LeafMachine2.py` script to launch the GUI
+        * Activate the virtual env, then `python run_LeafMachine2.py`
+    * Fixed installation bugs
+
 
 # Installing LeafMachine2
 
@@ -116,7 +126,7 @@ For more information about virtual environments, please see [Creation of virtual
         <pre><code class="language-python">bash install_dependencies.sh</code></pre>
         <button class="btn" data-clipboard-target="#code-snippet"></button>
     - If you encounter an error, you can try running the following install command instead
-        <pre><code class="language-python">pip install objgraph memory_profiler astropy asttokens beautifulsoup4 colour-science cachetools certifi cloudpickle colorama contourpy cycler Cython dask dataclasses debugpy decorator einops entrypoints executing fairscale filelock fonttools fsspec future fuzzywuzzy fvcore geojson gitdb GitPython grpcio huggingface-hub hydra-core idna imageio imagesize imutils iopath ipykernel ipython jedi joblib jsonpatch jsonpointer jupyter_client jupyter_core kiwisolver labelbox Levenshtein locket Markdown MarkupSafe matplotlib matplotlib-inline mypy-extensions ndjson nest-asyncio networkx numpy oauthlib omegaconf packaging pandas parso partd pathspec pathtools pickleshare Pillow platformdirs pooch portalocker promise prompt-toolkit protobuf psutil pure-eval py-cpuinfo pyamg pyasn1 pyasn1-modules pydantic pydot pyefd pyerfa pyGeoTile Pygments pyparsing pyproj python-dateutil python-Levenshtein pytz PyWavelets PyYAML pyzenodo3 pyzmq pyexiv2 QtPy rapidfuzz rawpy reportlab requests requests-oauthlib rsa scikit-image scikit-learn scipy seaborn sentry-sdk setproctitle Shapely shortuuid SimpleITK six smmap soupsieve stack-data tabulate termcolor threadpoolctl tifffile timm tomli toolz tornado tqdm traitlets typing_extensions urllib3 wandb wcwidth websocket-client Werkzeug wget yacs zenodo-get</code></pre>
+        <pre><code class="language-python">pip install streamlit memory-profiler objgraph memory_profiler astropy asttokens beautifulsoup4 colour-science cachetools certifi cloudpickle colorama contourpy cycler Cython dask dataclasses debugpy decorator einops entrypoints executing fairscale filelock fonttools fsspec future fuzzywuzzy fvcore geojson gitdb GitPython grpcio huggingface-hub hydra-core idna imageio imagesize imutils iopath ipykernel ipython jedi joblib jsonpatch jsonpointer jupyter_client jupyter_core kiwisolver labelbox Levenshtein locket Markdown MarkupSafe matplotlib matplotlib-inline mypy-extensions ndjson nest-asyncio networkx numpy oauthlib omegaconf packaging pandas parso partd pathspec pathtools pickleshare Pillow platformdirs pooch portalocker promise prompt-toolkit protobuf psutil pure-eval py-cpuinfo pyamg pyasn1 pyasn1-modules pydantic pydot pyefd pyerfa pyGeoTile Pygments pyparsing pyproj python-dateutil python-Levenshtein pytz PyWavelets PyYAML pyzenodo3 pyzmq pyexiv2 QtPy rapidfuzz rawpy reportlab requests requests-oauthlib rsa scikit-image scikit-learn scipy seaborn sentry-sdk setproctitle Shapely shortuuid SimpleITK six smmap soupsieve stack-data tabulate termcolor threadpoolctl tifffile timm tomli toolz tornado tqdm traitlets typing_extensions urllib3 wandb wcwidth websocket-client Werkzeug wget yacs zenodo-get</code></pre>
         <button class="btn" data-clipboard-target="#code-snippet"></button>
 2. Upgrade numpy 
     <pre><code class="language-python">pip install numpy -U</code></pre>
@@ -131,10 +141,15 @@ For more information about virtual environments, please see [Creation of virtual
     <pre><code class="language-python">pip install opencv-contrib-python==4.7.0.68</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 6. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
-    - WITH GPU 
+    - With GPU, oldest PyTorch/CUDA version
     <pre><code class="language-python">pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-7. Install ViT for PyTorch. ViT is used for segmenting labels and rulers.
+    <!-- - For a newer version of CUDA, like CUDA 12.1, you can install the most recent version:
+    <pre><code class="language-python">install torch torchvision torchaudio
+    </code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet"></button> -->
+
+7. Install ViT for PyTorch. ViT is used for segmenting labels and rulers. The DocEnTr framework that we use for document image segmentation requires an older verison of ViT, the most recent version will cause an error. 
     <pre><code class="language-python">pip install vit-pytorch==0.37.1</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 
@@ -165,7 +180,7 @@ For more information about virtual environments, please see [Creation of virtual
 ### Installing Packages
 
 1. Install the required dependencies to use LeafMachine2  
-    <pre><code class="language-python">pip install objgraph memory_profiler astropy asttokens beautifulsoup4 colour-science cachetools certifi cloudpickle colorama contourpy cycler Cython dask dataclasses debugpy decorator einops entrypoints executing fairscale filelock fonttools fsspec future fuzzywuzzy fvcore geojson gitdb GitPython grpcio huggingface-hub hydra-core idna imageio imagesize imutils iopath ipykernel ipython jedi joblib jsonpatch jsonpointer jupyter_client jupyter_core kiwisolver labelbox Levenshtein locket Markdown MarkupSafe matplotlib matplotlib-inline mypy-extensions ndjson nest-asyncio networkx numpy oauthlib omegaconf packaging pandas parso partd pathspec pathtools pickleshare Pillow platformdirs pooch portalocker promise prompt-toolkit protobuf psutil pure-eval py-cpuinfo pyamg pyasn1 pyasn1-modules pydantic pydot pyefd pyerfa pyGeoTile Pygments pyparsing pyproj python-dateutil python-Levenshtein pytz PyWavelets pywin32 PyYAML pyzenodo3 pyzmq QtPy rapidfuzz rawpy pyexiv2 reportlab requests requests-oauthlib rsa scikit-image scikit-learn scipy seaborn sentry-sdk setproctitle Shapely shortuuid SimpleITK six smmap soupsieve stack-data tabulate tensorboard tensorboard-data-server tensorboard-plugin-wit termcolor threadpoolctl tifffile timm tomli toolz tornado tqdm traitlets typing_extensions urllib3 wandb wcwidth websocket-client Werkzeug wget yacs zenodo-get</code></pre>
+    <pre><code class="language-python">pip install streamlit memory-profiler objgraph memory_profiler astropy asttokens beautifulsoup4 colour-science cachetools certifi cloudpickle colorama contourpy cycler Cython dask dataclasses debugpy decorator einops entrypoints executing fairscale filelock fonttools fsspec future fuzzywuzzy fvcore geojson gitdb GitPython grpcio huggingface-hub hydra-core idna imageio imagesize imutils iopath ipykernel ipython jedi joblib jsonpatch jsonpointer jupyter_client jupyter_core kiwisolver labelbox Levenshtein locket Markdown MarkupSafe matplotlib matplotlib-inline mypy-extensions ndjson nest-asyncio networkx numpy oauthlib omegaconf packaging pandas parso partd pathspec pathtools pickleshare Pillow platformdirs pooch portalocker promise prompt-toolkit protobuf psutil pure-eval py-cpuinfo pyamg pyasn1 pyasn1-modules pydantic pydot pyefd pyerfa pyGeoTile Pygments pyparsing pyproj python-dateutil python-Levenshtein pytz PyWavelets pywin32 PyYAML pyzenodo3 pyzmq QtPy rapidfuzz rawpy pyexiv2 reportlab requests requests-oauthlib rsa scikit-image scikit-learn scipy seaborn sentry-sdk setproctitle Shapely shortuuid SimpleITK six smmap soupsieve stack-data tabulate tensorboard tensorboard-data-server tensorboard-plugin-wit termcolor threadpoolctl tifffile timm tomli toolz tornado tqdm traitlets typing_extensions urllib3 wandb wcwidth websocket-client Werkzeug wget yacs zenodo-get</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 2. Upgrade numpy  
     <pre><code class="language-python">pip install numpy -U</code></pre>
@@ -174,16 +189,21 @@ For more information about virtual environments, please see [Creation of virtual
     <pre><code class="language-python">pip install git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 4. Install COCO annotation tools
-    <pre><code class="language-python">pip install pycocotools==2.0.5</code></pre>
+    <pre><code class="language-python">pip install pycocotools>=2.0.5</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 5. We need a special version of Open CV
-    <pre><code class="language-python">pip install opencv-contrib-python==4.7.0.68</code></pre>
+    <pre><code class="language-python">pip install opencv-contrib-python>=4.7.0.68</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 6. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
     - WITH GPU 
     <pre><code class="language-python">pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-7. Install ViT for PyTorch. ViT is used for segmenting labels and rulers.
+    <!-- - For a newer version of CUDA, like CUDA 12.1, you can install the most recent version:
+    <pre><code class="language-python">pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+    </code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet"></button> -->
+
+7. Install ViT for PyTorch. ViT is used for segmenting labels and rulers. The DocEnTr framework that we use for document image segmentation requires an older verison of ViT, the most recent version will cause an error. 
     <pre><code class="language-python">pip install vit-pytorch==0.37.1</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 
@@ -193,11 +213,11 @@ For more information about virtual environments, please see [Creation of virtual
 
 ## Troubleshooting CUDA
 
-- If your system already has another version of CUDA (e.g., CUDA 11.7) then it can be complicated to switch to CUDA 11.3. 
+- If your system already has another version of CUDA (e.g., CUDA 11.7) then it can be complicated to switch to CUDA 11.3. We have found that most newer versions of CUDA are backwards compatible with the older version of PyTorch that we install above. 
 - The simplest solution is to install pytorch with CPU only, avoiding the CUDA problem entirely, but that is not recommended given that 
-LeafMachine2 is designed to use GPUs. We have not tested LeafMachine2 on systems that lack GPUs.
-- Alternatively, you can install the [latest pytorch release](https://pytorch.org/get-started/locally/) for your specific system, either using the cpu only version `pip3 install torch`, `pip3 install torchvision`, `pip3 install torchaudio` or by matching the pythorch version to your CUDA version.
-- We have not validated CUDA 11.6 or CUDA 11.7, but our code is likely to work with them too. If you have success with other versions of CUDA/pytorch, let us know and we will update our instructions. 
+LeafMachine2 is designed to use GPUs. The components that rely on ViT (binarization of labels) will *NOT* work without a GPU. 
+- Alternatively, you can install the [latest pytorch release](https://pytorch.org/get-started/locally/) for your specific system.
+- We have also validated CUDA 12.4. If you have success with other versions of CUDA/pytorch, let us know and we will update our instructions. 
 
 ---
 
@@ -721,7 +741,7 @@ Components to Include in Crop
 
 ## Downloading Images from GBIF
 
-### An interative Streamlit GUI is in the works, stay tuned!
+### An interactive Streamlit GUI is in the works, stay tuned!
 
 ```yaml
 leafmachine:

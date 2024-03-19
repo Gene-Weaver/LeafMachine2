@@ -26,7 +26,7 @@ from leafmachine2.machine.LM2_logger import start_logging
 from leafmachine2.machine.utils_ruler import convert_rulers_testing, parallel_convert_rulers
 from leafmachine2.machine.fetch_data import fetch_data
 
-@profile
+# @profile
 def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
     t_overall = perf_counter()
 
