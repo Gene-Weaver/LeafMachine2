@@ -10,7 +10,7 @@ Table of Contents
    * [Hardware](#hardware)
    * [Installation - Cloning the LeafMachine2 Repository](#installation---cloning-the-leafmachine2-repository)
    * [About Python Virtual Environments](#about-python-virtual-environments)
-   * [Installation - Ubuntu 20.04](#installation---ubuntu-2004)
+   * [Installation - Ubuntu 20.04+](#installation---ubuntu-2004)
       * [Virtual Environment](#virtual-environment)
       * [Installing Packages](#installing-packages)
    * [Installation - Windows 10+](#installation---windows-10)
@@ -89,7 +89,7 @@ For more information about virtual environments, please see [Creation of virtual
 
 ---
 
-## Installation - Ubuntu 20.04
+## Installation - Ubuntu 20.04+
 
 ### Virtual Environment
 
