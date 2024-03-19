@@ -93,7 +93,6 @@ python-dateutil
 python-Levenshtein
 pytz
 PyWavelets
-pywin32
 PyYAML
 pyzenodo3
 pyzmq

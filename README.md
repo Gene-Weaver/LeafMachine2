@@ -91,6 +91,10 @@ For more information about virtual environments, please see [Creation of virtual
 
 ## Installation - Ubuntu 20.04+
 
+Quick installation: Inside of a python virtual environment, `pip install requirements.txt`, then `pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113`
+
+For more detailed instructions, see below. 
+
 ### Virtual Environment
 
 1. Still inside the LeafMachine2 directory, show that a venv is currently not active 
@@ -158,6 +162,10 @@ For more information about virtual environments, please see [Creation of virtual
 
 ## Installation - Windows 10+
 
+Quick installation: Inside of a python virtual environment, `pip install requirements.txt`, then `pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113`, then `pip install pywin32`.
+
+For more detailed instructions, see below. 
+
 ### Virtual Environment
 
 1. Still inside the LeafMachine2 directory, show that a venv is currently not active 
@@ -187,11 +195,11 @@ For more information about virtual environments, please see [Creation of virtual
 3. Install COCO annotation tools
     <pre><code class="language-python">pip install git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-4. Install COCO annotation tools
-    <pre><code class="language-python">pip install pycocotools>=2.0.5</code></pre>
+4. Install COCO annotation tools, a special version of Open CV, and pywin32 for creating the desktop shortcut
+    <pre><code class="language-python">pip install pywin32 pycocotools>=2.0.5 opencv-contrib-python>=4.7.0.68</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 5. We need a special version of Open CV
-    <pre><code class="language-python">pip install opencv-contrib-python>=4.7.0.68</code></pre>
+    <pre><code class="language-python">pip install </code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 6. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
     - WITH GPU 
