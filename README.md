@@ -4,7 +4,7 @@ Table of Contents
 =================
 
 * [Table of Contents](#table-of-contents)
-* [Updates :rocket:](#updates-march-18-2024)
+* [Updates :rocket: (March 18, 2024)](#updates-march-18-2024)
 * [Installing LeafMachine2](#installing-leafmachine2)
    * [Prerequisites](#prerequisites)
    * [Hardware](#hardware)
