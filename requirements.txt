@@ -140,7 +140,7 @@ Werkzeug
 wget
 yacs
 zenodo-get
-numpy -U
+numpy
 git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools
 pycocotools>=2.0.5
 opencv-contrib-python>=4.7.0.68
