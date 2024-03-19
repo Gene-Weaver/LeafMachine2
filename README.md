@@ -198,10 +198,7 @@ For more detailed instructions, see below.
 4. Install COCO annotation tools, a special version of Open CV, and pywin32 for creating the desktop shortcut
     <pre><code class="language-python">pip install pywin32 pycocotools>=2.0.5 opencv-contrib-python>=4.7.0.68</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-5. We need a special version of Open CV
-    <pre><code class="language-python">pip install </code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet"></button>
-6. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
+5. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
     - WITH GPU 
     <pre><code class="language-python">pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
@@ -210,7 +207,7 @@ For more detailed instructions, see below.
     </code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button> -->
 
-7. Install ViT for PyTorch. ViT is used for segmenting labels and rulers. The DocEnTr framework that we use for document image segmentation requires an older verison of ViT, the most recent version will cause an error. 
+6. Install ViT for PyTorch. ViT is used for segmenting labels and rulers. The DocEnTr framework that we use for document image segmentation requires an older verison of ViT, the most recent version will cause an error. 
     <pre><code class="language-python">pip install vit-pytorch==0.37.1</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 
