@@ -55,8 +55,8 @@ Table of Contents
 # Installing LeafMachine2
 
 ## Prerequisites
-- Python 3.8.10 
-- PyTorch 1.11 
+- Validated with Python >= 3.8, <= 3.11 
+- PyTorch 1.11 (Can work with PyTorch 2.X if you are willing to mess around with dependencies/CUDA)
 - Git
 - CUDA version 11.3 (if utilizing a GPU)
     * see [Troubleshooting CUDA](#Troubleshooting-CUDA)
@@ -216,12 +216,14 @@ For more detailed instructions, see below.
 ---
 
 ## Troubleshooting CUDA
-
-- If your system already has another version of CUDA (e.g., CUDA 11.7) then it can be complicated to switch to CUDA 11.3. We have found that most newer versions of CUDA are backwards compatible with the older version of PyTorch that we install above. 
-- The simplest solution is to install pytorch with CPU only, avoiding the CUDA problem entirely, but that is not recommended given that 
-LeafMachine2 is designed to use GPUs. The components that rely on ViT (binarization of labels) will *NOT* work without a GPU. 
-- Alternatively, you can install the [latest pytorch release](https://pytorch.org/get-started/locally/) for your specific system.
-- We have also validated CUDA 12.4. If you have success with other versions of CUDA/pytorch, let us know and we will update our instructions. 
+- CUDA issues can be extremely frustrating. 
+- Start by finding your current CUDA version or installing the most recent CUDA version that is compatible with your GPU. 
+- Try installing the old version of PyTorch listed in these docs.
+- If that works, great! If not, you can install the [latest pytorch release](https://pytorch.org/get-started/locally/) for your specific OS and CUDA version.
+- If that fails, you might have a CUDA installation issue. 
+- If you cannot get the GPU working, then you can install PyTorch with CPU only, avoiding the CUDA problem entirely, but that is not recommended given that 
+LeafMachine2 is designed to use GPUs. The components that rely on ViT (binarization of labels) will *NOT* work without a GPU. The leaf segmentation may not work either, sometimes it does, sometimes not. 
+- We have also validated CUDA 12.4 with PyTorch 2.X. If you have success with other versions of CUDA/pytorch, let us know and we will update our instructions. 
 
 ---
 

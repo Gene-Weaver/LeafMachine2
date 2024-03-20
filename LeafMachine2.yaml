@@ -6,7 +6,7 @@ leafmachine:
     detector_weights: best.pt
     do_save_prediction_overlay_images: true
     ignore_objects_for_overlay: []
-    minimum_confidence_threshold: 0.2
+    minimum_confidence_threshold: 0.5
     ruler_binary_detector: model_scripted_resnet_720_withCompression.pt
     ruler_detector: ruler_classifier_38classes_v-1.pt
   armature_component_detector:
@@ -131,9 +131,9 @@ leafmachine:
   project:
     GBIF_mode: all
     batch_size: 100
-    dir_images_local: D:\Dropbox\ALOT\Selena\ginkgo_sample
+    dir_images_local: D:\Dropbox\ALOT\Will\FieldPrism_test
     dir_images_subset: ''
-    dir_output: D:\Dropbox\ALOT\Selena\ginkgo_sample_TEST
+    dir_output: D:\Dropbox\ALOT\Will\
     image_location: local
     n_images_per_species: 10
     num_workers: 4
@@ -143,13 +143,13 @@ leafmachine:
     path_images_csv_local: null
     path_occurrence_csv_local: null
     process_subset_of_images: false
-    run_name: test
+    run_name: FieldPrism_test_out
     species_list: ''
     use_existing_archival_component_detections: null
     use_existing_plant_component_detections: null
   ruler_detection:
     detect_ruler_type: true
-    minimum_confidence_threshold: 0.2
+    minimum_confidence_threshold: 0.5
     ruler_binary_detector: model_scripted_resnet_720_withCompression.pt
     ruler_detector: ruler_classifier_38classes_v-1.pt
     save_ruler_processed: false

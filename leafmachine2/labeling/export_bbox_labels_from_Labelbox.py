@@ -43,7 +43,7 @@ def export_bbox(opt):
 
         if project.name in opt.IGNORE:
             print(f"{bcolors.BOLD}      Skipping {project.name}{bcolors.ENDC}")
-        elif (project.name in opt.INCLUDE):# or (opt.INCLUDE == [])):
+        elif (project.name in opt.INCLUDE) or (opt.INCLUDE == []):
             if project.review_metrics(None) >= 0: 
                 sep = '_'
                 annoType = project.name.split('_')[0]
@@ -218,94 +218,97 @@ def save_labels_to_txt(opt, project, file, annoType, data, saveNameJSON_YOLO_ori
         elif (img['Reviews'] == []) and (opt.ONLY_REVIEWED):
             continue
         else:
-            # check for compound vs. simple and segregate
-            saveNameJSON_YOLO, path_cropped = route_compound(opt, img, saveNameJSON_YOLO_orig, project)
+            try:
+                # check for compound vs. simple and segregate
+                saveNameJSON_YOLO, path_cropped = route_compound(opt, img, saveNameJSON_YOLO_orig, project)
 
-            # Get image
-            im_path = img['Labeled Data']
-            im = Image.open(requests.get(im_path, stream=True).raw if im_path.startswith('http') else im_path)  # open
-            width, height = im.size  # image size
-            file_stem = img['External ID'] # use img['External ID'] if the names are normal, img['DataRow ID'] if there are . in the name
-            fname = Path(file_stem).with_suffix('.txt').name
+                # Get image
+                im_path = img['Labeled Data']
+                im = Image.open(requests.get(im_path, stream=True).raw if im_path.startswith('http') else im_path)  # open
+                width, height = im.size  # image size
+                file_stem = img['External ID'] # use img['External ID'] if the names are normal, img['DataRow ID'] if there are . in the name
+                fname = Path(file_stem).with_suffix('.txt').name
 
-            # partition
-            if opt.DO_PARTITION_DATA:
-                if pc in TRAIN:
+                # partition
+                if opt.DO_PARTITION_DATA:
+                    if pc in TRAIN:
+                        label_path = os.path.join(saveNameJSON_YOLO,'labels','train',fname)
+                        image_path = os.path.join(saveNameJSON_YOLO,'images','train',file_stem)
+                        im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
+                    if pc in VAL:
+                        label_path = os.path.join(saveNameJSON_YOLO,'labels','val',fname)
+                        image_path = os.path.join(saveNameJSON_YOLO,'images','val',file_stem)
+                        im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
+                    if pc in TEST:
+                        label_path = os.path.join(saveNameJSON_YOLO,'labels','test',fname)
+                        image_path = os.path.join(saveNameJSON_YOLO,'images','test',file_stem)
+                        im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
+                else:
                     label_path = os.path.join(saveNameJSON_YOLO,'labels','train',fname)
                     image_path = os.path.join(saveNameJSON_YOLO,'images','train',file_stem)
                     im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
-                if pc in VAL:
-                    label_path = os.path.join(saveNameJSON_YOLO,'labels','val',fname)
-                    image_path = os.path.join(saveNameJSON_YOLO,'images','val',file_stem)
-                    im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
-                if pc in TEST:
-                    label_path = os.path.join(saveNameJSON_YOLO,'labels','test',fname)
-                    image_path = os.path.join(saveNameJSON_YOLO,'images','test',file_stem)
-                    im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
-            else:
-                label_path = os.path.join(saveNameJSON_YOLO,'labels','train',fname)
-                image_path = os.path.join(saveNameJSON_YOLO,'images','train',file_stem)
-                im.save(Path(image_path).with_suffix('.jpg'), quality=100, subsampling=0) # WW edited this line; added Path(image_path).with_suffix('.jpg')
 
-            label_ind = 0
-            for label in img['Label']['objects']:
-                label_ind += 1
-                # box
-                top, left, h, w = label['bbox'].values()  # top, left, height, width
-                xywh = [(left + w / 2) / width, (top + h / 2) / height, w / width, h / height]  # xywh normalized
+                label_ind = 0
+                for label in img['Label']['objects']:
+                    label_ind += 1
+                    # box
+                    top, left, h, w = label['bbox'].values()  # top, left, height, width
+                    xywh = [(left + w / 2) / width, (top + h / 2) / height, w / width, h / height]  # xywh normalized
 
-                # class
-                cls = label['value']  # class name
-                if cls not in names:
-                    names.append(cls)
-                
-                # set the index based on the order of the annotations in LabelBox
-                annoInd = assign_index(cls,annoType)
+                    # class
+                    cls = label['value']  # class name
+                    if cls not in names:
+                        names.append(cls)
+                    
+                    # set the index based on the order of the annotations in LabelBox
+                    annoInd = assign_index(cls,annoType)
 
-                line = annoInd, *xywh  # YOLO format (class_index, xywh)
-                with open(label_path, 'a') as f:
-                    f.write(('%g ' * len(line)).rstrip() % line + '\n')
+                    line = annoInd, *xywh  # YOLO format (class_index, xywh)
+                    with open(label_path, 'a') as f:
+                        f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
 
-                if opt.do_save_cropped_bboxes_as_jpgs:
-                    if (cls in opt.INCLUDE_ANNO) or (opt.INCLUDE_ANNO == []):
-                        # rect_points = label.value.geometry['coordinates'][0]
-                        right = left + w
-                        bottom = top + h
-                        img_crop = im.crop((left, top, right, bottom))
+                    if opt.do_save_cropped_bboxes_as_jpgs:
+                        if (cls in opt.INCLUDE_ANNO) or (opt.INCLUDE_ANNO == []):
+                            # rect_points = label.value.geometry['coordinates'][0]
+                            right = left + w
+                            bottom = top + h
+                            img_crop = im.crop((left, top, right, bottom))
 
-                        # Upscale acacia prickles/spines
-                        if annoType == 'ACACIA':
-                            # img_crop = img_crop.resize((img_crop.width * 10, img_crop.height * 10), resample=Image.BICUBIC)
-                            img_crop = img_crop.resize((img_crop.width * 10, img_crop.height * 10), resample=Image.LANCZOS)
+                            # Upscale acacia prickles/spines
+                            if annoType == 'ACACIA':
+                                # img_crop = img_crop.resize((img_crop.width * 10, img_crop.height * 10), resample=Image.BICUBIC)
+                                img_crop = img_crop.resize((img_crop.width * 10, img_crop.height * 10), resample=Image.LANCZOS)
 
-                        save_crop_name_base = remove_extension(img["External ID"])
-                        if opt.DO_PARTITION_DATA:
-                            if pc in TRAIN:
+                            save_crop_name_base = remove_extension(img["External ID"])
+                            if opt.DO_PARTITION_DATA:
+                                if pc in TRAIN:
+                                    save_crop_name = save_crop_name_base + '__' + str(label_ind)
+                                    save_crop_dir = os.path.join(path_cropped, cls, 'train')
+                                    save_crop_path = os.path.join(save_crop_dir, save_crop_name)
+                                    validate_dir(save_crop_dir)
+                                    img_crop.save(Path(save_crop_path).with_suffix('.jpg'), quality=100, subsampling=0)
+
+                                if pc in VAL:
+                                    save_crop_name = save_crop_name_base + '__' + str(label_ind)
+                                    save_crop_dir = os.path.join(path_cropped, cls, 'val')
+                                    save_crop_path = os.path.join(save_crop_dir, save_crop_name)
+                                    validate_dir(save_crop_dir)
+                                    img_crop.save(Path(save_crop_path).with_suffix('.jpg'), quality=100, subsampling=0)
+                                if pc in TEST:
+                                    save_crop_name = save_crop_name_base + '__' + str(label_ind)
+                                    save_crop_dir = os.path.join(path_cropped, cls, 'test')
+                                    save_crop_path = os.path.join(save_crop_dir, save_crop_name)
+                                    validate_dir(save_crop_dir)
+                                    img_crop.save(Path(save_crop_path).with_suffix('.jpg'), quality=100, subsampling=0)
+                            else:
                                 save_crop_name = save_crop_name_base + '__' + str(label_ind)
-                                save_crop_dir = os.path.join(path_cropped, cls, 'train')
+                                save_crop_dir = os.path.join(path_cropped, cls)
                                 save_crop_path = os.path.join(save_crop_dir, save_crop_name)
                                 validate_dir(save_crop_dir)
                                 img_crop.save(Path(save_crop_path).with_suffix('.jpg'), quality=100, subsampling=0)
-
-                            if pc in VAL:
-                                save_crop_name = save_crop_name_base + '__' + str(label_ind)
-                                save_crop_dir = os.path.join(path_cropped, cls, 'val')
-                                save_crop_path = os.path.join(save_crop_dir, save_crop_name)
-                                validate_dir(save_crop_dir)
-                                img_crop.save(Path(save_crop_path).with_suffix('.jpg'), quality=100, subsampling=0)
-                            if pc in TEST:
-                                save_crop_name = save_crop_name_base + '__' + str(label_ind)
-                                save_crop_dir = os.path.join(path_cropped, cls, 'test')
-                                save_crop_path = os.path.join(save_crop_dir, save_crop_name)
-                                validate_dir(save_crop_dir)
-                                img_crop.save(Path(save_crop_path).with_suffix('.jpg'), quality=100, subsampling=0)
-                        else:
-                            save_crop_name = save_crop_name_base + '__' + str(label_ind)
-                            save_crop_dir = os.path.join(path_cropped, cls)
-                            save_crop_path = os.path.join(save_crop_dir, save_crop_name)
-                            validate_dir(save_crop_dir)
-                            img_crop.save(Path(save_crop_path).with_suffix('.jpg'), quality=100, subsampling=0)
+            except:
+                pass
             pc += 1
 
 def remove_extension(filename):
