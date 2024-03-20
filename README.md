@@ -85,7 +85,7 @@ A virtual environment is a tool to keep the dependencies required by different p
 
 For more information about virtual environments, please see [Creation of virtual environments](https://docs.python.org/3/library/venv.html)
 
-> We include `requirements.txt` files in the `LeafMachine2/requirements/` folder. If you experience version incompatability following the instructions below, please refer to `LeafMachine2/requirements/requirements_all.txt` for an exhaustive list of packages and versions that are officially supported. 
+<!-- > We include `requirements.txt` files in the `LeafMachine2/requirements/` folder. If you experience version incompatability following the instructions below, please refer to `LeafMachine2/requirements/requirements_all.txt` for an exhaustive list of packages and versions that are officially supported.  -->
 
 ---
 
@@ -114,37 +114,25 @@ For more detailed instructions, see below.
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 
 ### Installing Packages
-
-1. Install the required dependencies to use LeafMachine2 
-    - With the venv active, install wheel 
+1.  First, update pip, wheel, setuptools
+    With the venv active, install wheel 
         <pre><code class="language-python">python3 -m pip install wheel</code></pre>
         <button class="btn" data-clipboard-target="#code-snippet"></button>
-    - Update pip
+    Update pip and setuptools
         <pre><code class="language-python">python3 -m pip install --upgrade pip setuptools</code></pre>
         <button class="btn" data-clipboard-target="#code-snippet"></button>
-    <!-- - Allow bash file to run
-        <pre><code class="language-python">chmod +x install_dependencies.sh</code></pre>
-        <button class="btn" data-clipboard-target="#code-snippet"></button>
-    - Then install dependencies
-        <pre><code class="language-python">bash install_dependencies.sh</code></pre>
-        <button class="btn" data-clipboard-target="#code-snippet"></button> -->
-    - If you encounter an error, you can try running the following install command instead
-        <pre><code class="language-python">pip install streamlit memory-profiler objgraph memory_profiler astropy asttokens beautifulsoup4 colour-science cachetools certifi cloudpickle colorama contourpy cycler Cython dask dataclasses debugpy decorator einops entrypoints executing fairscale filelock fonttools fsspec future fuzzywuzzy fvcore geojson gitdb GitPython grpcio huggingface-hub hydra-core idna imageio imagesize imutils iopath ipykernel ipython jedi joblib jsonpatch jsonpointer jupyter_client jupyter_core kiwisolver labelbox Levenshtein locket Markdown MarkupSafe matplotlib matplotlib-inline mypy-extensions ndjson nest-asyncio networkx numpy oauthlib omegaconf packaging pandas parso partd pathspec pathtools pickleshare Pillow platformdirs pooch portalocker promise prompt-toolkit protobuf psutil pure-eval py-cpuinfo pyamg pyasn1 pyasn1-modules pydantic pydot pyefd pyerfa pyGeoTile Pygments pyparsing pyproj python-dateutil python-Levenshtein pytz PyWavelets PyYAML pyzenodo3 pyzmq pyexiv2 QtPy rapidfuzz rawpy reportlab requests requests-oauthlib rsa scikit-image scikit-learn scipy seaborn sentry-sdk setproctitle Shapely shortuuid SimpleITK six smmap soupsieve stack-data tabulate termcolor threadpoolctl tifffile timm tomli toolz tornado tqdm traitlets typing_extensions urllib3 wandb wcwidth websocket-client Werkzeug wget yacs zenodo-get</code></pre>
-        <button class="btn" data-clipboard-target="#code-snippet"></button>
-2. Upgrade numpy 
-    <pre><code class="language-python">pip install numpy -U</code></pre>
+
+2. Install the required dependencies to use LeafMachine2  
+    <pre><code class="language-python">pip install -r requirements.txt</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-3. Install COCO annotation tools
+3. Install pycococreator
     <pre><code class="language-python">pip install git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-4. Install COCO annotation tools
-    <pre><code class="language-python">pip install pycocotools==2.0.5</code></pre>
+4. Install COCO annotation tools and a special version of Open CV
+    <pre><code class="language-python">pip install pycocotools>=2.0.5 opencv-contrib-python>=4.7.0.68</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-5. We need a special version of Open CV
-    <pre><code class="language-python">pip install opencv-contrib-python==4.7.0.68</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet"></button>
-6. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
-    - With GPU, oldest PyTorch/CUDA version
+5. LeafMachine2 algorithms require PyTorch version 1.11 for CUDA version 11.3+. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
+    - WITH GPU 
     <pre><code class="language-python">pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
     <!-- - For a newer version of CUDA, like CUDA 12.1, you can install the most recent version:
@@ -152,7 +140,7 @@ For more detailed instructions, see below.
     </code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button> -->
 
-7. Install ViT for PyTorch. ViT is used for segmenting labels and rulers. The DocEnTr framework that we use for document image segmentation requires an older verison of ViT, the most recent version will cause an error. 
+6. Install ViT for PyTorch. ViT is used for segmenting labels and rulers. The DocEnTr framework that we use for document image segmentation requires an older verison of ViT, the most recent version will cause an error. 
     <pre><code class="language-python">pip install vit-pytorch==0.37.1</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 
@@ -187,18 +175,15 @@ For more detailed instructions, see below.
 ### Installing Packages
 
 1. Install the required dependencies to use LeafMachine2  
-    <pre><code class="language-python">pip install streamlit memory-profiler objgraph memory_profiler astropy asttokens beautifulsoup4 colour-science cachetools certifi cloudpickle colorama contourpy cycler Cython dask dataclasses debugpy decorator einops entrypoints executing fairscale filelock fonttools fsspec future fuzzywuzzy fvcore geojson gitdb GitPython grpcio huggingface-hub hydra-core idna imageio imagesize imutils iopath ipykernel ipython jedi joblib jsonpatch jsonpointer jupyter_client jupyter_core kiwisolver labelbox Levenshtein locket Markdown MarkupSafe matplotlib matplotlib-inline mypy-extensions ndjson nest-asyncio networkx numpy oauthlib omegaconf packaging pandas parso partd pathspec pathtools pickleshare Pillow platformdirs pooch portalocker promise prompt-toolkit protobuf psutil pure-eval py-cpuinfo pyamg pyasn1 pyasn1-modules pydantic pydot pyefd pyerfa pyGeoTile Pygments pyparsing pyproj python-dateutil python-Levenshtein pytz PyWavelets pywin32 PyYAML pyzenodo3 pyzmq QtPy rapidfuzz rawpy pyexiv2 reportlab requests requests-oauthlib rsa scikit-image scikit-learn scipy seaborn sentry-sdk setproctitle Shapely shortuuid SimpleITK six smmap soupsieve stack-data tabulate tensorboard tensorboard-data-server tensorboard-plugin-wit termcolor threadpoolctl tifffile timm tomli toolz tornado tqdm traitlets typing_extensions urllib3 wandb wcwidth websocket-client Werkzeug wget yacs zenodo-get</code></pre>
+    <pre><code class="language-python">pip install -r requirements.txt</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-2. Upgrade numpy  
-    <pre><code class="language-python">pip install numpy -U</code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet"></button>
-3. Install COCO annotation tools
+2. Install pycococreator
     <pre><code class="language-python">pip install git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-4. Install COCO annotation tools, a special version of Open CV, and pywin32 for creating the desktop shortcut
+3. Install COCO annotation tools, a special version of Open CV, and pywin32 for creating the desktop shortcut
     <pre><code class="language-python">pip install pywin32 pycocotools>=2.0.5 opencv-contrib-python>=4.7.0.68</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-5. The LeafMachine2 machine learning algorithm requires PyTorch version 1.11 for CUDA version 11.3. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
+4. LeafMachine2 algorithms require PyTorch version 1.11 for CUDA version 11.3+. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
     - WITH GPU 
     <pre><code class="language-python">pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
@@ -207,7 +192,7 @@ For more detailed instructions, see below.
     </code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button> -->
 
-6. Install ViT for PyTorch. ViT is used for segmenting labels and rulers. The DocEnTr framework that we use for document image segmentation requires an older verison of ViT, the most recent version will cause an error. 
+5. Install ViT for PyTorch. ViT is used for segmenting labels and rulers. The DocEnTr framework that we use for document image segmentation requires an older verison of ViT, the most recent version will cause an error. 
     <pre><code class="language-python">pip install vit-pytorch==0.37.1</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 
