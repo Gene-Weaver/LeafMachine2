@@ -55,7 +55,7 @@ Table of Contents
 # Installing LeafMachine2
 
 ## Prerequisites
-- Python 3.8.10 (Later versions should work. We have validated Python 3.10.4 too)
+- Python 3.8.10 
 - PyTorch 1.11 
 - Git
 - CUDA version 11.3 (if utilizing a GPU)
@@ -91,7 +91,7 @@ For more information about virtual environments, please see [Creation of virtual
 
 ## Installation - Ubuntu 20.04+
 
-Quick installation: Inside of a python virtual environment, `pip install requirements.txt`, then `pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113`
+Quick installation: Inside of a python virtual environment, `pip install -r requirements.txt`, then `pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113`
 
 For more detailed instructions, see below. 
 
@@ -162,7 +162,7 @@ For more detailed instructions, see below.
 
 ## Installation - Windows 10+
 
-Quick installation: Inside of a python virtual environment, `pip install requirements.txt`, then `pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113`, then `pip install pywin32`.
+Quick installation: Inside of a python virtual environment, `pip install -r requirements.txt`, then `pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113`, then `pip install pywin32`.
 
 For more detailed instructions, see below. 
 

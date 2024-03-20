@@ -33,8 +33,8 @@ import torch.optim.lr_scheduler
 import matplotlib
 matplotlib.use('Agg')
 import skimage.transform
-from peterpy import peter
-from ballpark import ballpark
+# from peterpy import peter
+# from ballpark import ballpark
 from matplotlib import pyplot as plt
 
 from . import losses
@@ -45,6 +45,20 @@ from .data import RandomHorizontalFlipImageAndLabel
 from .data import RandomVerticalFlipImageAndLabel
 from .data import ScaleImageAndLabel
 from . import argparser
+
+import time
+
+class Timer:
+    def __init__(self, msg="Running"):
+        self.msg = msg
+
+    def __enter__(self):
+        print(f"{self.msg}...", end=' ')
+        self.start_time = time.time()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        elapsed_time = time.time() - self.start_time
+        print(f"DONE (took {elapsed_time:.6f} seconds)")
 
 
 # Parse command line arguments
@@ -81,15 +95,22 @@ trainset_loader = DataLoader(trainset,
                              collate_fn=csv_collator)
 
 # Model
-with peter('Building network'):
+with Timer('Building network'):
     model = unet_model.UNet(3, 1,
                             height=args.height,
                             width=args.width,
                             known_n_points=args.n_points)
     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f" with {ballpark(num_params)} trainable parameters. ", end='')
-model = nn.DataParallel(model)
-model.to(device)
+    print(f"with {num_params} trainable parameters.", end='')
+# with peter('Building network'):
+#     model = unet_model.UNet(3, 1,
+#                             height=args.height,
+#                             width=args.width,
+#                             known_n_points=args.n_points)
+#     num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+#     print(f" with {ballpark(num_params)} trainable parameters. ", end='')
+# model = nn.DataParallel(model)
+# model.to(device)
 
 
 # Loss function

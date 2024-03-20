@@ -125,7 +125,7 @@ leafmachine:
         detector_type: 'Landmark_Detector_YOLO' 
         detector_version: 'Landmarks'
         detector_iteration: 'Landmarks'
-        detector_weights: 'last.pt'
+        detector_weights: 'best.pt' #'last.pt'
         minimum_confidence_threshold: 0.1
         do_save_prediction_overlay_images: True
         ignore_objects_for_overlay: [] # list[str] # list of objects that can be excluded from the overlay # all = null

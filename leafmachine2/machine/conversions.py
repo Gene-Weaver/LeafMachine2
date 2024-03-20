@@ -51,7 +51,7 @@ def convert_to_cm(unit, unit_value):
 
         return unit_value_converted
 
-
+### ONLY FOR REFERENCE:
 def is_within_tolerance_mm(self, candidate, unknown, ):
         tol = 0.01  # 2.5% tolerance
         upper_bound = candidate * (1 + tol)
@@ -97,7 +97,7 @@ def is_within_tolerance_mm(self, candidate, unknown, ):
                 return 'mm', 'cm'
 
             elif lower_bound <= float(np.multiply(unknown, 1)) <= upper_bound:
-
+                return 'mm', 'mm'
 
             else:
                 return None, None
@@ -134,78 +134,78 @@ def is_within_tolerance_mm(self, candidate, unknown, ):
             else:
                 return None, None
 
-    def is_within_tolerance_cm(self, candidate, unknown):
-        tol = 0.01  # 2.5% tolerance
-        upper_bound = candidate * (1 + tol)
-        lower_bound = candidate * (1 - tol)
+def is_within_tolerance_cm(self, candidate, unknown):
+    tol = 0.01  # 2.5% tolerance
+    upper_bound = candidate * (1 + tol)
+    lower_bound = candidate * (1 - tol)
 
-        if self.is_dual:
-            if lower_bound <= float(np.multiply(np.multiply(unknown, 32), 2.54)) <= upper_bound:     #from_32nd_to_inch_to_cm
-                return 'cm', '32nd'
-            elif lower_bound <= float(np.multiply(np.multiply(unknown, 16), 2.54)) <= upper_bound:         #from_16th_to_inch_to_cm
-                return 'cm', '16th'
-            elif lower_bound <= float(np.multiply(np.multiply(unknown, 8), 2.54)) <= upper_bound:       #from_8th_to_inch_to_cm
-                return 'cm', '8th'
-            elif lower_bound <= float(np.multiply(np.multiply(unknown, 4), 2.54)) <= upper_bound:       #from_4th_to_inch_to_cm
-                return 'cm', '4th'
-            elif lower_bound <= float(np.multiply(np.multiply(unknown, 2), 2.54)) <= upper_bound:      #from_halfinch_to_inch_to_cm
-                return 'cm', 'halfinch'
-            elif lower_bound <= float(np.multiply(np.multiply(unknown, 1), 2.54)) <= upper_bound:          #from_inch_to_inch_to_cm
-                return 'cm', 'inch'
-            
-            elif lower_bound <= float(np.multiply(unknown, 32)) <= upper_bound:         #from_32nd_to_inch
-                return 'inch', '32nd'
-            elif lower_bound <= float(np.multiply(unknown, 16)) <= upper_bound:     #from_16th_to_inch
-                return 'inch', '16th'
-            elif lower_bound <= float(np.multiply(unknown, 8)) <= upper_bound:       #from_8th_to_inch
-                return 'inch', '8th'
-            elif lower_bound <= float(np.multiply(unknown, 4)) <= upper_bound:       #from_4th_to_inch
-                return 'inch', '4th'
-            elif lower_bound <= float(np.multiply(unknown, 2)) <= upper_bound:      #from_halfinch_to_inch
-                return 'inch', 'halfinch'
-            elif lower_bound <= float(np.multiply(unknown, 1)) <= upper_bound:      #from_inch_to_inch
-                return 'inch', 'inch'
+    if self.is_dual:
+        if lower_bound <= float(np.multiply(np.multiply(unknown, 32), 2.54)) <= upper_bound:     #from_32nd_to_inch_to_cm
+            return 'cm', '32nd'
+        elif lower_bound <= float(np.multiply(np.multiply(unknown, 16), 2.54)) <= upper_bound:         #from_16th_to_inch_to_cm
+            return 'cm', '16th'
+        elif lower_bound <= float(np.multiply(np.multiply(unknown, 8), 2.54)) <= upper_bound:       #from_8th_to_inch_to_cm
+            return 'cm', '8th'
+        elif lower_bound <= float(np.multiply(np.multiply(unknown, 4), 2.54)) <= upper_bound:       #from_4th_to_inch_to_cm
+            return 'cm', '4th'
+        elif lower_bound <= float(np.multiply(np.multiply(unknown, 2), 2.54)) <= upper_bound:      #from_halfinch_to_inch_to_cm
+            return 'cm', 'halfinch'
+        elif lower_bound <= float(np.multiply(np.multiply(unknown, 1), 2.54)) <= upper_bound:          #from_inch_to_inch_to_cm
+            return 'cm', 'inch'
+        
+        elif lower_bound <= float(np.multiply(unknown, 32)) <= upper_bound:         #from_32nd_to_inch
+            return 'inch', '32nd'
+        elif lower_bound <= float(np.multiply(unknown, 16)) <= upper_bound:     #from_16th_to_inch
+            return 'inch', '16th'
+        elif lower_bound <= float(np.multiply(unknown, 8)) <= upper_bound:       #from_8th_to_inch
+            return 'inch', '8th'
+        elif lower_bound <= float(np.multiply(unknown, 4)) <= upper_bound:       #from_4th_to_inch
+            return 'inch', '4th'
+        elif lower_bound <= float(np.multiply(unknown, 2)) <= upper_bound:      #from_halfinch_to_inch
+            return 'inch', 'halfinch'
+        elif lower_bound <= float(np.multiply(unknown, 1)) <= upper_bound:      #from_inch_to_inch
+            return 'inch', 'inch'
 
-            elif lower_bound <= float(np.multiply(unknown, 20)) <= upper_bound:          #from_halfmm_to_cm
-                return 'cm', 'halfmm'
-            elif lower_bound <= float(np.multiply(unknown, 10)) <= upper_bound:         #from_mm_to_cm
-                return 'cm', 'mm'
-            elif lower_bound <= float(np.multiply(unknown, 4)) <= upper_bound:         #from_4th_to_cm
-                return 'cm', '4thcm'
-            elif lower_bound <= float(np.multiply(unknown, 2)) <= upper_bound:       #from_halfcm_to_cm
-                return 'cm', 'halfcm'
-            elif lower_bound <= float(np.multiply(unknown, 1)) <= upper_bound:      #from_cm_to_cm
-                return 'cm', 'cm'
-            else:
-                return None, None
+        elif lower_bound <= float(np.multiply(unknown, 20)) <= upper_bound:          #from_halfmm_to_cm
+            return 'cm', 'halfmm'
+        elif lower_bound <= float(np.multiply(unknown, 10)) <= upper_bound:         #from_mm_to_cm
+            return 'cm', 'mm'
+        elif lower_bound <= float(np.multiply(unknown, 4)) <= upper_bound:         #from_4th_to_cm
+            return 'cm', '4thcm'
+        elif lower_bound <= float(np.multiply(unknown, 2)) <= upper_bound:       #from_halfcm_to_cm
+            return 'cm', 'halfcm'
+        elif lower_bound <= float(np.multiply(unknown, 1)) <= upper_bound:      #from_cm_to_cm
+            return 'cm', 'cm'
+        else:
+            return None, None
 
-        # metric
-        elif self.is_metric:
-            if lower_bound <= float(np.multiply(unknown, 20)) <= upper_bound:          #from_halfmm_to_cm
-                return 'cm', 'halfmm'
-            elif lower_bound <= float(np.multiply(unknown, 10)) <= upper_bound:         #from_mm_to_cm
-                return 'cm', 'mm'
-            elif lower_bound <= float(np.multiply(unknown, 4)) <= upper_bound:         #from_4th_to_cm
-                return 'cm', '4thcm'
-            elif lower_bound <= float(np.multiply(unknown, 2)) <= upper_bound:       #from_halfcm_to_cm
-                return 'cm', 'halfcm'
-            elif lower_bound <= float(np.multiply(unknown, 1)) <= upper_bound:      #from_cm_to_cm
-                return 'cm', 'cm'
-            else:
-                return None, None
+    # metric
+    elif self.is_metric:
+        if lower_bound <= float(np.multiply(unknown, 20)) <= upper_bound:          #from_halfmm_to_cm
+            return 'cm', 'halfmm'
+        elif lower_bound <= float(np.multiply(unknown, 10)) <= upper_bound:         #from_mm_to_cm
+            return 'cm', 'mm'
+        elif lower_bound <= float(np.multiply(unknown, 4)) <= upper_bound:         #from_4th_to_cm
+            return 'cm', '4thcm'
+        elif lower_bound <= float(np.multiply(unknown, 2)) <= upper_bound:       #from_halfcm_to_cm
+            return 'cm', 'halfcm'
+        elif lower_bound <= float(np.multiply(unknown, 1)) <= upper_bound:      #from_cm_to_cm
+            return 'cm', 'cm'
+        else:
+            return None, None
 
-        elif self.is_standard:
-            if lower_bound <= float(np.multiply(unknown, 32)) <= upper_bound:         #from_32nd_to_inch
-                return 'inch', '32nd'
-            elif lower_bound <= float(np.multiply(unknown, 16)) <= upper_bound:     #from_16th_to_inch
-                return 'inch', '16th'
-            elif lower_bound <= float(np.multiply(unknown, 8)) <= upper_bound:       #from_8th_to_inch
-                return 'inch', '8th'
-            elif lower_bound <= float(np.multiply(unknown, 4)) <= upper_bound:       #from_4th_to_inch
-                return 'inch', '4th'
-            elif lower_bound <= float(np.multiply(unknown, 2)) <= upper_bound:      #from_halfinch_to_inch
-                return 'inch', 'halfinch'
-            elif lower_bound <= float(np.multiply(unknown, 1)) <= upper_bound:      #from_inch_to_inch
-                return 'inch', 'inch'
-            else:
-                return None, None
+    elif self.is_standard:
+        if lower_bound <= float(np.multiply(unknown, 32)) <= upper_bound:         #from_32nd_to_inch
+            return 'inch', '32nd'
+        elif lower_bound <= float(np.multiply(unknown, 16)) <= upper_bound:     #from_16th_to_inch
+            return 'inch', '16th'
+        elif lower_bound <= float(np.multiply(unknown, 8)) <= upper_bound:       #from_8th_to_inch
+            return 'inch', '8th'
+        elif lower_bound <= float(np.multiply(unknown, 4)) <= upper_bound:       #from_4th_to_inch
+            return 'inch', '4th'
+        elif lower_bound <= float(np.multiply(unknown, 2)) <= upper_bound:      #from_halfinch_to_inch
+            return 'inch', 'halfinch'
+        elif lower_bound <= float(np.multiply(unknown, 1)) <= upper_bound:      #from_inch_to_inch
+            return 'inch', 'inch'
+        else:
+            return None, None

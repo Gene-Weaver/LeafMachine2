@@ -22,7 +22,7 @@ import os
 import sys
 import time
 import shutil
-from parse import parse
+# from parse import parse
 import math
 from collections import OrderedDict
 import itertools
@@ -43,8 +43,8 @@ from torchvision import transforms
 import torchvision as tv
 from torchvision.models import inception_v3
 import skimage.transform
-from peterpy import peter
-from ballpark import ballpark
+# from peterpy import peter
+# from ballpark import ballpark
 
 from .data import csv_collator
 from .data import ScaleImageAndLabel
@@ -55,6 +55,20 @@ from .models import unet_model
 from .metrics import Judge
 from .metrics import make_metric_plots
 from . import utils
+
+import time
+
+class Timer:
+    def __init__(self, msg="Running"):
+        self.msg = msg
+
+    def __enter__(self):
+        print(f"{self.msg}...", end=' ')
+        self.start_time = time.time()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        elapsed_time = time.time() - self.start_time
+        print(f"DONE (took {elapsed_time:.6f} seconds)")
 
 
 # Parse command line arguments
@@ -101,7 +115,7 @@ criterion_training = losses.WeightedHausdorffDistance(resized_height=args.height
                                                       device=device)
 
 # Restore saved checkpoint (model weights)
-with peter("Loading checkpoint"):
+with Timer("Loading checkpoint"):
 
     if os.path.isfile(args.model):
         if args.cuda:
@@ -151,7 +165,8 @@ with peter("Loading checkpoint"):
         model.load_state_dict(state_dict)
         num_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
         print(f"\n\__ loaded checkpoint '{args.model}' "
-              f"with {ballpark(num_params)} trainable parameters")
+            #   f"with {ballpark(num_params)} trainable parameters")
+              f"with {num_params} trainable parameters")
         # print(model)
     else:
         print(f"\n\__  E: no checkpoint found at '{args.model}'")
@@ -347,7 +362,7 @@ os.makedirs(os.path.join(args.out, 'intermediate', 'metrics_plots'),
 
 if args.evaluate:
 
-    with peter("Evauating metrics"):
+    with Timer("Evauating metrics"):
 
         # Output CSV where we will put
         # all our metrics as a function of r and the threshold
