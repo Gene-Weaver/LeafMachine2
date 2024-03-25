@@ -143,6 +143,7 @@ def move_data_to_home(path_release, dir_home, logger):
         'path_landmarks': os.path.join(dir_home, *path_list['path_landmarks'].split('___')),
         'path_YOLO': os.path.join(dir_home, *path_list['path_YOLO'].split('___')),
         'path_segment': os.path.join(dir_home, *path_list['path_segment'].split('___')),
+        'path_version': os.path.join(dir_home, *path_list['path_version'].split('___')),
     }
 
 
@@ -191,8 +192,8 @@ def move_data_to_home(path_release, dir_home, logger):
 
 
     ### PCD LeafPriority
-    source_file = os.path.join(path_release, 'pcd_LeafPriority', 'LeafPriority.pt')
-    destination_dir = paths['path_PCD_LeafPriority']
+    source_file = os.path.join(path_release, 'pcd', 'LeafPriority.pt')
+    destination_dir = paths['path_PCD']
     os.makedirs(destination_dir, exist_ok=True)
     try_move(logger, source_file, destination_dir )
 
@@ -214,6 +215,13 @@ def move_data_to_home(path_release, dir_home, logger):
     ### Segmentation
     source_file = os.path.join(path_release, 'segmentation', 'model_final.pth')
     destination_dir = paths['path_segment']
+    os.makedirs(destination_dir, exist_ok=True)
+    try_move(logger, source_file, destination_dir )
+
+
+    ### Version
+    source_file = os.path.join(path_release, 'version.yml')
+    destination_dir = paths['path_version']
     os.makedirs(destination_dir, exist_ok=True)
     try_move(logger, source_file, destination_dir )
 
