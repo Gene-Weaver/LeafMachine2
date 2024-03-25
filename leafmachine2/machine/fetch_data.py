@@ -262,9 +262,12 @@ import shutil
 def force_move(logger, source_file, destination_dir):
     try:
         # If the file already exists in the destination directory, overwrite it
-        shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
+        destination_file = os.path.join(destination_dir, os.path.basename(source_file))
+        shutil.copy2(source_file, destination_file)
         logger.warning(f"{source_file}\noverwritten in\n{destination_dir}")
         print(f"{source_file}\noverwritten in\n{destination_dir}")
+        # Remove the original file
+        os.remove(source_file)
     except Exception as e:
         # Catch any other exceptions that might occur
         logger.warning(f"[ERROR] occurred while moving:\n{source_file}:\n{str(e)}")
