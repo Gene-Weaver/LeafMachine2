@@ -30,7 +30,7 @@ KP_Test_DELETE/
 leafmachine2/*/.gitignore
 
 /bin/*
-!/bin/version.yml
+/bin/version.yml
 
 leafmachine2/machine/ruler_classifier/
 leafmachine2/machine/wandb/
