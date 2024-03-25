@@ -196,7 +196,7 @@ def move_data_to_home(path_release, dir_home, logger):
 
     ### PCD LeafPriority
     source_file = os.path.join(path_release, 'pcd', 'LeafPriority.pt')
-    destination_dir = paths['path_PCD']
+    destination_dir = paths['path_PCD_LeafPriority']
     os.makedirs(destination_dir, exist_ok=True)
     try_move(logger, source_file, destination_dir )
 
