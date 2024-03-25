@@ -57,7 +57,7 @@ def fetch_data(logger, dir_home, cfg_file_path):
 
 
     if do_fetch:
-        logger.warning(f"Fetching files for version --> {ver['version']}")
+        # logger.warning(f"Fetching files for version --> {ver['version']}")
         path_release = get_weights(dir_home, current, logger)
         if path_release is not None:
             logger.warning(f"Data download successful. Unzipping...")
@@ -71,6 +71,9 @@ def fetch_data(logger, dir_home, cfg_file_path):
         logger.warning(f"--------------------------------")
         logger.warning(f"   LeafMachine2 is up to date   ")
         logger.warning(f"--------------------------------")
+        logger.warning(f"Version file --- {os.path.join(dir_home,'bin','version.yml')}")
+        logger.warning(f"Current version --- {ver['version']}")
+        logger.warning(f"Last updated --- {ver['last_update']}")
 
     return ready_to_use
 
