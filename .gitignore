@@ -26,6 +26,7 @@ runs/
 KP_Test/
 KP_Test_DELETE/
 KP_2024/
+img/icon.ico
 
 
 leafmachine2/*/.gitignore
