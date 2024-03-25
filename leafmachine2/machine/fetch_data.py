@@ -140,7 +140,6 @@ def move_data_to_home(path_release, dir_home, logger):
         'path_ACD': os.path.join(dir_home, *path_list['path_ACD'].split('___')),
         'path_PCD': os.path.join(dir_home, *path_list['path_PCD'].split('___')),
         'path_PCD_LeafPriority': os.path.join(dir_home, *path_list['path_PCD_LeafPriority'].split('___')),
-        'path_PCD_SpecimenPriority': os.path.join(dir_home, *path_list['path_PCD_SpecimenPriority'].split('___')),
         'path_landmarks': os.path.join(dir_home, *path_list['path_landmarks'].split('___')),
         'path_YOLO': os.path.join(dir_home, *path_list['path_YOLO'].split('___')),
         'path_segment': os.path.join(dir_home, *path_list['path_segment'].split('___')),
@@ -197,12 +196,6 @@ def move_data_to_home(path_release, dir_home, logger):
     os.makedirs(destination_dir, exist_ok=True)
     try_move(logger, source_file, destination_dir )
 
-
-    ### PCD SpecimenPriority
-    source_file = os.path.join(path_release, 'pcd_SpecimenPriority', 'best.pt')
-    destination_dir = paths['path_PCD_SpecimenPriority']
-    os.makedirs(destination_dir, exist_ok=True)
-    try_move(logger, source_file, destination_dir )
 
     ### Landmarks
     source_file = os.path.join(path_release, 'landmarks', 'best.pt')

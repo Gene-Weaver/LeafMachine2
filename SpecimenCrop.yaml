@@ -185,9 +185,9 @@ leafmachine:
     plant_component_detector:
         # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
         detector_type: 'Plant_Detector' 
-        detector_version: 'PLANT_GroupAB_200'
-        detector_iteration: 'PLANT_GroupAB_200'
-        detector_weights: 'best.pt'
+        detector_version: 'PLANT_LeafPriority'
+        detector_iteration: 'PLANT_LeafPriority'
+        detector_weights: 'LeafPriority.pt'
         minimum_confidence_threshold: 0.2 # 0.2 = default
         do_save_prediction_overlay_images: True
         ignore_objects_for_overlay: []
