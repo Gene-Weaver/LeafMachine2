@@ -58,7 +58,6 @@ py_cpuinfo>=9.0.0
 pyexiv2>=2.8.1
 Pygments>=2.13.0
 pytest>=8.1.1
-pytorch_lightning>=2.2.1
 PyYAML>=6.0
 PyYAML>=6.0.1
 rapidfuzz>=2.13.7

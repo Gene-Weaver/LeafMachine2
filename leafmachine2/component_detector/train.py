@@ -922,7 +922,7 @@ if __name__ == "__main__":
     wandb.init(project=w_and_b_project,name=name, entity=entity)
     wandb.config = {
         "learning_rate": 0.001,
-        "epochs": 300,
+        "epochs": 1000,
         "batch_size": 14,
         # "upload_dataset": opts.upload_dataset,
         # "bbox_interval": opts.bbox_interval,

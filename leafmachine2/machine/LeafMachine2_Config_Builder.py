@@ -100,7 +100,7 @@ def build_LM2_config():
         'show_segmentations': True,
         'show_landmarks': True,
         'ignore_archival_detections_classes': [],
-        'ignore_plant_detections_classes': ['leaf_whole', 'specimen'], # Could also include 'leaf_partial' and others if needed
+        'ignore_plant_detections_classes': ['leaf_partial',], # Could also include 'leaf_partial' and others if needed
         'ignore_landmark_classes': [],
 
         'line_width_archival': 12, # Previous value given was 2
@@ -115,9 +115,9 @@ def build_LM2_config():
 
     plant_component_detector_section = {
         'detector_type': 'Plant_Detector',
-        'detector_version': 'PLANT_GroupAB_200',
-        'detector_iteration': 'PLANT_GroupAB_200',
-        'detector_weights': 'best.pt',
+        'detector_version': 'PLANT_LeafPriority',
+        'detector_iteration': 'PLANT_LeafPriority',
+        'detector_weights': 'LeafPriority.pt',
         'minimum_confidence_threshold': 0.5, # Default is 0.5
         'do_save_prediction_overlay_images': True,
         'ignore_objects_for_overlay': [] # 'leaf_partial' can be included if needed

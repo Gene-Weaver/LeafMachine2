@@ -87,7 +87,7 @@ leafmachine:
         show_segmentations: True
         show_landmarks: True
         ignore_archival_detections_classes: []
-        ignore_plant_detections_classes: ['leaf_whole', 'specimen'] #['leaf_whole', 'leaf_partial', 'specimen']
+        ignore_plant_detections_classes: ['leaf_partial',] #['leaf_whole', 'leaf_partial', 'specimen']
         ignore_landmark_classes: []
 
         line_width_archival: 12 # int 2
@@ -100,13 +100,25 @@ leafmachine:
         alpha_transparency_seg_partial_leaf: 0.3
 
     # Configure Plant Component Detector
+    # Update March 22, 2024
+    # Choose from these setting:
+    #     if PCD_version == "Original (Version 2.1)":
+    #          st.session_state.config['leafmachine']['plant_component_detector']['detector_type'] = 'Plant_Detector'
+    #          st.session_state.config['leafmachine']['plant_component_detector']['detector_version'] = 'PLANT_GroupAB_200'
+    #          st.session_state.config['leafmachine']['plant_component_detector']['detector_iteration'] = 'PLANT_GroupAB_200'
+    #          st.session_state.config['leafmachine']['plant_component_detector']['detector_weights'] = 'best.pt'
+    #      elif PCD_version == "LeafPriority (Version 2.2)": 
+    #          st.session_state.config['leafmachine']['plant_component_detector']['detector_type'] = 'Plant_Detector'
+    #          st.session_state.config['leafmachine']['plant_component_detector']['detector_version'] = 'PLANT_LeafPriority'
+    #          st.session_state.config['leafmachine']['plant_component_detector']['detector_iteration'] = 'PLANT_LeafPriority'
+    #          st.session_state.config['leafmachine']['plant_component_detector']['detector_weights'] = 'LeafPriority.pt'
     plant_component_detector:
         # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
         detector_type: 'Plant_Detector' 
-        detector_version: 'PLANT_GroupAB_200'
-        detector_iteration: 'PLANT_GroupAB_200'
-        detector_weights: 'best.pt'
-        minimum_confidence_threshold: 0.3 # 0.5 = default
+        detector_version: 'PLANT_LeafPriority'
+        detector_iteration: 'PLANT_LeafPriority'
+        detector_weights: 'LeafPriority.pt'
+        minimum_confidence_threshold: 0.5 # 0.5 = default
         do_save_prediction_overlay_images: True
         ignore_objects_for_overlay: [] #['leaf_partial'] # list[str] # list of objects that can be excluded from the overlay # all = null
     
@@ -218,18 +230,18 @@ leafmachine:
         ruler_directory: 'D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_CroppedAnnotations_Group1_Partial/PREP/Ruler' 
 
     component_detector_train:
-        plant_or_archival: 'ARCHIVAL' # str |FROM| 'PLANT' or 'ARCHIVAL' or 'LANDMARK' or 'ARM'
+        plant_or_archival: 'PLANT' # str |FROM| 'PLANT' or 'ARCHIVAL' or 'LANDMARK' or 'ARM'
         model_options:
-            data: '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/PREP_final/PREP_final.yaml' #'/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks_Arm/Landmarks_Arm.yaml' # 'D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/PLANT_Botany_Small/PLANT_Botany_Small.yaml'
+            data: '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/PLANT_Group3_EverythingSomeNotReviewed/PLANT_Group3_EverythingSomeNotReviewed.yaml' #'/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/Landmarks_Arm/Landmarks_Arm.yaml' # 'D:/Dropbox/LeafMachine2/leafmachine2/component_detector/datasets/PLANT_Botany_Small/PLANT_Botany_Small.yaml'
             project: null # str |DEFAULT| 'runs/train'
-            name: 'Archival_Nano' # str |DEFAULT| 'exp'     #PLANT_GroupAB_200
-            weights: '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/architecture/yolov5n.pt' #'/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Landmark_Detector_YOLO/Landmarks/Landmarks/weights/best.pt' #'/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Landmark_Detector_YOLO/Landmarks/Landmarks2/weights/best.pt' # '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Plant_Detector/PLANT_GroupA/weights/best.pt' # '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Plant_Detector/PLANT_GroupB/PLANT_GroupB/weights/last.pt' # null # str |DEFAULT| yolov5x6.pt |FROM| small to big: yolov5n yolov5s yolov5m yolov5l yolov5x yolov5x6 
+            name: 'PLANT_Group3_EverythingSomeNotReviewed' # str |DEFAULT| 'exp'     #PLANT_GroupAB_200
+            weights: '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Plant_Detector/PLANT_GroupAB_200/PLANT_GroupAB_200/weights/best.pt' #'/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/architecture/yolov5n.pt' #'/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Landmark_Detector_YOLO/Landmarks/Landmarks/weights/best.pt' #'/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Landmark_Detector_YOLO/Landmarks/Landmarks2/weights/best.pt' # '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Plant_Detector/PLANT_GroupA/weights/best.pt' # '/home/brlab/Dropbox/LeafMachine2/leafmachine2/component_detector/runs/train/Plant_Detector/PLANT_GroupB/PLANT_GroupB/weights/last.pt' # null # str |DEFAULT| yolov5x6.pt |FROM| small to big: yolov5n yolov5s yolov5m yolov5l yolov5x yolov5x6 
             optimizer: null # str SGD |FROM| 'SGD', 'Adam', 'AdamW'
-            epochs: 1000 # int |DEFAULT| 300 | normally 200 for landmarks, 1000 for bboxes
-            batch_size: 14 # int |DEAFULT| 8 # 14 for 48GB VRAM
+            epochs: 200 # int |DEFAULT| 300 | normally 200 for landmarks, 200 for bboxes
+            batch_size: 28 # int |DEAFULT| 8 # 14 for 48GB VRAM
             patience: 0 # int |DEFAULT| 100
             save_period: 10 # int |DEFAULT| 1
-            imgsz: 256 # int |DEFAULT| 512 #1280
+            imgsz: 1280 # int |DEFAULT| 512 #1280
             workers: null # int |DEFAULT| 8
             hyp: null # str |DEFAULT| 'data/hyps/hyp.scratch-low.yaml' |FROM| /data/hyps/
             resume: null # bool |DEFAULT| False

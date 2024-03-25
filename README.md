@@ -101,7 +101,7 @@ For more detailed instructions, see below.
     <pre><code class="language-python">which python</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 2. Then create the virtual environment (venv_LM2 is the name of our new virtual environment)  
-    <pre><code class="language-python">python3 -m venv venv_LM2</code></pre>
+    <pre><code class="language-python">python -m venv venv_LM2</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 3. Activate the virtual environment  
     <pre><code class="language-python">source ./venv_LM2/bin/activate</code></pre>
@@ -116,10 +116,10 @@ For more detailed instructions, see below.
 ### Installing Packages
 1.  First, update pip, wheel, setuptools
     With the venv active, install wheel 
-        <pre><code class="language-python">python3 -m pip install wheel</code></pre>
+        <pre><code class="language-python">python -m pip install wheel</code></pre>
         <button class="btn" data-clipboard-target="#code-snippet"></button>
     Update pip and setuptools
-        <pre><code class="language-python">python3 -m pip install --upgrade pip setuptools</code></pre>
+        <pre><code class="language-python">python -m pip install --upgrade pip setuptools</code></pre>
         <button class="btn" data-clipboard-target="#code-snippet"></button>
 
 2. Install the required dependencies to use LeafMachine2  
@@ -160,7 +160,7 @@ For more detailed instructions, see below.
     <pre><code class="language-python">python --version</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 2. Then create the virtual environment (venv_LM2 is the name of our new virtual environment)  
-    <pre><code class="language-python">python3 -m venv venv_LM2</code></pre>
+    <pre><code class="language-python">python -m venv venv_LM2</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 3. Activate the virtual environment  
     <pre><code class="language-python">.\venv_LM2\Scripts\activate</code></pre>

@@ -4,6 +4,8 @@ PRIVATE_DATA.yaml
 *PRIVATE_DATA*
 *PRIVATE*
 LeafMachine2_TRAINING_ONLY.yaml
+LeafMachine2 copy.yaml
+LeafMachine2 copy 2.yaml
 LeafMachine2_TEMPLATE.yaml
 LeafMachine2_WW.yaml
 yolov8x-pose.pt

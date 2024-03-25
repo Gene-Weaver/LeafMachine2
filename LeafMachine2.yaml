@@ -100,8 +100,7 @@ leafmachine:
     ignore_archival_detections_classes: []
     ignore_landmark_classes: []
     ignore_plant_detections_classes:
-    - leaf_whole
-    - specimen
+    - leaf_partial
     line_width_archival: 12
     line_width_efd: 12
     line_width_plant: 12
@@ -109,8 +108,7 @@ leafmachine:
     overlay_background_color: black
     overlay_dpi: 300
     save_cropped_annotations:
-    - leaf_whole
-    - specimen
+    - leaf_partial
     save_overlay_to_jpgs: true
     save_overlay_to_pdf: true
     show_archival_detections: true
@@ -118,22 +116,23 @@ leafmachine:
     show_plant_detections: true
     show_segmentations: true
   plant_component_detector:
-    detector_iteration: PLANT_GroupAB_200
+    detector_iteration: PLANT_LeafPriority
     detector_type: Plant_Detector
-    detector_version: PLANT_GroupAB_200
-    detector_weights: best.pt
+    detector_version: PLANT_LeafPriority
+    detector_weights: LeafPriority.pt
     do_save_prediction_overlay_images: true
     ignore_objects_for_overlay: []
-    minimum_confidence_threshold: 0.2
+    ignore_plant_detections_classes: []
+    minimum_confidence_threshold: 0.5
   print:
     optional_warnings: true
     verbose: true
   project:
     GBIF_mode: all
     batch_size: 100
-    dir_images_local: D:\Dropbox\ALOT\Will\FieldPrism_test
+    dir_images_local: D:\Dropbox\LM2_Env\Image_Datasets\Test_Cases_Bry
     dir_images_subset: ''
-    dir_output: D:\Dropbox\ALOT\Will\
+    dir_output: D:\Dropbox\ALOT\Will\FieldPrism_test_out
     image_location: local
     n_images_per_species: 10
     num_workers: 4
@@ -143,7 +142,7 @@ leafmachine:
     path_images_csv_local: null
     path_occurrence_csv_local: null
     process_subset_of_images: false
-    run_name: FieldPrism_test_out
+    run_name: test_leafpriority
     species_list: ''
     use_existing_archival_component_detections: null
     use_existing_plant_component_detections: null

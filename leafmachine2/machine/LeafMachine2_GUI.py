@@ -373,7 +373,7 @@ with tab_component:
     
     st.write("---")    
     st.header('Plant Components')
-    PCD_version = st.selectbox("Plant Component Detector (PCD) Version", ["Version 2.1", "Version 2.2"])
+    PCD_version = st.selectbox("Plant Component Detector (PCD) Version", ["LeafPriority (Version 2.2)", "Original (Version 2.1)"])
     
     PCD_confidence_default = int(st.session_state.config['leafmachine']['plant_component_detector']['minimum_confidence_threshold'] * 100)
     PCD_confidence = st.number_input("PCD Confidence Threshold (%)", min_value=0, max_value=100,value=PCD_confidence_default)
@@ -386,16 +386,16 @@ with tab_component:
                 default=[])
 
     # Depending on the selected version, set the configuration
-    if PCD_version == "Version 2.1":
+    if PCD_version == "Original (Version 2.1)":
         st.session_state.config['leafmachine']['plant_component_detector']['detector_type'] = 'Plant_Detector'
         st.session_state.config['leafmachine']['plant_component_detector']['detector_version'] = 'PLANT_GroupAB_200'
         st.session_state.config['leafmachine']['plant_component_detector']['detector_iteration'] = 'PLANT_GroupAB_200'
         st.session_state.config['leafmachine']['plant_component_detector']['detector_weights'] = 'best.pt'
-    elif PCD_version == "Version 2.2": #TODO update this to version 2.2
+    elif PCD_version == "LeafPriority (Version 2.2)": 
         st.session_state.config['leafmachine']['plant_component_detector']['detector_type'] = 'Plant_Detector'
-        st.session_state.config['leafmachine']['plant_component_detector']['detector_version'] = 'PLANT_GroupAB_200'
-        st.session_state.config['leafmachine']['plant_component_detector']['detector_iteration'] = 'PLANT_GroupAB_200'
-        st.session_state.config['leafmachine']['plant_component_detector']['detector_weights'] = 'best.pt'
+        st.session_state.config['leafmachine']['plant_component_detector']['detector_version'] = 'PLANT_LeafPriority'
+        st.session_state.config['leafmachine']['plant_component_detector']['detector_iteration'] = 'PLANT_LeafPriority'
+        st.session_state.config['leafmachine']['plant_component_detector']['detector_weights'] = 'LeafPriority.pt'
 
 
 
@@ -519,11 +519,11 @@ with tab_overlay:
 
     with col_viz_3:
         st.subheader("Hide from overlay image:")
-        default_ignore_plant = st.session_state.config['leafmachine']['overlay'].get('save_cropped_annotations', ['leaf_whole','specimen'])
+        default_ignore_plant = st.session_state.config['leafmachine']['overlay'].get('save_cropped_annotations', ['leaf_partial'])
         default_ignore_archival = st.session_state.config['leafmachine']['overlay'].get('ignore_archival_detections_classes', [])
         default_ignore_landmark = st.session_state.config['leafmachine']['overlay'].get('ignore_landmark_classes', [])
 
-        st.session_state.config['leafmachine']['overlay']['save_cropped_annotations'] = st.multiselect("Hide plant components",  
+        st.session_state.config['leafmachine']['overlay']['ignore_plant_detections_classes'] = st.multiselect("Hide plant components",  
                 ['leaf_whole', 'leaf_partial', 'leaflet', 'seed_fruit_one', 'seed_fruit_many', 'flower_one', 'flower_many', 'bud','specimen','roots','wood'],
                 default=default_ignore_plant)
         

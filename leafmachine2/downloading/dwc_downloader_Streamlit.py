@@ -198,6 +198,13 @@ def download_images():
     # Create input fields
     st.session_state.DWC_folder_containing_records = st.text_input("Folder Containing DWC Records",value=st.session_state.output_folder)
 
+    st.session_state.is_custom_download = st.checkbox("Is a custom download", value=False)
+    if st.session_state.is_custom_download:
+        st.session_state.custom_download_url_column = st.text_input("Custom Download URL column",value="", placeholder="Column_Name")
+    else:
+        st.session_state.custom_download_url_column = None
+
+    st.markdown("If the url and occ is in the same file, enter the same file name for both occ and img.")
     st.session_state.DWC_occ_name = st.text_input("DWC Occurrence File Name",value=st.session_state.DWC_occ_name)
 
     st.session_state.DWC_img_name = st.text_input("DWC Multimedia File Name",value=st.session_state.DWC_img_name)
@@ -259,12 +266,16 @@ def download_images():
                 'n_threads': st.session_state.DWC_n_threads,
                 'ignore_banned_herb': False,
                 # 'banned_url_stems': [], #['mediaphoto.mnhn.fr'] # ['mediaphoto.mnhn.fr', 'stock.images.gov'] etc....
-                'is_custom_file': False,
+                'is_custom_file': st.session_state.is_custom_download,
+                'custom_url_column_name': st.session_state.custom_download_url_column,
                 # 'col_url': 'url',
                 # 'col_name': 'lab_code',
             }
             ######################################################################################################
-            new_filename = create_subset_file(cfg)
+            if not st.session_state.is_custom_download:
+                new_filename = create_subset_file(cfg)
+            else:
+                new_filename = st.session_state.DWC_occ_name
             cfg['filename_occ'] = new_filename
             cfg['dir_destination_images'] = os.path.join(path, 'img_subset')
             ######################################################################################################
@@ -405,6 +416,11 @@ if 'progress_bar_current' not in st.session_state:
 
 if 'download_jobs' not in st.session_state:
     st.session_state.download_jobs = []
+
+if 'is_custom_download' not in st.session_state:
+    st.session_state.is_custom_download = False
+if 'custom_download_url_column' not in st.session_state:
+    st.session_state.custom_download_url_column = None
 
 if 'family' not in st.session_state:
     st.session_state.family = None

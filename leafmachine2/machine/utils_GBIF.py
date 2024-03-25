@@ -16,6 +16,7 @@ from collections import defaultdict
 import streamlit
 import random
 from tqdm import tqdm
+from bs4 import BeautifulSoup
 
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
@@ -119,9 +120,25 @@ class ImageCandidate:
             response = session.get(self.url, stream=True, timeout=1.0)
             response.raise_for_status()  # Check for HTTP errors
 
-            img = Image.open(response.raw)
-            self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)
-            print(f"{bcolors.OKGREEN}                SUCCESS{bcolors.ENDC}")
+            # Check if the content-type of the response is an image
+            if 'image' in response.headers['Content-Type']:
+                img = Image.open(response.raw)
+                self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)
+                print(f"{bcolors.OKGREEN}                SUCCESS{bcolors.ENDC}")
+            else:
+                # The content is not an image, use BeautifulSoup to find the image link
+                soup = BeautifulSoup(response.content, 'html.parser')
+                image_link = soup.find('a', text='Open Large Image')
+                if image_link and 'href' in image_link.attrs:
+                    image_url = image_link['href']
+                    # Ensure the URL is absolute
+                    image_url = requests.compat.urljoin(response.url, image_url)
+                    # Fetch and save the image
+                    image_response = session.get(image_url, stream=True)
+                    image_response.raise_for_status()
+                    img = Image.open(image_response.raw)
+                    self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)
+                    print(f"{bcolors.OKGREEN}                SUCCESS{bcolors.ENDC}")
 
         except requests.exceptions.HTTPError as http_err:
             print(f"{bcolors.FAIL}                HTTP Error --> {http_err}{bcolors.ENDC}")
@@ -941,23 +958,25 @@ def download_all_images_in_images_csv(cfg):
     validate_dir(dir_destination)
     validate_dir(dir_destination_csv)
     
-    if cfg['is_custom_file']:
-        download_from_custom_file(cfg)
-    else:
-        # Get DWC files
-        occ_df, images_df = read_DWC_file(cfg)
+    # if cfg['is_custom_file']:
+        # download_from_custom_file(cfg)
+    # else:
+    # Get DWC files
+    occ_df, images_df = read_DWC_file(cfg)
 
-        # Report summary
-        print(f"{bcolors.BOLD}Beginning of images file:{bcolors.ENDC}")
-        print(images_df.head())
-        print(f"{bcolors.BOLD}Beginning of occurrence file:{bcolors.ENDC}")
-        print(occ_df.head())
+    # Report summary
+    print(f"{bcolors.BOLD}Beginning of images file:{bcolors.ENDC}")
+    print(images_df.head())
+    print(f"{bcolors.BOLD}Beginning of occurrence file:{bcolors.ENDC}")
+    print(occ_df.head())
 
-        # Ignore problematic Herbaria
-        if cfg['ignore_banned_herb']:
-            for banned_url in cfg['banned_url_stems']:
-                images_df = images_df[~images_df['identifier'].str.contains(banned_url, na=False)]
+    # Ignore problematic Herbaria
+    if cfg['ignore_banned_herb']:
+        for banned_url in cfg['banned_url_stems']:
+            images_df = images_df[~images_df['identifier'].str.contains(banned_url, na=False)]
 
+
+    if not cfg['is_custom_file']:
         ### TODO NEW, needs to match the gbif version
         # Find common 'id' values in both dataframes
         common_ids = set(occ_df['id']).intersection(set(images_df['coreid']))
@@ -965,14 +984,14 @@ def download_all_images_in_images_csv(cfg):
         # Filter both dataframes to keep only rows with these common 'id' values
         # occ_df_filtered = occ_df[occ_df['id'].isin(common_ids)]
         images_df = images_df[images_df['coreid'].isin(common_ids)]
-        
-        # Report summary
-        n_imgs = images_df.shape[0]
-        n_occ = occ_df.shape[0]
-        print(f"{bcolors.BOLD}Number of images in images file: {n_imgs}{bcolors.ENDC}")
-        print(f"{bcolors.BOLD}Number of occurrence to search through: {n_occ}{bcolors.ENDC}")
+    
+    # Report summary
+    n_imgs = images_df.shape[0]
+    n_occ = occ_df.shape[0]
+    print(f"{bcolors.BOLD}Number of images in images file: {n_imgs}{bcolors.ENDC}")
+    print(f"{bcolors.BOLD}Number of occurrence to search through: {n_occ}{bcolors.ENDC}")
 
-        results = process_image_batch(cfg, images_df, occ_df)
+    results = process_image_batch(cfg, images_df, occ_df)
 
 def process_image_batch(cfg, images_df, occ_df):
     futures_list = []
@@ -1153,7 +1172,10 @@ def process_each_image_row(cfg, image_row, occ_df, lock):
 
     print(f"{bcolors.BOLD}Working on image: {image_row[id_column]}{bcolors.ENDC}")
     gbif_id = image_row[id_column]
-    gbif_url = image_row['identifier'] 
+    if cfg['is_custom_file']:
+        gbif_url = image_row[cfg['custom_url_column_name']]
+    else:
+        gbif_url = image_row['identifier'] 
 
     occ_row = find_gbifID(gbif_id,occ_df)
 
