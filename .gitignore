@@ -25,6 +25,7 @@ tests/
 runs/
 KP_Test/
 KP_Test_DELETE/
+KP_2024/
 
 
 leafmachine2/*/.gitignore

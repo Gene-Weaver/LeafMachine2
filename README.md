@@ -3,8 +3,7 @@
 Table of Contents
 =================
 
-* [Table of Contents](#table-of-contents)
-* [Updates :rocket: (March 18, 2024)](#updates-march-18-2024)
+* [Updates (March 25, 2024)](#updates-march-25-2024)
 * [Installing LeafMachine2](#installing-leafmachine2)
    * [Prerequisites](#prerequisites)
    * [Hardware](#hardware)
@@ -22,7 +21,7 @@ Table of Contents
 * [Using LeafMachine2](#using-leafmachine2)
    * [LeafMachine2 Data Cleaning and Prep (preprocessing steps to be aware of)](#leafmachine2-data-cleaning-and-prep-preprocessing-steps-to-be-aware-of)
    * [LeafMachine2 Configuration File](#leafmachine2-configuration-file)
-      * [Quick Start :star:](#quick-start)
+      * [Quick Start](#quick-start)
       * [Primary options (project)](#primary-options-project)
       * [Secondary (project)](#secondary-project)
       * [Primary options (cropped_components)](#primary-options-cropped_components)
@@ -33,22 +32,25 @@ Table of Contents
       * [Primary options (landmark_detector)](#primary-options-landmark_detector)
       * [Primary options (ruler_detection)](#primary-options-ruler_detection)
       * [Primary options (leaf_segmentation)](#primary-options-leaf_segmentation)
-   * [SpecimenCrop - Removing blank space from images](#specimencrop-configuration-guide)
-        * [Before and After :camera:](#before-and-after)
-        * [Example Workflow](#example-workflow)
-        * [Important Arguments](#important-arguments)
-        * [Configuration Settings](#configuration-settings)
+   * [SpecimenCrop Configuration Guide](#specimencrop-configuration-guide)
+      * [Before and After](#before-and-after)
+      * [Example Workflow](#example-workflow)
+      * [Important Arguments](#important-arguments)
+      * [Configuration Settings](#configuration-settings)
    * [Downloading Images from GBIF](#downloading-images-from-gbif)
+      * [An interactive Streamlit GUI is in the works, stay tuned!](#an-interactive-streamlit-gui-is-in-the-works-stay-tuned)
+
 
 ---
 
-# Updates (March 18, 2024)
-* March 18, 2024 :rocket:
+# Updates (March 25, 2024)
+* March 25, 2024 :rocket:
     * Many, many changes. I recommend creating a new venv to use the updated LM2.
     * Added a Streamlit GUI
         * Run the `run_LeafMachine2.py` script to launch the GUI
         * Activate the virtual env, then `python run_LeafMachine2.py`
     * Fixed installation bugs
+    * New PCD LeafPriority detector. This drammatically improves LeafMachine2's leaf detection ability and all other downstream components. Please see [the LeafMachine2 website for more information](https://leafmachine.org/). The new PCD is the new default. The new model will be downloaded automatically when you update your installation with a `git pull` or with a clean installation. 
 
 > **Note:** To get the latest updates, use `cd` to move into your LeafMachine2 directory, build and activate your virtual environment, then run `git pull`. We recommend rebuilding your venv from scratch for this update. If you made local changes to your repo, you may have to stash or --force overwrite your local changes (or just install LM2 in a new local directory).
 
