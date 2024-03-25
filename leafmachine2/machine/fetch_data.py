@@ -52,8 +52,8 @@ def fetch_data(logger, dir_home, cfg_file_path):
         logger.warning(f"   Downloading data files...    ")
         logger.warning(f"--------------------------------")
         logger.warning(f"Version file --- {os.path.join(dir_home,'bin','version.yml')}")
-        logger.warning(f"Current version --- {ver['version']}")
-        logger.warning(f"Last updated --- {ver['last_update']}")
+        # logger.warning(f"Current version --- {ver['version']}")
+        # logger.warning(f"Last updated --- {ver['last_update']}")
 
 
     if do_fetch:
