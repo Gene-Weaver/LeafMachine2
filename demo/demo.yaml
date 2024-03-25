@@ -97,10 +97,10 @@ leafmachine:
     plant_component_detector:
         # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
         detector_type: 'Plant_Detector' 
-        detector_version: 'PLANT_GroupAB_200'
-        detector_iteration: 'PLANT_GroupAB_200'
-        detector_weights: 'best.pt'
-        minimum_confidence_threshold: 0.1 
+        detector_version: 'PLANT_LeafPriority'
+        detector_iteration: 'PLANT_LeafPriority'
+        detector_weights: 'LeafPriority.pt'
+        minimum_confidence_threshold: 0.5 
         do_save_prediction_overlay_images: True
         ignore_objects_for_overlay: [] #['leaf_partial'] # list[str] # list of objects that can be excluded from the overlay # all = null
     
