@@ -223,10 +223,10 @@ def move_data_to_home(path_release, dir_home, logger):
 
 
     ### Version
-    source_file = os.path.join(path_release, 'version.yml')
+    source_file = os.path.join(path_release, 'release_v-2-2', 'version.yml')
     destination_dir = paths['path_version']
     os.makedirs(destination_dir, exist_ok=True)
-    try_move(logger, source_file, destination_dir )
+    force_move(logger, source_file, destination_dir )
 
 def git_pull_no_clean():
     # Define the git command to run
@@ -256,6 +256,29 @@ def try_move(logger, source_file, destination_dir ):
         # Catch any other exceptions that might occur
         logger.warning(f"[ERROR] occurred while moving:\n{source_file}:\n{str(e)}")
         print(f"ERROR occurred while moving:\n{source_file}:\n{str(e)}")
+
+import shutil
+
+def force_move(logger, source_file, destination_dir):
+    try:
+        # Move the file using shutil.move()
+        shutil.move(source_file, destination_dir)
+        logger.warning(f"{source_file}\nmoved to\n{destination_dir}")
+        print(f"{source_file}\nmoved to\n{destination_dir}")
+    except FileExistsError:
+        try:
+            # If the file already exists in the destination directory, overwrite it
+            shutil.move(source_file, destination_dir, copy_function=shutil.copy2)
+            logger.warning(f"{source_file}\noverwritten in\n{destination_dir}")
+            print(f"{source_file}\noverwritten in\n{destination_dir}")
+        except Exception as e:
+            logger.warning(f"[ERROR] occurred while overwriting:\n{source_file}:\n{str(e)}")
+            print(f"ERROR occurred while overwriting:\n{source_file}:\n{str(e)}")
+    except Exception as e:
+        # Catch any other exceptions that might occur
+        logger.warning(f"[ERROR] occurred while moving:\n{source_file}:\n{str(e)}")
+        print(f"ERROR occurred while moving:\n{source_file}:\n{str(e)}")
+
 
 class bcolors:
     HEADER = '\033[95m'
