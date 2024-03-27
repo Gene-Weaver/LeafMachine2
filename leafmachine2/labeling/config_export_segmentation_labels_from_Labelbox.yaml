@@ -1,6 +1,6 @@
-dir_export_base: 'D:\Dropbox\LM2_Env\Image_Datasets\GroundTruth_SEG_GroupB_5643' #'D:\Dropbox\LeafMachine2\data\archival_component_detector_data\final'
+dir_export_base: 'D:\Dropbox\LM2_Env\Image_Datasets\GroundTruth_SEG_Group3' #'D:\Dropbox\LeafMachine2\data\archival_component_detector_data\final'
 
-project_name: 'GroundTruth_SEG_GroupB'
+project_name: 'GroundTruth_SEG_Group3'
 
 
 accumulate_all_projects_in_run: True
@@ -17,10 +17,10 @@ partition_ratio: 0.90 # percent sent to training set
 
 include_annotations: [] # PLANT # [] for all labels
 annotation_type_to_export: ['SEG'] # 'SEG'
-include_projects: ['SEG_GroundTruth-Leaf_WHOLE_Group1-Partial']
+include_projects: ['SEG_GBIF_BigLeaf','SEG_GBIF_BigLeaf_Fagaceae_Quercus','SEG_GroundTruth-Leaf_WHOLE_Group1-Partial']
 ignore_projects: []
 
-
+#GroundTruth_SEG_Group3 = ['SEG_GBIF_BigLeaf','SEG_GBIF_BigLeaf_Fagaceae_Quercus','SEG_GroundTruth-Leaf_WHOLE_Group1-Partial']
 
 
 

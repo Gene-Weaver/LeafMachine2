@@ -65,7 +65,10 @@ class Detector_LM2:
             model_to_use = os.path.join(DIR_MODEL, "model_final.pth")
             self.model_to_use_name = "model_final.pth"
             # print(f'{bcolors.OKCYAN}Using Final Model: "model_final.pth"{bcolors.ENDC}')
-            logger.info(f'Using Final Model: {model_to_use}')
+            try:
+                logger.info(f'Using Final Model: {model_to_use}')
+            except:
+                pass
 
         else:
             candidate = []
@@ -77,7 +80,10 @@ class Detector_LM2:
             self.model_to_use_name = model_list[model_to_use_name]
             model_to_use = os.path.join(DIR_MODEL, self.model_to_use_name)
             # print(f'{bcolors.WARNING}Using Checkpoint Model: {self.model_to_use_name}{bcolors.ENDC}')
-            logger.info(f'Using Checkpoint Model: {self.model_to_use_name}')
+            try:
+                logger.info(f'Using Checkpoint Model: {self.model_to_use_name}')
+            except:
+                pass
 
 
         self.cfg.MODEL.WEIGHTS = model_to_use # "model_final.pth"  # path to the model we just trained

@@ -313,171 +313,171 @@ def export_segmentation(opt):
         print(f"{bcolors.BOLD}      Annotations left to review: {project.review_metrics(None)}{bcolors.ENDC}")
 
         if (project.name in opt.INCLUDE) or (opt.INCLUDE == []):
-            if project.review_metrics(None) >= 0: 
-                sep = '_'
-                annoType = project.name.split('_')[0]
-                setType = project.name.split('_')[1]
-                datasetName = project.name.split('_')[2:]
-                datasetName = sep.join(datasetName)
+            # if project.review_metrics(None) >= 0: 
+            sep = '_'
+            annoType = project.name.split('_')[0]
+            setType = project.name.split('_')[1]
+            datasetName = project.name.split('_')[2:]
+            datasetName = sep.join(datasetName)
 
-                if annoType in opt.RESTRICT_ANNOTYPE:
-                    dirState = False
-                    if opt.CUMMULATIVE:
-                        # Define JSON name
-                        path_LB_json = os.path.join(opt.DIR_JSON,project.name) + '.json'
-                        # Define JSON name, YOLO
-                        dir_seg = opt.DIR_DATASETS
-                        validate_dir(dir_seg)
-                    else:
-                        # Define JSON name
-                        path_LB_json = os.path.join(opt.DIR_JSON,project.name) + '.json'
-                        # Define JSON name, YOLO
-                        dir_seg = os.path.join(opt.DIR_DATASETS,project.name)
+            if annoType in opt.RESTRICT_ANNOTYPE:
+                dirState = False
+                if opt.CUMMULATIVE:
+                    # Define JSON name
+                    path_LB_json = os.path.join(opt.DIR_JSON,project.name) + '.json'
+                    # Define JSON name, YOLO
+                    dir_seg = opt.DIR_DATASETS
+                    validate_dir(dir_seg)
+                else:
+                    # Define JSON name
+                    path_LB_json = os.path.join(opt.DIR_JSON,project.name) + '.json'
+                    # Define JSON name, YOLO
+                    dir_seg = os.path.join(opt.DIR_DATASETS,project.name)
 
-                    # If new dir is created, then continue, or continue from REDO
-                    dirState = redoJSON(path_LB_json)
+                # If new dir is created, then continue, or continue from REDO
+                dirState = redoJSON(path_LB_json)
 
-                    if opt.REDO:
-                        dirState = True
+                if opt.REDO:
+                    dirState = True
 
-                    if dirState:
-                        # Get the labels
-                        labels = project.export_labels()
+                if dirState:
+                    # Get the labels
+                    labels = project.export_labels()
+                    try:
+                        jsonFile = requests.get(labels) 
+                    except:
                         try:
+                            time.sleep(30)
+                            labels = project.export_labels()
+                            jsonFile = requests.get(labels)
+                        except: 
+                            time.sleep(30)
+                            labels = project.export_labels()
                             jsonFile = requests.get(labels) 
-                        except:
+                    jsonFile = jsonFile.json()
+                    # print(jsonFile)
+
+                    '''
+                    Save JSON file in labelbox format
+                    '''
+                    with open(path_LB_json, 'w', encoding='utf-8') as f:
+                        json.dump(jsonFile, f, ensure_ascii=False)
+                    '''
+                    Convert labelbox JSON to YOLO & split into train/val/test
+                    '''
+                    nImgs = len(jsonFile)
+                    if nImgs == 0: # Unstarted datasets
+                        continue
+                    else:
+                        x = np.arange(0,nImgs)
+                        TRAIN,VAL = train_test_split(x, test_size=(1-opt.RATIO), random_state=4)
+                        pc = 0
+                        cc = "yellow"
+                        
+                        path_train_mask = os.path.join(dir_seg,'train','masks')
+                        path_train_image = os.path.join(dir_seg,'train','images')
+
+                        path_val_mask = os.path.join(dir_seg,'val','masks')
+                        path_val_image = os.path.join(dir_seg,'val','images')
+
+                        validate_dir(path_train_mask)
+                        validate_dir(path_train_image)
+                        validate_dir(path_val_mask)
+                        validate_dir(path_val_image)
+
+                        completed_images = os.listdir(path_val_mask)
+
+                        coco_output_train, coco_output_val = build_coco_dict()
+
+                        labelID = 100000
+                        for img in tqdm(jsonFile, desc=f'{bcolors.BOLD}      Converting  >>>  {path_LB_json}{bcolors.ENDC}',colour=cc,position=0):
                             try:
-                                time.sleep(30)
-                                labels = project.export_labels()
-                                jsonFile = requests.get(labels)
-                            except: 
-                                time.sleep(30)
-                                labels = project.export_labels()
-                                jsonFile = requests.get(labels) 
-                        jsonFile = jsonFile.json()
-                        # print(jsonFile)
-
-                        '''
-                        Save JSON file in labelbox format
-                        '''
-                        with open(path_LB_json, 'w', encoding='utf-8') as f:
-                            json.dump(jsonFile, f, ensure_ascii=False)
-                        '''
-                        Convert labelbox JSON to YOLO & split into train/val/test
-                        '''
-                        nImgs = len(jsonFile)
-                        if nImgs == 0: # Unstarted datasets
-                            continue
-                        else:
-                            x = np.arange(0,nImgs)
-                            TRAIN,VAL = train_test_split(x, test_size=(1-opt.RATIO), random_state=4)
-                            pc = 0
-                            cc = "yellow"
-                            
-                            path_train_mask = os.path.join(dir_seg,'train','masks')
-                            path_train_image = os.path.join(dir_seg,'train','images')
-
-                            path_val_mask = os.path.join(dir_seg,'val','masks')
-                            path_val_image = os.path.join(dir_seg,'val','images')
-
-                            validate_dir(path_train_mask)
-                            validate_dir(path_train_image)
-                            validate_dir(path_val_mask)
-                            validate_dir(path_val_image)
-
-                            completed_images = os.listdir(path_val_mask)
-
-                            coco_output_train, coco_output_val = build_coco_dict()
-
-                            labelID = 100000
-                            for img in tqdm(jsonFile, desc=f'{bcolors.BOLD}      Converting  >>>  {path_LB_json}{bcolors.ENDC}',colour=cc,position=0):
-                                try:
-                                    if img['Skipped'] == True:
-                                        continue
-                                    #### enable this to only take reviewed images
-                                    elif (img['Reviews'] == []) and (opt.ONLY_REVIEWED):
-                                        continue
-                                    else:   
-                                        # if (img['Reviews'] == []):
-                                        #     print('UNREVIEWED')
-                                        # imgID += 1 
-                                        img_color_path = img['Labeled Data']
+                                if img['Skipped'] == True:
+                                    continue
+                                #### enable this to only take reviewed images
+                                # elif (img['Reviews'] == []) and (opt.ONLY_REVIEWED):
+                                    # continue
+                                else:   
+                                    # if (img['Reviews'] == []):
+                                    #     print('UNREVIEWED')
+                                    # imgID += 1 
+                                    img_color_path = img['Labeled Data']
+                                    try:
+                                        img_color = Image.open(requests.get(img_color_path, stream=True).raw if img_color_path.startswith('http') else img_color_path)  # open
+                                    except:
                                         try:
+                                            time.sleep(30)
                                             img_color = Image.open(requests.get(img_color_path, stream=True).raw if img_color_path.startswith('http') else img_color_path)  # open
                                         except:
-                                            try:
-                                                time.sleep(30)
-                                                img_color = Image.open(requests.get(img_color_path, stream=True).raw if img_color_path.startswith('http') else img_color_path)  # open
-                                            except:
-                                                time.sleep(30)
-                                                img_color = Image.open(requests.get(img_color_path, stream=True).raw if img_color_path.startswith('http') else img_color_path)  # open
-                                        
-                                        width, height = img_color.size  # image size
-                                        fname_mask = Path(img['External ID']).with_suffix('.png').name
-                                        fname_color = Path(img['External ID']).with_suffix('.jpg').name
+                                            time.sleep(30)
+                                            img_color = Image.open(requests.get(img_color_path, stream=True).raw if img_color_path.startswith('http') else img_color_path)  # open
+                                    
+                                    width, height = img_color.size  # image size
+                                    fname_mask = Path(img['External ID']).with_suffix('.png').name
+                                    fname_color = Path(img['External ID']).with_suffix('.jpg').name
 
-                                        # fname_mask_compare = '__'.join([fname_mask.split('__')[1], fname_mask.split('__')[2]])
+                                    # fname_mask_compare = '__'.join([fname_mask.split('__')[1], fname_mask.split('__')[2]])
 
-                                        # if fname_mask == 'NY_1931248368_Ulmaceae_Ulmus_americana__39.png':
-                                        # if fname_mask_compare not in completed_images:
-                                        if pc in TRAIN:
-                                            image_info_train = pycococreatortools.create_image_info(str(pc), os.path.basename(fname_color), img_color.size)
-                                            image_info_train["annotations"] = []
-                                            image_info_val = [] # so the get_contontour() is happy
-                                        elif pc in VAL:
-                                            image_info_val = pycococreatortools.create_image_info(str(pc), os.path.basename(fname_color), img_color.size)
-                                            image_info_val["annotations"] = []
-                                            image_info_train = []# so the get_contontour() is happy
+                                    # if fname_mask == 'NY_1931248368_Ulmaceae_Ulmus_americana__39.png':
+                                    # if fname_mask_compare not in completed_images:
+                                    if pc in TRAIN:
+                                        image_info_train = pycococreatortools.create_image_info(str(pc), os.path.basename(fname_color), img_color.size)
+                                        image_info_train["annotations"] = []
+                                        image_info_val = [] # so the get_contontour() is happy
+                                    elif pc in VAL:
+                                        image_info_val = pycococreatortools.create_image_info(str(pc), os.path.basename(fname_color), img_color.size)
+                                        image_info_val["annotations"] = []
+                                        image_info_train = []# so the get_contontour() is happy
 
 
-                                        img_all_labels = np.zeros((img_color.size[1],img_color.size[0]), np.uint8)#np.zeros((im.size[1],im.size[0])).astype(np.uint8)
-                                        n_holes = 0
-                                        for anno in img['Label']['objects']:
-                                            labelID +=1
-                                            label_class, label_color = setIndexOfAnnotation(anno['title'])
+                                    img_all_labels = np.zeros((img_color.size[1],img_color.size[0]), np.uint8)#np.zeros((im.size[1],im.size[0])).astype(np.uint8)
+                                    n_holes = 0
+                                    for anno in img['Label']['objects']:
+                                        labelID +=1
+                                        label_class, label_color = setIndexOfAnnotation(anno['title'])
 
-                                            if label_class == 3:
-                                                n_holes += 1
+                                        if label_class == 3:
+                                            n_holes += 1
 
-                                            # retries to deal with labelbox timeouts
-                                            label_img, do_continue = get_label_img_with_retry(anno)
+                                        # retries to deal with labelbox timeouts
+                                        label_img, do_continue = get_label_img_with_retry(anno)
 
-                                            if do_continue:
-                                                img_all_labels, label_bi = convert_PNG_to_COCO_format(img_all_labels, label_img, label_class)                                  
+                                        if do_continue:
+                                            img_all_labels, label_bi = convert_PNG_to_COCO_format(img_all_labels, label_img, label_class)                                  
 
-                                                contours = find_contours(label_bi, 0.5, positive_orientation='low')
-                                                print(fname_mask)
-                                                polygons, segmentations, segmentation = get_contours(labelID, contours, label_class, pc, TRAIN, coco_output_train, image_info_train, VAL, coco_output_val, image_info_val)
+                                            contours = find_contours(label_bi, 0.5, positive_orientation='low')
+                                            print(fname_mask)
+                                            polygons, segmentations, segmentation = get_contours(labelID, contours, label_class, pc, TRAIN, coco_output_train, image_info_train, VAL, coco_output_val, image_info_val)
 
-                                                coco_output_val, image_info_val = create_json_packet(contours, polygons, segmentations, segmentation, labelID, pc, label_class, TRAIN, coco_output_train, image_info_train, VAL, coco_output_val, image_info_val)
+                                            coco_output_val, image_info_val = create_json_packet(contours, polygons, segmentations, segmentation, labelID, pc, label_class, TRAIN, coco_output_train, image_info_train, VAL, coco_output_val, image_info_val)
 
-                                        # Change 0, 1, 2, 3 to a color
-                                        img_all_labels_color = create_color_png(img_all_labels, n_holes)
+                                    # Change 0, 1, 2, 3 to a color
+                                    img_all_labels_color = create_color_png(img_all_labels, n_holes)
 
-                                        # route the images
-                                        if pc in TRAIN:
-                                            img_color.save(os.path.join(path_train_image,fname_color))
-                                            cv2.imwrite(os.path.join(path_train_mask,fname_mask),img_all_labels_color)
-                                        elif pc in VAL:
-                                            img_color.save(os.path.join(path_val_image,fname_color))
-                                            cv2.imwrite(os.path.join(path_val_mask,fname_mask),img_all_labels_color)
+                                    # route the images
+                                    if pc in TRAIN:
+                                        img_color.save(os.path.join(path_train_image,fname_color))
+                                        cv2.imwrite(os.path.join(path_train_mask,fname_mask),img_all_labels_color)
+                                    elif pc in VAL:
+                                        img_color.save(os.path.join(path_val_image,fname_color))
+                                        cv2.imwrite(os.path.join(path_val_mask,fname_mask),img_all_labels_color)
 
-                                        # route the json packet addition
-                                        if pc in TRAIN:
-                                            coco_output_train["images"].append(image_info_train)
-                                        elif pc in VAL:
-                                            coco_output_val["images"].append(image_info_val)
-                                except:
-                                    pass
-                                pc += 1
+                                    # route the json packet addition
+                                    if pc in TRAIN:
+                                        coco_output_train["images"].append(image_info_train)
+                                    elif pc in VAL:
+                                        coco_output_val["images"].append(image_info_val)
+                            except:
+                                pass
+                            pc += 1
 
-                            jsonTrain_Polygons = os.path.join(dir_seg,'train','images',"POLYGONS_train") + '.json'
-                            jsonVal_Polygons = os.path.join(dir_seg,'val','images',"POLYGONS_val") + '.json'
+                        jsonTrain_Polygons = os.path.join(dir_seg,'train','images',"POLYGONS_train") + '.json'
+                        jsonVal_Polygons = os.path.join(dir_seg,'val','images',"POLYGONS_val") + '.json'
 
-                            with open(jsonTrain_Polygons, 'w') as output_json_file:
-                                json.dump(coco_output_train, output_json_file)
-                            with open(jsonVal_Polygons, 'w') as output_json_file:
-                                json.dump(coco_output_val, output_json_file)
+                        with open(jsonTrain_Polygons, 'w') as output_json_file:
+                            json.dump(coco_output_train, output_json_file)
+                        with open(jsonVal_Polygons, 'w') as output_json_file:
+                            json.dump(coco_output_val, output_json_file)
 
 def export_segmentation_labels():
     # Read configs
