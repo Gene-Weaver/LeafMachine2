@@ -100,3 +100,4 @@ aiohttp_retry
 requests
 labelbox
 shapely
+aiofiles
