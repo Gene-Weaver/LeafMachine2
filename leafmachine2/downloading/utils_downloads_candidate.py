@@ -51,9 +51,7 @@ Image.MAX_IMAGE_PIXELS = None
 from leafmachine2.machine.general_utils import bcolors
 
 # Initialize ScraperAPI client
-# SCRAPERAPI_KEY = '8d4c64c348d7013d24ace10641788ad4' # first
-# SCRAPERAPI_KEY = '76c609e453f2bb4ab0f9941e75551cfd' #second
-SCRAPERAPI_KEY = 'c731f8398bba134e903700823347dea5' #stephen
+SCRAPERAPI_KEY = ''
 
 
 USER_AGENTS = [
