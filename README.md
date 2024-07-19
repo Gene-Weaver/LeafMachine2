@@ -138,6 +138,10 @@ For more detailed instructions, see below.
     - WITH GPU 
     <pre><code class="language-python">pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
+    OR 
+    <pre><code class="language-python">pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu121</code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+    
     <!-- - For a newer version of CUDA, like CUDA 12.1, you can install the most recent version:
     <pre><code class="language-python">install torch torchvision torchaudio
     </code></pre>
