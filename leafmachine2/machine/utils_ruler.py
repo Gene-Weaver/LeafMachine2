@@ -21,7 +21,8 @@ from torchvision import *
 from sklearn.cluster import KMeans
 import statistics
 import csv
-
+from threading import Thread
+from queue import Queue
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
 from time import perf_counter
@@ -29,12 +30,15 @@ from binarize_image_ML import DocEnTR
 
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
+parentdir2 = os.path.dirname(os.path.dirname(currentdir))
 sys.path.append(parentdir)
+sys.path.append(parentdir2)
 sys.path.append(currentdir)
 # from machine.general_utils import print_plain_to_console, print_blue_to_console, print_green_to_console, print_warning_to_console, print_cyan_to_console
 # from machine.general_utils import bcolors
+from leafmachine2.analysis.predict_pixel_to_metric_conversion_factor import PolynomialModel
 
-def convert_rulers_testing(dir_rulers, cfg, logger, dir_home, Project, batch, Dirs):
+def convert_rulers_testing(dir_rulers, cfg, time_report, logger, dir_home, Project, batch, Dirs):
     RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
     Labels = DocEnTR()
     model, device = Labels.load_DocEnTR_model(logger)
@@ -130,41 +134,41 @@ def convert_rulers_testing(dir_rulers, cfg, logger, dir_home, Project, batch, Di
     print(f"Total = {acc_total} Error = {acc_error} Correct = {acc_correct}")
     print(f"Accuracy = {acc_correct/acc_total}")
     print(f"True / Incorrect: {incorrect_pair}")
-    return Project
+    return Project, time_report
 
 
 
-def parallel_convert_rulers(cfg, logger, dir_home, Project, batch, Dirs):
-    t1_start = perf_counter()
-    logger.info(f"Converting Rulers in batch {batch+1}")
+# def parallel_convert_rulers(cfg, logger, dir_home, Project, batch, Dirs):
+#     t1_start = perf_counter()
+#     logger.info(f"Converting Rulers in batch {batch+1}")
     
-    num_workers = int(cfg['leafmachine']['project'].get('num_workers', 4))
+#     num_workers = int(cfg['leafmachine']['project'].get('num_workers', 4))
 
-    # Split the keys of Project.project_data_list[batch] among workers
-    keys = list(Project.project_data_list[batch].keys())
-    chunks = [keys[i:i+num_workers] for i in range(0, len(keys), num_workers)]
+#     # Split the keys of Project.project_data_list[batch] among workers
+#     keys = list(Project.project_data_list[batch].keys())
+#     chunks = [keys[i:i+num_workers] for i in range(0, len(keys), num_workers)]
 
-    # Use a shared dictionary to store the results
-    manager = Manager()
-    results_dict = manager.dict()
+#     # Use a shared dictionary to store the results
+#     manager = Manager()
+#     results_dict = manager.dict()
 
-    # Define a partial function to process a single chunk of files
-    process_chunk = partial(process_ruler_chunk, cfg, logger, dir_home, Project, batch, Dirs, results_dict)
+#     # Define a partial function to process a single chunk of files
+#     process_chunk = partial(process_ruler_chunk, cfg, logger, dir_home, Project, batch, Dirs, results_dict)
 
-    with ProcessPoolExecutor(max_workers=num_workers) as executor:
-        # Submit all the chunks for processing
-        futures = [executor.submit(process_chunk, chunk) for chunk in chunks]
+#     with ProcessPoolExecutor(max_workers=num_workers) as executor:
+#         # Submit all the chunks for processing
+#         futures = [executor.submit(process_chunk, chunk) for chunk in chunks]
 
-        # Wait for all the futures to complete
-        for future in futures:
-            future.result()
+#         # Wait for all the futures to complete
+#         for future in futures:
+#             future.result()
 
-    # Update the Project object with the results
-    for filename, results in results_dict.items():
-        Project.project_data_list[batch][filename]['Ruler_Info'] = results
-    t1_stop = perf_counter()
-    logger.info(f"Converting Rulers in batch {batch+1} --- elapsed time: {round(t1_stop - t1_start)} seconds")
-    return Project
+#     # Update the Project object with the results
+#     for filename, results in results_dict.items():
+#         Project.project_data_list[batch][filename]['Ruler_Info'] = results
+#     t1_stop = perf_counter()
+#     logger.info(f"Converting Rulers in batch {batch+1} --- elapsed time: {round(t1_stop - t1_start)} seconds")
+#     return Project
 
 
 def process_ruler_chunk(cfg, logger, dir_home, Project, batch, Dirs, results_dict, keys):
@@ -268,156 +272,329 @@ def process_ruler_single(cfg, logger, dir_home, Project, batch, Dirs, Labels, mo
     return ruler_info
 
 
+def calc_MP(full_image):
+    # Get image dimensions
+    height, width = full_image.shape[:2]
+    
+    # Calculate megapixels
+    megapixels = (height * width) / 1e6
+    return megapixels
+
+''' 5/9/2024 Works, but trying parallele'''
+# def convert_rulers(cfg, logger, dir_home, Project, batch, Dirs):
+#     t1_start = perf_counter()
+#     logger.info(f"Converting Rulers in batch {batch+1}")
+#     RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
+#     Labels = DocEnTR()
+#     model, device = Labels.load_DocEnTR_model(logger)
 
 
-def convert_rulers(cfg, logger, dir_home, Project, batch, Dirs):
+#     poly_model = PolynomialModel()
+#     poly_model.load_polynomial_model()
+#     use_CF_predictor = cfg['leafmachine']['project']['use_CF_predictor']
+#     logger.info(f"use_CF_predictor: cfg['leafmachine']['project']['use_CF_predictor'] = {use_CF_predictor}")
+    
+
+#     for filename, analysis in Project.project_data_list[batch].items():
+#         if len(analysis) != 0:
+#             Project.project_data_list[batch][filename]['Ruler_Info'] = []
+#             Project.project_data_list[batch][filename]['Ruler_Data'] = []
+#             logger.debug(filename)
+#             try:
+#                 full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpg'])))
+#             except:
+#                 full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpeg'])))
+
+            
+#             MP_value = calc_MP(full_image)
+#             predicted_conversion_factor_cm = poly_model.predict_with_polynomial_single(MP_value)
+#             logger.info(f"      Predicted conversion mean for MP={MP_value}: {predicted_conversion_factor_cm}")
+
+
+#             try:
+#                 archival = analysis['Detections_Archival_Components']
+#                 has_rulers = True
+#             except: 
+#                 has_rulers = False
+
+#             if has_rulers:
+#                 height = analysis['height']
+#                 width = analysis['width']
+#                 ruler_list = [row for row in archival if row[0] == 0]
+#                 # print(ruler_list)
+#                 if len(ruler_list) < 1:
+#                     logger.debug('no rulers detected')
+#                 else:
+#                     for ruler in ruler_list:
+#                         ruler_location = yolo_to_position_ruler(ruler, height, width)
+#                         ruler_polygon = [(ruler_location[1], ruler_location[2]), (ruler_location[3], ruler_location[2]), (ruler_location[3], ruler_location[4]), (ruler_location[1], ruler_location[4])]
+#                         # print(ruler_polygon)
+#                         x_coords = [x for x, y in ruler_polygon]
+#                         y_coords = [y for x, y in ruler_polygon]
+
+#                         min_x, min_y = min(x_coords), min(y_coords)
+#                         max_x, max_y = max(x_coords), max(y_coords)
+
+#                         ruler_cropped = full_image[min_y:max_y, min_x:max_x]
+#                         # img_crop = img[min_y:max_y, min_x:max_x]
+#                         loc = '-'.join([str(min_x), str(min_y), str(max_x), str(max_y)])
+#                         ruler_crop_name = '__'.join([filename,'R',loc])
+
+#                         # Get the cropped image using cv2.getRectSubPix
+#                         # ruler_cropped = cv2.getRectSubPix(full_image, (int(ruler_location[3] - ruler_location[1]), int(ruler_location[4] - ruler_location[2])), (points[0][0][0], points[0][0][1]))
+
+#                         Ruler = setup_ruler(Labels, model, device, cfg, Dirs, logger, RulerCFG, ruler_cropped, ruler_crop_name)
+
+#                         Ruler_Info = convert_pixels_to_metric(logger, RulerCFG, Ruler, ruler_crop_name, predicted_conversion_factor_cm, use_CF_predictor, Dirs)
+
+#                         '''
+#                         **************************************
+#                         **************************************
+#                         **************************************
+#                         **************************************
+#                         FINISH THIS. NEED TO EXPORT THE DATA
+#                         **************************************
+#                         **************************************
+#                         **************************************
+#                         **************************************
+#                         '''
+#                         if any(unit in Ruler_Info.conversion_data_all for unit in ['smallCM', 'halfCM', 'mm']):
+#                             units_save = Ruler_Info.conversion_data_all
+#                             if units_save == []:
+#                                 units_save = 0
+#                             plot_points = Ruler_Info.data_list
+#                         else:
+#                             units_save = Ruler_Info.unit_list ##################
+#                             plot_points = 0 ######################
+
+#                         try: # TODO there are some un accounted for variable that are not initialized empty i.e. Ruler_Info.conversion_successful
+#                             Project.project_data_list[batch][filename]['Ruler_Info'].append({
+#                                 'ruler_image_name' : ruler_crop_name,
+#                                 'success' : Ruler_Info.conversion_successful ,
+#                                 'conversion_mean' :  Ruler_Info.conversion_mean ,
+#                                 'predicted_conversion_factor_cm': predicted_conversion_factor_cm,
+#                                 'pooled_sd' :  Ruler_Info.pooled_sd ,
+#                                 'ruler_class' :  Ruler_Info.ruler_class ,
+#                                 'ruler_class_confidence': Ruler_Info.ruler_class_percentage,
+#                                 'units' :  units_save ,
+#                                 'cross_validation_count' :  Ruler_Info.cross_validation_count,
+#                                 'n_scanlines' :  Ruler_Info.conversion_mean_n,
+#                                 'n_data_points_in_avg' :  Ruler_Info.conversion_mean_n_vals ,
+#                                 'avg_tick_width' :  Ruler_Info.avg_width ,
+#                                 'plot_points' : plot_points,
+#                                 'summary_img' : Ruler_Info.summary_image
+#                             })
+#                         except:
+#                             Project.project_data_list[batch][filename]['Ruler_Info'].append({
+#                                 'ruler_image_name' : ruler_crop_name,
+#                                 'success' : False ,
+#                                 'conversion_mean' :  0 ,
+#                                 'predicted_conversion_factor_cm': predicted_conversion_factor_cm,
+#                                 'pooled_sd' :  0 ,
+#                                 'ruler_class' :  'fail' ,
+#                                 'ruler_class_confidence': 0,
+#                                 'units' :  0,
+#                                 'cross_validation_count' :  0,
+#                                 'n_scanlines' :  0,
+#                                 'n_data_points_in_avg' :  0 ,
+#                                 'avg_tick_width' :  0 ,
+#                                 'plot_points' : 0,
+#                                 'summary_img' : ruler_cropped
+#                             })
+#                         # Project = add_ruler_to_Project(Project, batch, Ruler, BlockCandidate, filename, ruler_crop_name) 
+       
+#     t1_stop = perf_counter()
+#     logger.info(f"Converting Rulers in batch {batch+1} --- elapsed time: {round(t1_stop - t1_start)} seconds")
+#     return Project
+def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num_workers=16):
     t1_start = perf_counter()
     logger.info(f"Converting Rulers in batch {batch+1}")
+
+    show_all_logs = False
+
+    # Load shared resources outside the loop
     RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
     Labels = DocEnTR()
     model, device = Labels.load_DocEnTR_model(logger)
+    poly_model = PolynomialModel()
+    poly_model.load_polynomial_model()
 
+    use_CF_predictor = cfg['leafmachine']['project']['use_CF_predictor']
+    num_workers = cfg['leafmachine']['project']['num_workers_ruler']
+    
+    logger.info(f"use_CF_predictor: {use_CF_predictor}")
 
-    for filename, analysis in Project.project_data_list[batch].items():
-        if len(analysis) != 0:
-            Project.project_data_list[batch][filename]['Ruler_Info'] = []
-            Project.project_data_list[batch][filename]['Ruler_Data'] = []
-            logger.debug(filename)
-            try:
-                full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpg'])))
-            except:
-                full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpeg'])))
+    filenames = list(Project.project_data_list[batch].keys())
+    num_files = len(filenames)
+    chunk_size = (num_files + num_workers - 1) // num_workers
 
-            try:
-                archival = analysis['Detections_Archival_Components']
-                has_rulers = True
-            except: 
-                has_rulers = False
+    def worker(queue):
+        while True:
+            filenames_chunk = queue.get()
+            if filenames_chunk is None:  # Stop signal
+                break
 
-            if has_rulers:
-                height = analysis['height']
-                width = analysis['width']
-                ruler_list = [row for row in archival if row[0] == 0]
-                # print(ruler_list)
-                if len(ruler_list) < 1:
-                    logger.debug('no rulers detected')
-                else:
-                    for ruler in ruler_list:
-                        ruler_location = yolo_to_position_ruler(ruler, height, width)
-                        ruler_polygon = [(ruler_location[1], ruler_location[2]), (ruler_location[3], ruler_location[2]), (ruler_location[3], ruler_location[4]), (ruler_location[1], ruler_location[4])]
-                        # print(ruler_polygon)
-                        x_coords = [x for x, y in ruler_polygon]
-                        y_coords = [y for x, y in ruler_polygon]
+            for filename in filenames_chunk:
+                process_filename(filename, cfg, logger, show_all_logs, dir_home, Project, batch, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor)
 
-                        min_x, min_y = min(x_coords), min(y_coords)
-                        max_x, max_y = max(x_coords), max(y_coords)
+            queue.task_done()
 
-                        ruler_cropped = full_image[min_y:max_y, min_x:max_x]
-                        # img_crop = img[min_y:max_y, min_x:max_x]
-                        loc = '-'.join([str(min_x), str(min_y), str(max_x), str(max_y)])
-                        ruler_crop_name = '__'.join([filename,'R',loc])
+    # Setup queue and start workers
+    queue = Queue()
+    workers = []
+    for _ in range(num_workers):
+        t = Thread(target=worker, args=(queue,))
+        t.start()
+        workers.append(t)
 
-                        # Get the cropped image using cv2.getRectSubPix
-                        # ruler_cropped = cv2.getRectSubPix(full_image, (int(ruler_location[3] - ruler_location[1]), int(ruler_location[4] - ruler_location[2])), (points[0][0][0], points[0][0][1]))
+    # Enqueue work
+    for i in range(0, num_files, chunk_size):
+        queue.put(filenames[i:i + chunk_size])
 
-                        Ruler = setup_ruler(Labels, model, device, cfg, Dirs, logger, RulerCFG, ruler_cropped, ruler_crop_name)
+    # Wait for all work to be done
+    queue.join()
 
-                        Ruler_Info = convert_pixels_to_metric(logger, RulerCFG, Ruler, ruler_crop_name, Dirs)
+    # Stop workers
+    for _ in range(num_workers):
+        queue.put(None)
+    for t in workers:
+        t.join()
 
-                        '''
-                        **************************************
-                        **************************************
-                        **************************************
-                        **************************************
-                        FINISH THIS. NEED TO EXPORT THE DATA
-                        **************************************
-                        **************************************
-                        **************************************
-                        **************************************
-                        '''
-                        if any(unit in Ruler_Info.conversion_data_all for unit in ['smallCM', 'halfCM', 'mm']):
-                            units_save = Ruler_Info.conversion_data_all
-                            if units_save == []:
-                                units_save = 0
-                            plot_points = Ruler_Info.data_list
-                        else:
-                            units_save = Ruler_Info.unit_list ##################
-                            plot_points = 0 ######################
-
-                        try: # TODO there are some un accounted for variable that are not initialized empty i.e. Ruler_Info.conversion_successful
-                            Project.project_data_list[batch][filename]['Ruler_Info'].append({
-                                'ruler_image_name' : ruler_crop_name,
-                                'success' : Ruler_Info.conversion_successful ,
-                                'conversion_mean' :  Ruler_Info.conversion_mean ,
-                                'pooled_sd' :  Ruler_Info.pooled_sd ,
-                                'ruler_class' :  Ruler_Info.ruler_class ,
-                                'ruler_class_confidence': Ruler_Info.ruler_class_percentage,
-                                'units' :  units_save ,
-                                'cross_validation_count' :  Ruler_Info.cross_validation_count,
-                                'n_scanlines' :  Ruler_Info.conversion_mean_n,
-                                'n_data_points_in_avg' :  Ruler_Info.conversion_mean_n_vals ,
-                                'avg_tick_width' :  Ruler_Info.avg_width ,
-                                'plot_points' : plot_points,
-                                'summary_img' : Ruler_Info.summary_image
-                            })
-                        except:
-                            Project.project_data_list[batch][filename]['Ruler_Info'].append({
-                                'ruler_image_name' : ruler_crop_name,
-                                'success' : False ,
-                                'conversion_mean' :  0 ,
-                                'pooled_sd' :  0 ,
-                                'ruler_class' :  'fail' ,
-                                'ruler_class_confidence': 0,
-                                'units' :  0,
-                                'cross_validation_count' :  0,
-                                'n_scanlines' :  0,
-                                'n_data_points_in_avg' :  0 ,
-                                'avg_tick_width' :  0 ,
-                                'plot_points' : 0,
-                                'summary_img' : ruler_cropped
-                            })
-                        # Project = add_ruler_to_Project(Project, batch, Ruler, BlockCandidate, filename, ruler_crop_name) 
-       
     t1_stop = perf_counter()
-    logger.info(f"Converting Rulers in batch {batch+1} --- elapsed time: {round(t1_stop - t1_start)} seconds")
-    return Project
+    t_rulers = f"[Converting Rulers elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
+    logger.info(t_rulers)
+    time_report['t_rulers'] = t_rulers
+    return Project, time_report
+
+def process_filename(filename, cfg, logger, show_all_logs, dir_home, Project, batch, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor):
+    analysis = Project.project_data_list[batch][filename]
+    if len(analysis) != 0:
+        Project.project_data_list[batch][filename]['Ruler_Info'] = []
+        Project.project_data_list[batch][filename]['Ruler_Data'] = []
+        logger.debug(filename)
+
+        # Attempt to load the image
+        try:
+            full_image = cv2.imread(os.path.join(Project.dir_images, f"{filename}.jpg"))
+        except FileNotFoundError:
+            full_image = cv2.imread(os.path.join(Project.dir_images, f"{filename}.jpeg"))
+
+        # Calculate MP value and predict conversion factor
+        MP_value = calc_MP(full_image)
+        predicted_conversion_factor_cm = poly_model.predict_with_polynomial_single(MP_value)
+        logger.info(f"Predicted conversion mean for MP={MP_value}: {predicted_conversion_factor_cm}")
+
+        # Detect rulers
+        archival = analysis.get('Detections_Archival_Components', [])
+        has_rulers = len(archival) > 0
+
+        if has_rulers:
+            height, width = analysis['height'], analysis['width']
+            ruler_list = [row for row in archival if row[0] == 0]
+            if len(ruler_list) < 1:
+                logger.debug('No rulers detected')
+            else:
+                for ruler in ruler_list:
+                    # Process each ruler found
+                    ruler_location = yolo_to_position_ruler(ruler, height, width)
+                    ruler_polygon = [
+                        (ruler_location[1], ruler_location[2]), 
+                        (ruler_location[3], ruler_location[2]), 
+                        (ruler_location[3], ruler_location[4]), 
+                        (ruler_location[1], ruler_location[4])
+                    ]
+                    x_coords, y_coords = zip(*ruler_polygon)
+                    min_x, min_y = min(x_coords), min(y_coords)
+                    max_x, max_y = max(x_coords), max(y_coords)
+                    ruler_cropped = full_image[min_y:max_y, min_x:max_x]
+                    loc = '-'.join(map(str, [min_x, min_y, max_x, max_y]))
+                    ruler_crop_name = '__'.join([filename, 'R', loc])
+
+                    Ruler = setup_ruler(Labels, model, device, cfg, Dirs, logger, show_all_logs, RulerCFG, ruler_cropped, ruler_crop_name)
+                    Ruler_Info = convert_pixels_to_metric(logger, show_all_logs, RulerCFG, Ruler, ruler_crop_name, predicted_conversion_factor_cm, use_CF_predictor, Dirs)
+
+                    # Collect and log ruler data
+                    if any(unit in Ruler_Info.conversion_data_all for unit in ['smallCM', 'halfCM', 'mm']):
+                        units_save = Ruler_Info.conversion_data_all if Ruler_Info.conversion_data_all else 0
+                        plot_points = Ruler_Info.data_list
+                    else:
+                        units_save = Ruler_Info.unit_list
+                        plot_points = 0
+
+                    try:
+                        Project.project_data_list[batch][filename]['Ruler_Info'].append({
+                            'ruler_image_name': ruler_crop_name,
+                            'success': Ruler_Info.conversion_successful,
+                            'conversion_mean': Ruler_Info.conversion_mean,
+                            'predicted_conversion_factor_cm': predicted_conversion_factor_cm,
+                            'pooled_sd': Ruler_Info.pooled_sd,
+                            'ruler_class': Ruler_Info.ruler_class,
+                            'ruler_class_confidence': Ruler_Info.ruler_class_percentage,
+                            'units': units_save,
+                            'cross_validation_count': Ruler_Info.cross_validation_count,
+                            'n_scanlines': Ruler_Info.conversion_mean_n,
+                            'n_data_points_in_avg': Ruler_Info.conversion_mean_n_vals,
+                            'avg_tick_width': Ruler_Info.avg_width,
+                            'plot_points': plot_points,
+                            'summary_img': Ruler_Info.summary_image
+                        })
+                    except Exception as e:
+                        logger.error(f"Error while saving ruler info: {e}")
+                        Project.project_data_list[batch][filename]['Ruler_Info'].append({
+                            'ruler_image_name': ruler_crop_name,
+                            'success': False,
+                            'conversion_mean': 0,
+                            'predicted_conversion_factor_cm': predicted_conversion_factor_cm,
+                            'pooled_sd': 0,
+                            'ruler_class': 'fail',
+                            'ruler_class_confidence': 0,
+                            'units': 0,
+                            'cross_validation_count': 0,
+                            'n_scanlines': 0,
+                            'n_data_points_in_avg': 0,
+                            'avg_tick_width': 0,
+                            'plot_points': 0,
+                            'summary_img': ruler_cropped  # storing the cropped image in case of failure
+                        })
+                        logger.error(f"Failed to process ruler data for {filename}: {str(e)}")
 
 
 
-def convert_pixels_to_metric(logger, RulerCFG, Ruler, img_fname, Dirs):#cfg,Ruler,imgPath,fName,dirSave,dir_ruler_correction,pathToModel,labelNames):
+
+def convert_pixels_to_metric(logger, show_all_logs, RulerCFG, Ruler, img_fname, predicted_conversion_factor_cm, use_CF_predictor, Dirs):#cfg,Ruler,imgPath,fName,dirSave,dir_ruler_correction,pathToModel,labelNames):
     Ruler_Redo = Ruler
 
-    Ruler_Info = RulerInfo(Ruler, logger)
+    Ruler_Info = RulerInfo(Ruler, predicted_conversion_factor_cm, use_CF_predictor, logger, show_all_logs)
 
     
     
     if Ruler_Info.is_ticks_only:
-        Ruler = straighten_img(logger, RulerCFG, Ruler, True, False, Dirs, Ruler_Info.is_inline, Ruler_Info.is_block_tick, Ruler_Info.do_skip_morph_cleaning)
+        Ruler = straighten_img(logger, show_all_logs, RulerCFG, Ruler, True, False, Dirs, Ruler_Info.is_inline, Ruler_Info.is_block_tick, Ruler_Info.do_skip_morph_cleaning)
         Ruler_Info.summary_message = Ruler.summary_message
-        Ruler_Info = convert_ticks(logger, Ruler_Info, RulerCFG, Ruler, img_fname, is_redo=False)
+        Ruler_Info = convert_ticks(logger, show_all_logs, Ruler_Info, RulerCFG, Ruler, img_fname, is_redo=False)
 
     elif Ruler_Info.is_block_tick:
-        Ruler = straighten_img(logger, RulerCFG, Ruler, True, False, Dirs, Ruler_Info.is_inline, Ruler_Info.is_block_tick, Ruler_Info.do_skip_morph_cleaning)
+        Ruler = straighten_img(logger, show_all_logs, RulerCFG, Ruler, True, False, Dirs, Ruler_Info.is_inline, Ruler_Info.is_block_tick, Ruler_Info.do_skip_morph_cleaning)
         Ruler_Info.summary_message = Ruler.summary_message
-        Ruler_Info = convert_ticks(logger, Ruler_Info, RulerCFG, Ruler, img_fname, is_redo=False)
+        Ruler_Info = convert_ticks(logger, show_all_logs, Ruler_Info, RulerCFG, Ruler, img_fname, is_redo=False)
 
     elif Ruler_Info.is_block_only:
         if Ruler_Info.is_block_regular:
-            Ruler = straighten_img(logger, RulerCFG, Ruler, True, False, Dirs, Ruler_Info.is_inline, Ruler_Info.is_block_tick, True)
+            Ruler = straighten_img(logger, show_all_logs, RulerCFG, Ruler, True, False, Dirs, Ruler_Info.is_inline, Ruler_Info.is_block_tick, True)
             Ruler_Info.summary_message = Ruler.summary_message
             if 'white' in Ruler_Info.ruler_class_parts:
                 colorOption = 'noinvert'
             elif 'black' in Ruler_Info.ruler_class_parts:
                 colorOption = 'invert'
-            Ruler_Out, BlockCandidate, summary_image = convert_blocks(logger, RulerCFG, Ruler, colorOption, img_fname, Dirs, is_redo=False)
+            Ruler_Out, BlockCandidate, summary_image = convert_blocks(logger, show_all_logs, RulerCFG, Ruler, predicted_conversion_factor_cm, use_CF_predictor, colorOption, img_fname, Dirs, is_redo=False)
             # TODO REFACTOR EVERYTHING TO CREATE ONE UNIFIED CLASS
-            Ruler_Info = put_BlockCandidate_into_Ruler_Info(Ruler_Info, BlockCandidate, summary_image, logger)
+            Ruler_Info = put_BlockCandidate_into_Ruler_Info(Ruler_Info, BlockCandidate, summary_image, logger, show_all_logs)
         else: # handle alternate and stagger
             pass
 
     elif Ruler_Info.is_grid:
         pass
-        # Ruler = straighten_img(logger, RulerCFG, Ruler, True, False, Dirs, Ruler_Info.is_inline, Ruler_Info.is_block_tick, Ruler_Info.do_skip_morph_cleaning)
+        # Ruler = straighten_img(logger, show_all_logs, RulerCFG, Ruler, True, False, Dirs, Ruler_Info.is_inline, Ruler_Info.is_block_tick, Ruler_Info.do_skip_morph_cleaning)
         # Ruler_Info = convert_ticks(logger, Ruler_Info, RulerCFG, Ruler, img_fname, is_redo=False)
 
 
@@ -464,7 +641,7 @@ def convert_pixels_to_metric(logger, RulerCFG, Ruler, img_fname, Dirs):#cfg,Rule
     
     return Ruler_Info
 
-def put_BlockCandidate_into_Ruler_Info(Ruler_Info, BlockCandidate, summary_image, logger): # This is temporary. REmove after refactor
+def put_BlockCandidate_into_Ruler_Info(Ruler_Info, BlockCandidate, summary_image, logger, show_all_logs): # This is temporary. REmove after refactor
     if BlockCandidate.conversion_factor_pass:
         Ruler_Info.summary_image = summary_image
         Ruler_Info.at_least_one_correct_conversion = True
@@ -504,6 +681,7 @@ def put_BlockCandidate_into_Ruler_Info(Ruler_Info, BlockCandidate, summary_image
 
         logger.debug(f"[Cross Validate Conversion] - Conversion data")
         logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - 1cm = {np.round(Ruler_Info.conversion_mean, 2)} pixels")
+        logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - prediction from image's MP - 1cm = {np.round(Ruler_Info.predicted_conversion_factor_cm, 2)} pixels")
         logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - used {Ruler_Info.cross_validation_count} units - {Ruler_Info.conversion_data_all}")
         logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - ratio is average of {Ruler_Info.conversion_mean_n} scanlines")
         logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - pooled SD - {Ruler_Info.pooled_sd} ")
@@ -522,13 +700,14 @@ def put_BlockCandidate_into_Ruler_Info(Ruler_Info, BlockCandidate, summary_image
         Ruler_Info.data_list = [] # # scanline rows..... # diff from scanlines /->/ for block it will only be the plot points
         logger.debug(f"[Cross Validate Conversion] - Conversion data")
         logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - 1cm = {np.round(Ruler_Info.conversion_mean, 2)} pixels")
+        logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - prediction from image's MP - 1cm = {np.round(Ruler_Info.predicted_conversion_factor_cm, 2)} pixels")
         logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - used {Ruler_Info.cross_validation_count} units - []")
         logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - ratio is average of {Ruler_Info.conversion_mean_n} scanlines")
         logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - pooled SD - {Ruler_Info.pooled_sd} ")
     return Ruler_Info
 
 
-def convert_ticks(logger, Ruler_Info, RulerCFG,Ruler,img_fname, is_redo):
+def convert_ticks(logger, show_all_logs, Ruler_Info, RulerCFG,Ruler,img_fname, is_redo):
 
     Ruler_Info.process_scanline_chunk()
 
@@ -540,12 +719,12 @@ def convert_ticks(logger, Ruler_Info, RulerCFG,Ruler,img_fname, is_redo):
         bi_bg = copy.deepcopy(Ruler_Info.Ruler.img_bi_pad)
         bi_bg[bi_bg == 1] = 255
         validation = stack_2_imgs(cv2.cvtColor(bi_bg, cv2.COLOR_GRAY2RGB), Ruler_Info.Ruler.img_ruler_overlay)
-        validation = create_overlay_bg_3(logger, RulerCFG, validation)
+        validation = create_overlay_bg_3(logger, show_all_logs, RulerCFG, validation)
     else:
         bi_bg = copy.deepcopy(Ruler_Info.Ruler.img_bi_pad)
         bi_bg[bi_bg == 1] = 255
         validation = stack_2_imgs(cv2.cvtColor(bi_bg, cv2.COLOR_GRAY2RGB), Ruler_Info.Ruler.img_copy)
-        validation = create_overlay_bg_3(logger, RulerCFG, validation)
+        validation = create_overlay_bg_3(logger, show_all_logs, RulerCFG, validation)
 
     for i, t in enumerate(Ruler_Info.summary_message):
         validation = cv2.putText(img=validation, text=t[0], org=(10, (20 * i) + 25), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.6, color=(155, 155, 155),thickness=1)
@@ -582,6 +761,15 @@ def convert_ticks(logger, Ruler_Info, RulerCFG,Ruler,img_fname, is_redo):
 '''
 
 class RulerInfo:
+    # Ensure that ximgproc is accessible
+    if hasattr(cv2, 'ximgproc'):
+        # Safe to use cv2.ximgproc.thinning
+        pass
+    else:
+        # Handle the case where ximgproc is still not available
+        raise ImportError("ximgproc module is not available in cv2.")
+
+
     fail = ['fail']
 
     grid = ['grid_white_cm']
@@ -629,11 +817,16 @@ class RulerInfo:
     summary_message = 'Fail'
     ruler_class_percentage = 0
 
-    def __init__(self, Ruler, logger) -> None:
+    def __init__(self, Ruler, predicted_conversion_factor_cm, use_CF_predictor, logger, show_all_logs) -> None:
+
+        self.predicted_conversion_factor_cm = predicted_conversion_factor_cm
+        self.use_CF_predictor = use_CF_predictor
+
         self.summary_message = Ruler.summary_message
         self.ruler_class_percentage = Ruler.ruler_class_percentage
 
         self.logger = logger
+        self.show_all_logs = show_all_logs
         self.Ruler = Ruler            
         self.ruler_class = self.Ruler.ruler_class
 
@@ -789,7 +982,8 @@ class RulerInfo:
             self.n_units = len(self.contains_unit_dual)
 
     def process_scanline_chunk(self):
-        self.logger.debug(f"Starting Scanlines")
+        if self.show_all_logs:
+            self.logger.debug(f"Starting Scanlines")
         ### should return a list of just the scanlines that
         # 1. pass sanity check
         # 2. not nan
@@ -870,15 +1064,18 @@ class RulerInfo:
             # artificially force into pairs for easy use
             if not self.is_inline: #not
                 pairs = locate_ticks_centroid(chunkAdd, scanSize, i)
-                self.logger.debug(f"Scanlines locate_ticks_centroid")
+                if self.show_all_logs:
+                    self.logger.debug(f"Scanlines locate_ticks_centroid")
             elif self.is_inline:
                 pairs = locate_ticks_centroid_inline(chunkAdd, scanSize, i, self.logger, self.max_dim)
-                self.logger.debug(f"Scanlines locate_ticks_centroid_inline")
+                if self.show_all_logs:
+                    self.logger.debug(f"Scanlines locate_ticks_centroid_inline")
 
             for pair in pairs:
                 scanlineData = {'index':[],'scanSize':[],'imgChunk':[],'plotPtsX':[],'plotPtsY':[],'plotPtsYoverall':[],'dists':[],'sd':[],'nPeaks':[],'normalizedSD':1000,'gmean':[],'mean':[]}    
                 plotPtsX, plotPtsY, distUse, npts, peak_pos, avg_width = pair
-                self.logger.debug(f"pair: {plotPtsX, plotPtsY, distUse, npts, peak_pos, avg_width}")
+                if self.show_all_logs:
+                    self.logger.debug(f"pair: {plotPtsX, plotPtsY, distUse, npts, peak_pos, avg_width}")
                 if (
                     plotPtsY is not None and 
                     plotPtsX is not None and 
@@ -958,10 +1155,11 @@ class RulerInfo:
                 self.intersect_means_list_indices = [i for i in range(len(data_list))]
                 self.union_means_list_indices = [i for i in range(len(data_list))]
 
-                self.logger.debug(f"Dominant pattern indices - (mean dist) - inline - all ind")
-                self.logger.debug(f"Minimal pattern indices (SD) - inline - all ind")
-                self.logger.debug(f"Union pattern indices - inline - all ind")
-                self.logger.debug(f"Average tick width - {self.avg_width}")
+                if self.show_all_logs:
+                    self.logger.debug(f"Dominant pattern indices - (mean dist) - inline - all ind")
+                    self.logger.debug(f"Minimal pattern indices (SD) - inline - all ind")
+                    self.logger.debug(f"Union pattern indices - inline - all ind")
+                    self.logger.debug(f"Average tick width - {self.avg_width}")
 
             else:
                 # Initialize the k-means model with n_units+1 clusters
@@ -978,7 +1176,8 @@ class RulerInfo:
                 dominant_pattern = labels == dominant_cluster
 
                 dom_pattern = np.where(dominant_pattern)[0]
-                self.logger.debug(f"Dominant pattern indices - {np.where(dominant_pattern)[0]}")
+                if self.show_all_logs:
+                    self.logger.debug(f"Dominant pattern indices - {np.where(dominant_pattern)[0]}")
 
 
                 # Initialize the k-means model with 2 clusters
@@ -1013,11 +1212,12 @@ class RulerInfo:
 
                 self.intersect_means_list_indices = np.where(minimal_pattern)[0]
                 self.union_means_list_indices = np.where(dominant_pattern)[0]
-
-                self.logger.debug(f"Dominant pattern indices - (mean dist){np.where(dominant_pattern)[0]}")
-                self.logger.debug(f"Minimal pattern indices (SD) - {np.where(minimal_pattern)[0]}")
-                self.logger.debug(f"Union pattern indices - {union}")
-                self.logger.debug(f"Average tick width - {self.avg_width}")
+                
+                if self.show_all_logs:
+                    self.logger.debug(f"Dominant pattern indices - (mean dist){np.where(dominant_pattern)[0]}")
+                    self.logger.debug(f"Minimal pattern indices (SD) - {np.where(minimal_pattern)[0]}")
+                    self.logger.debug(f"Union pattern indices - {union}")
+                    self.logger.debug(f"Average tick width - {self.avg_width}")
         else:
             self.best_value = best_value
             self.union_rows = None
@@ -1027,7 +1227,8 @@ class RulerInfo:
             self.intersect_means_list = None
             self.npts_dict = npts_dict
 
-            self.logger.debug(f"Not enough scanlines located - only found {len(means_list)} - requires >= 2")
+            if self.show_all_logs:
+                self.logger.debug(f"Not enough scanlines located - only found {len(means_list)} - requires >= 2")
         
     def order_units_small_to_large(self, conversion_board, sorted_union_means_list, units_possible):
         current_val = sorted_union_means_list[0][0]
@@ -1074,6 +1275,47 @@ class RulerInfo:
 
         self.original_distances_1unit = list(set(self.original_distances_1unit))
         return conversion_board, sorted_union_means_list, units_possible
+    
+    def select_best_conversion_factors(self, conversion_final, conversion_possible):
+        tolerance = 0.1 * self.predicted_conversion_factor_cm
+        updated_conversion_final = {key: [] for key in conversion_possible.keys()}
+
+        # Check each unit conversion against the tolerance
+        for test_unit in conversion_possible.keys():
+            for unit, calculated_factors in conversion_final.items():
+                if calculated_factors is None:
+                    continue
+                if isinstance(calculated_factors, list):
+                    if len(calculated_factors) == 0:  
+                        continue
+                else:
+                    if calculated_factors.size == 0:  
+                        continue
+
+                converted_factors = self.convert_to_cm(test_unit, calculated_factors)
+
+                for original, converted in zip(calculated_factors, converted_factors):
+                    difference = abs(self.predicted_conversion_factor_cm - converted)
+                    percentage_diff = (difference / self.predicted_conversion_factor_cm) * 100
+
+                    if difference <= tolerance:
+                        updated_conversion_final[test_unit].append(original)
+                        if self.show_all_logs:
+                            self.logger.debug(f"Match found for unit {test_unit}: original {original:.2f}, predicted {self.predicted_conversion_factor_cm:.2f} cm --- difference {percentage_diff:.2f}%")
+
+        # Output debug information
+        for unit, matches in updated_conversion_final.items():
+            if matches:
+                if self.show_all_logs:
+                    self.logger.debug(f"Matching unit: {unit} with factors: {matches}")
+
+        # Remove keys with empty list values
+        for key in list(updated_conversion_final.keys()):
+            if not updated_conversion_final[key]:
+                del updated_conversion_final[key]
+        
+        return updated_conversion_final
+
 
     def cross_validate_conversion(self):
         self.conversion_successful = False
@@ -1085,7 +1327,8 @@ class RulerInfo:
         elif self.is_dual:
             self.units_possible = self.contains_unit_dual
 
-        self.logger.debug(f"[Cross Validate Conversion] - Units possible - {self.units_possible}")
+        if self.show_all_logs:
+            self.logger.debug(f"[Cross Validate Conversion] - Units possible - {self.units_possible}")
 
         # sort the means lists from small to big #tried originally reversed to small
         sorted_union_means_list = sorted(self.union_means_list, reverse=False)
@@ -1107,7 +1350,8 @@ class RulerInfo:
         # largest_unit = self.determine_largest_unit(sorted_intersect_means_list) 
         units_possible = self.units_possible[::-1]
         smallest_unit = units_possible[0]
-        self.logger.debug(f"[Cross Validate Conversion] - Smallest unit - {smallest_unit}")
+        if self.show_all_logs:
+            self.logger.debug(f"[Cross Validate Conversion] - Smallest unit - {smallest_unit}")
 
         # conversion_board  = {'convert':False}
         conversion_board  = {}
@@ -1160,7 +1404,8 @@ class RulerInfo:
             
              # This means that none of the conversions succeeded for the unit. Start over, but remove the smallest unit as a possibility
             if not self.at_least_one_correct_conversion and self.exhausted_units_to_test:
-                self.logger.debug(f"[Cross Validate Conversion] - Reassign - Conversion board units possible {units_possible} - {conversion_board}")
+                if self.show_all_logs:
+                    self.logger.debug(f"[Cross Validate Conversion] - Reassign - Conversion board units possible {units_possible} - {conversion_board}")
                 self.exhausted_units_to_test = False # reset unit count
                 unit_try += 1
                 try:
@@ -1198,7 +1443,8 @@ class RulerInfo:
                 else:
                     is_cv_reset = False
         if did_fail:
-            self.logger.debug(f"[Cross Validate Conversion] - Only 1 unit - order_units_small_to_large()")
+            if self.show_all_logs:
+                self.logger.debug(f"[Cross Validate Conversion] - Only 1 unit - order_units_small_to_large()")
             # now we need to determine which possible cv_board fits based on units/max_dim
 
 
@@ -1206,7 +1452,8 @@ class RulerInfo:
         # if conversion_board['convert'] == True: # If there was at least one validation
         if self.at_least_one_correct_conversion: # If there was at least one validation
             self.conversion_successful = True
-            self.logger.debug(f"[Cross Validate Conversion] - Conversion board final - {conversion_board}")
+            if self.show_all_logs:
+                self.logger.debug(f"[Cross Validate Conversion] - Conversion board final - {conversion_board}")
 
             '''getting the conversion value'''
             # get only the units allowed by the ML prediction
@@ -1232,6 +1479,12 @@ class RulerInfo:
             for unit, unit_value in conversion_final.items():
                 if len(unit_value) >= 5:
                     conversion_final[unit] = self.remove_outliers_bias_larger(np.array(unit_value))
+
+            
+            ### USE THE PREDICTED CF AS A JUDGE conversion_final should be cm...
+            if self.use_CF_predictor:
+                conversion_final = self.select_best_conversion_factors(conversion_final, conversion_board)
+
 
             # convert all values to cm
             if bool(conversion_final): # if conversion_final is not empty
@@ -1276,6 +1529,7 @@ class RulerInfo:
 
                 self.logger.debug(f"[Cross Validate Conversion] - Conversion data")
                 self.logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - 1cm = {np.round(self.conversion_mean, 2)} pixels")
+                self.logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - prediction from image's MP - 1cm = {np.round(self.predicted_conversion_factor_cm, 2)} pixels")
                 self.logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - used {self.cross_validation_count} units - {list(conversion_final.keys())}")
                 self.logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - ratio is average of {self.conversion_mean_n} scanlines")
                 self.logger.debug(f"[Cross Validate Conversion] - !!! Conversion Ratio !!! - pooled SD - {self.pooled_sd} ")
@@ -1407,6 +1661,10 @@ class RulerInfo:
 
 
     def convert_to_cm(self, unit, unit_value):
+        if not isinstance(unit_value, list) and not isinstance(unit_value, np.ndarray):
+            unit_value = [unit_value]  # Convert scalar to list for uniform processing
+    
+
         unit_value_converted = []
 
         if unit == '32nd':
@@ -1477,7 +1735,9 @@ class RulerInfo:
               (255, 0, 255),  # Magenta
               (128, 0, 128),  # Purple
               (0, 128, 128),  # Teal
-              (0, 191, 255)]  # deep sky blue
+              (0, 191, 255),  # deep sky blue
+              (0, 0, 0),  # black
+              (255, 255, 255)]  # white
         conversion = [(0, 255, 0), (255, 180, 0), (0, 0, 255)]
 
         # Assign colors based on unit
@@ -1505,12 +1765,20 @@ class RulerInfo:
         elif unit == 'cm':
             return color_list[0]
         
+        elif unit == 'conversion_pred1':
+            return color_list[11]
+        elif unit == 'conversion_pred2':
+            return color_list[12]
+        
         elif unit == 'conversion_1cm':
             return conversion[0]
         elif unit == 'conversion_10cm':
             return conversion[1]
         elif unit == 'conversion_1inch':
             return conversion[2]
+        
+        else:
+            raise
 
 
     def insert_scanline(self): 
@@ -1558,6 +1826,15 @@ class RulerInfo:
 
                 if plot_conversion == 0:
                     plot_conversion += 1
+                    
+                    color = self.get_unit_color('conversion_pred1')
+                    imgBG = self.add_unit_marker_guide(imgBG, self.predicted_conversion_factor_cm, [20, int(20+self.max_dim/4), int(20+self.max_dim/2)], 1, self.min_dim+30, color)
+                    color = self.get_unit_color('conversion_pred2')
+                    imgBG = self.add_unit_marker_guide(imgBG, self.predicted_conversion_factor_cm, [20, int(20+self.max_dim/4), int(20+self.max_dim/2)], 1, self.min_dim+35, color)
+                    color = self.get_unit_color('conversion_pred1')
+                    imgBG = self.add_unit_marker_guide(imgBG, self.predicted_conversion_factor_cm, [20, int(20+self.max_dim/4), int(20+self.max_dim/2)], 1, self.min_dim+40, color)
+
+
                     color = self.get_unit_color('conversion_1cm')
                     imgBG = self.add_unit_marker_guide(imgBG, self.conversion_mean, [20, int(20+self.max_dim/4), int(20+self.max_dim/2)], 1, self.min_dim+10, color)
                     color = self.get_unit_color('conversion_10cm')
@@ -1655,7 +1932,8 @@ class RulerInfo:
                             last_marker_pos - int(distance * factor)]
 
         except Exception as e:
-            self.logger.debug(f"add_unit_marker(): plotting 1 of 3 unit markers. Exception: {e.args[0]}")
+            if self.show_all_logs:
+                self.logger.debug(f"add_unit_marker(): plotting 1 of 3 unit markers. Exception: {e.args[0]}")
 
             middle_marker_pos = int(x_coords[int(x_coords.size/2)])
             start_positions = [middle_marker_pos]
@@ -1702,7 +1980,7 @@ class RulerInfo:
 
 
 
-def setup_ruler(Labels, model, device, cfg, Dirs, logger, RulerCFG, img, img_fname):
+def setup_ruler(Labels, model, device, cfg, Dirs, logger, show_all_logs, RulerCFG, img, img_fname):
     # TODO add the classifier check
     Ruler = RulerImage(img=img, img_fname=img_fname)
 
@@ -1710,7 +1988,7 @@ def setup_ruler(Labels, model, device, cfg, Dirs, logger, RulerCFG, img, img_fna
     print(f"{bcolors.OKCYAN}Ruler - {img_fname}{bcolors.ENDC}")
     logger.debug(f"Ruler: {img_fname}")
     
-    Ruler.ruler_class, Ruler.ruler_class_pred, Ruler.ruler_class_percentage,Ruler.img_type_overlay, summary_message = detect_ruler(logger, RulerCFG, img, img_fname)
+    Ruler.ruler_class, Ruler.ruler_class_pred, Ruler.ruler_class_percentage,Ruler.img_type_overlay, summary_message = detect_ruler(logger, show_all_logs, RulerCFG, img, img_fname)
 
     Ruler.summary_message = summary_message
     
@@ -1720,7 +1998,8 @@ def setup_ruler(Labels, model, device, cfg, Dirs, logger, RulerCFG, img, img_fna
     Ruler.img_bi_sweep, pred_class, pred_class_orig, percentage1, level = binary_sweep(RulerCFG, Ruler.img)
     Ruler.img_bi_sweep = cv2.cvtColor(Ruler.img_bi_sweep, cv2.COLOR_RGB2GRAY)
     Ruler.img_bi_sweep = invert_if_white(Ruler.img_bi_sweep)
-    logger.debug(f"[Ruler Binary Sweep] - Pred Class [{pred_class}] - Original Class [{pred_class_orig}] - Confidence [{percentage1}] - Binary Level [{level}]")
+    if show_all_logs:
+        logger.debug(f"[Ruler Binary Sweep] - Pred Class [{pred_class}] - Original Class [{pred_class_orig}] - Confidence [{percentage1}] - Binary Level [{level}]")
 
     ### Invert ruler if needed
     ruler_class_parts = Ruler.ruler_class.split('_')
@@ -1888,7 +2167,7 @@ def find_minimal_change_in_binarization(img_gray, version):
 
 
 
-def detect_ruler(logger, RulerCFG, ruler_cropped, ruler_name):
+def detect_ruler(logger, show_all_logs, RulerCFG, ruler_cropped, ruler_name):
     minimum_confidence_threshold = RulerCFG.cfg['leafmachine']['ruler_detection']['minimum_confidence_threshold']
     net = RulerCFG.net_ruler
     
@@ -1920,7 +2199,7 @@ def detect_ruler(logger, RulerCFG, ruler_cropped, ruler_name):
         pred_class_orig = pred_class1
         pred_class1 = f'fail_thresh_not_met__{pred_class_orig}'
 
-    imgBG = create_overlay_bg(logger, RulerCFG, img.img_sq)
+    imgBG = create_overlay_bg(logger, show_all_logs, RulerCFG, img.img_sq)
     addText1 = ''.join(["Class: ", str(pred_class1)])
     if percentage1 < minimum_confidence_threshold:
         addText1 = ''.join(["Class: ", str(pred_class1), '< thresh: ', str(pred_class_orig)])
@@ -1938,7 +2217,8 @@ def detect_ruler(logger, RulerCFG, ruler_cropped, ruler_name):
     message = ''.join(["Class: ", str(pred_class1), " Confidence: ", str(percentage1), "%"])
     # Print_Verbose(RulerCFG.cfg,1,message).green()
 
-    logger.info(message)
+    if show_all_logs:
+        logger.info(message)
     try:
         torch.cuda.empty_cache()
     except:
@@ -2123,34 +2403,33 @@ class RulerImage:
         self.img_fname = img_fname
         self.summary_message = 'Fail'
 
-@dataclass
 class Block:
-    img_bi: ndarray
-    img_bi_overlay: ndarray
-    img_bi_copy: ndarray = field(init=False)
-    img_result: ndarray = field(init=False)
-    use_points: list = field(init=False,default_factory=list)
-    point_types: list = field(init=False,default_factory=list)
-    x_points: list = field(init=False,default_factory=list)
-    y_points: list = field(init=False,default_factory=list)
-    axis_major_length: list = field(init=False,default_factory=list)
-    axis_minor_length: list = field(init=False,default_factory=list)
-    conversion_factor: list = field(init=False,default_factory=list)
-    conversion_location: list = field(init=False,default_factory=list)
-    conversion_location_options: str = field(init=False)
-    success_sort: str = field(init=False)
-    conversion_factor_pass: str = field(init=False)
+    def __init__(self, img_bi: ndarray, img_bi_overlay: ndarray, success_sort: str):
+        self.img_bi = img_bi
+        self.img_bi_overlay = img_bi_overlay
+        self.success_sort = success_sort
 
-    largest_blobs: list = field(init=False,default_factory=list)
-    remaining_blobs: list = field(init=False,default_factory=list)
+        # Initialize other properties with default values
+        self.img_bi_copy = img_bi.copy()  # Create a copy of img_bi
+        self.img_result = None
 
-    plot_points_1cm: list = field(init=False,default_factory=list)
-    plot_points_10cm: list = field(init=False,default_factory=list)
-    plot_points: list = field(init=False,default_factory=list)
-
-    def __post_init__(self) -> None:
-        self.img_bi_copy = self.img_bi
+        self.use_points = []
+        self.point_types = []
+        self.x_points = []
+        self.y_points = []
+        self.axis_major_length = []
+        self.axis_minor_length = []
+        self.conversion_factor = []
+        self.conversion_location = []
+        self.conversion_location_options = None
         self.conversion_factor_pass = False
+
+        self.largest_blobs = []
+        self.remaining_blobs = []
+
+        self.plot_points_1cm = []
+        self.plot_points_10cm = []
+        self.plot_points = []
         # self.img_bi[self.img_bi < 128] = 0
         # self.img_bi[self.img_bi >= 128] = 255
         # self.img_bi_copy[self.img_bi_copy < 40] = 0
@@ -2169,18 +2448,18 @@ class Block:
 ####################################
 ####################################
 '''
-def add_ruler_to_Project(Project, batch, Ruler, BlockCandidate, filename, ruler_crop_name):
-    Project.project_data_list[batch][filename]['Ruler_Info'].append({ruler_crop_name: Ruler})
-    Project.project_data_list[batch][filename]['Ruler_Data'].append({ruler_crop_name: BlockCandidate})
+# def add_ruler_to_Project(Project, batch, Ruler, BlockCandidate, filename, ruler_crop_name):
+#     Project.project_data_list[batch][filename]['Ruler_Info'].append({ruler_crop_name: Ruler})
+#     Project.project_data_list[batch][filename]['Ruler_Data'].append({ruler_crop_name: BlockCandidate})
 
-    # if 'block' in Ruler.ruler_class:
-    #     Project.project_data[filename]['Ruler_Info'].append({ruler_crop_name: Ruler})
-    #     Project.project_data[filename]['Ruler_Data'].append({ruler_crop_name: BlockCandidate})
-    # elif 'tick' in Ruler.ruler_class:
-    #     Project.project_data[filename]['Ruler_Info'].append({ruler_crop_name: Ruler})
-    #     Project.project_data[filename]['Ruler_Data'].append({ruler_crop_name: BlockCandidate})
-    #     print('tick')
-    return Project
+#     # if 'block' in Ruler.ruler_class:
+#     #     Project.project_data[filename]['Ruler_Info'].append({ruler_crop_name: Ruler})
+#     #     Project.project_data[filename]['Ruler_Data'].append({ruler_crop_name: BlockCandidate})
+#     # elif 'tick' in Ruler.ruler_class:
+#     #     Project.project_data[filename]['Ruler_Info'].append({ruler_crop_name: Ruler})
+#     #     Project.project_data[filename]['Ruler_Data'].append({ruler_crop_name: BlockCandidate})
+#     #     print('tick')
+#     return Project
 
 def yolo_to_position_ruler(annotation, height, width):
     return ['ruler', 
@@ -2199,7 +2478,7 @@ def make_img_hor(img):
         img = cv2.rotate(img,cv2.ROTATE_90_COUNTERCLOCKWISE)
     return img
 
-def create_overlay_bg_120(logger, RulerCFG, img):
+def create_overlay_bg_120(logger, show_all_logs, RulerCFG, img):
     try:
         try:
             h,w,_ = img.shape
@@ -2219,7 +2498,8 @@ def create_overlay_bg_120(logger, RulerCFG, img):
     except Exception as e:
         m = ''.join(['create_overlay_bg() exception: ',e.args[0]])
         # Print_Verbose(RulerCFG.cfg, 2, m).warning()
-        logger.debug(m)
+        if show_all_logs:
+            logger.debug(m)
         img = np.stack((img,)*3, axis=-1)
         h,w,_ = img.shape
         imgBG = np.zeros([h+120,w,3], dtype=np.uint8)
@@ -2229,7 +2509,7 @@ def create_overlay_bg_120(logger, RulerCFG, img):
     return imgBG
 
 
-def create_overlay_bg_3(logger, RulerCFG, img):
+def create_overlay_bg_3(logger, show_all_logs, RulerCFG, img):
     try:
         try:
             h,w,_ = img.shape
@@ -2249,7 +2529,8 @@ def create_overlay_bg_3(logger, RulerCFG, img):
     except Exception as e:
         m = ''.join(['create_overlay_bg() exception: ',e.args[0]])
         # Print_Verbose(RulerCFG.cfg, 2, m).warning()
-        logger.debug(m)
+        if show_all_logs:
+            logger.debug(m)
         img = np.stack((img,)*3, axis=-1)
         h,w,_ = img.shape
         imgBG = np.zeros([h+170,w,3], dtype=np.uint8)
@@ -2258,7 +2539,7 @@ def create_overlay_bg_3(logger, RulerCFG, img):
         imgBG[170:img.shape[0]+170,:img.shape[1],:] = img
     return imgBG
 
-def create_overlay_bg(logger, RulerCFG, img):
+def create_overlay_bg(logger, show_all_logs, RulerCFG, img):
     try:
         try:
             h,w,_ = img.shape
@@ -2278,7 +2559,8 @@ def create_overlay_bg(logger, RulerCFG, img):
     except Exception as e:
         m = ''.join(['create_overlay_bg() exception: ',e.args[0]])
         # Print_Verbose(RulerCFG.cfg, 2, m).warning()
-        logger.debug(m)
+        if show_all_logs:
+            logger.debug(m)
         img = np.stack((img,)*3, axis=-1)
         h,w,_ = img.shape
         imgBG = np.zeros([h+60,w,3], dtype=np.uint8)
@@ -2695,7 +2977,7 @@ def squarify_tile_four_versions(imgSquarify, showImg, makeSquare, sz):
 ####################################
 ####################################
 '''
-def straighten_img(logger, RulerCFG, Ruler, useRegulerBinary, alternate_img, Dirs, do_skip_skeleton, is_block_tick, do_skip_morph_cleaning):
+def straighten_img(logger, show_all_logs, RulerCFG, Ruler, useRegulerBinary, alternate_img, Dirs, do_skip_skeleton, is_block_tick, do_skip_morph_cleaning):
     
     if useRegulerBinary:
         ruler_to_correct = Ruler.img_bi
@@ -2738,7 +3020,7 @@ def straighten_img(logger, RulerCFG, Ruler, useRegulerBinary, alternate_img, Dir
     '''
     newImg = stack_2_imgs(Ruler.img, Ruler.img_bi_display)
 
-    newImg = create_overlay_bg(logger, RulerCFG,newImg)
+    newImg = create_overlay_bg(logger, show_all_logs, RulerCFG,newImg)
     newImg, Ruler.summary_message = add_text_to_stacked_img(Ruler.avg_angle,newImg, Ruler.summary_message)
 
     if RulerCFG.cfg['leafmachine']['ruler_detection']['save_ruler_validation']:
@@ -3452,12 +3734,48 @@ def verify_cm_vs_mm(scanlineData):
     except:
         return []
 
+def select_best_or_average_factor(BlockCandidate, valid_factors):
+    if not valid_factors:
+        BlockCandidate.conversion_factor = 0
+        BlockCandidate.conversion_location = 'fail'
+        BlockCandidate.conversion_factor_pass = False
+        BlockCandidate.conversion_location_options = ''
+        return
+    
+    # Determine the factor with the highest count
+    # Assuming factors_count and other related data are accessible here
+    # This part of the logic needs adjustment based on your actual data
+    n_max = max(valid_factors, key=valid_factors.get)
+    best_factor = valid_factors[n_max]
+    
+    # Use a simple list for comparison instead of trying to access non-existent dictionary keys
+    values_list = list(valid_factors.values())
+    n_greater = len([value for value in values_list if value > best_factor])
+    n_lesser = len([value for value in values_list if value < best_factor])
 
-def calculate_block_conversion_factor(BlockCandidate,nBlockCheck):
+    # If the factor with the highest number of measurements is the outlier, take the average of all factors
+    if (n_greater == 0 or n_lesser == 0) and len(values_list) > 1:
+        total = sum(values_list)
+        BlockCandidate.conversion_factor = total / len(values_list)
+        BlockCandidate.conversion_location = 'average'
+        BlockCandidate.conversion_factor_pass = True
+    else:
+        BlockCandidate.conversion_factor = best_factor
+        BlockCandidate.conversion_location = n_max
+        BlockCandidate.conversion_factor_pass = True  # Assuming all passed factors are valid
+
+    # Generate location options for output or further use
+    BlockCandidate.conversion_location_options = ', '.join(valid_factors.keys())
+    return BlockCandidate
+
+
+def calculate_block_conversion_factor(BlockCandidate, nBlockCheck, predicted_conversion_factor_cm, use_CF_predictor):
     factors = {'bigCM':0,'smallCM':0,'halfCM':0,'mm':0}
-    n = {'bigCM':0,'smallCM':0,'halfCM':0,'mm':0}
+    factors_count = {'bigCM':0,'smallCM':0,'halfCM':0,'mm':0}
     passFilter = {'bigCM':False,'smallCM':False,'halfCM':False,'mm':False}
     factors_fallback = {'bigCM':0,'smallCM':0,'halfCM':0,'mm':0}
+
+    tolerance = 0.1 * predicted_conversion_factor_cm  # 10% tolerance
 
     for i in range(0,nBlockCheck):
         if BlockCandidate.use_points[i]:
@@ -3479,7 +3797,7 @@ def calculate_block_conversion_factor(BlockCandidate,nBlockCheck):
                     if ((distUse_mean >= 0.8*axis_major_length) & (distUse_mean <= 1.2*axis_major_length)):
                         if factors['bigCM'] == 0:
                             factors['bigCM'] = distUse_mean
-                            n['bigCM'] = n_measurements
+                            factors_count['bigCM'] = n_measurements
                             passFilter['bigCM'] = True
                         else:
                             break
@@ -3490,7 +3808,7 @@ def calculate_block_conversion_factor(BlockCandidate,nBlockCheck):
                     if ((distUse_mean >= 0.8*axis_major_length*2) & (distUse_mean <= 1.2*axis_major_length*2)):
                         if factors['smallCM'] ==0:
                             factors['smallCM'] = distUse_mean/2
-                            n['smallCM'] = n_measurements
+                            factors_count['smallCM'] = n_measurements
                             passFilter['bigCM'] = True
                         else:
                             break
@@ -3501,7 +3819,7 @@ def calculate_block_conversion_factor(BlockCandidate,nBlockCheck):
                     if ((distUse_mean >= 0.8*axis_major_length) & (distUse_mean <= 1.2*axis_major_length)):
                         if factors['halfCM'] ==0:
                             factors['halfCM'] = distUse_mean*2
-                            n['halfCM'] = n_measurements
+                            factors_count['halfCM'] = n_measurements
                             passFilter['bigCM'] = True
                         else:
                             break
@@ -3512,54 +3830,75 @@ def calculate_block_conversion_factor(BlockCandidate,nBlockCheck):
                     if ((distUse_mean >= 0.1*axis_minor_length) & (distUse_mean <= 1.1*axis_minor_length)):
                         if factors['mm'] ==0:
                             factors['mm'] = distUse_mean*10
-                            n['mm'] = n_measurements
+                            factors_count['mm'] = n_measurements
                             passFilter['bigCM'] = True
                         else:
                             break
                     else: 
                         factors['mm'] = 0
                         factors_fallback['mm'] = distUse_mean*10
-    # Remove empty keys from n dict
-    n_max = max(n, key=n.get)
-    best_factor = factors[n_max]
-    n_greater = len([f for f, factor in factors.items() if factor > best_factor])
-    n_lesser = len([f for f, factor in factors.items() if factor < best_factor])
-    location_options = ', '.join([f for f, factor in factors.items() if factor > 0])
 
-    # If the factor with the higest number of measurements is the outlier, take the average of all factors
-    if ((n_greater == 0) | (n_lesser == 0)):
-        # Number of keys that = 0
-        nZero = sum(x == 0 for x in factors.values())
-        dividend = len(factors) - nZero
-        # If no blocks pass the filter, return the nMax with a warning 
-        if dividend == 0:
-            best_factor_fallback = factors_fallback[n_max]
-            n_greater = len([f for f, factor in factors_fallback.items() if factor > best_factor_fallback])
-            n_lesser = len([f for f, factor in factors_fallback.items() if factor < best_factor_fallback])
-            location_options = ', '.join([f for f, factor in factors_fallback.items() if factor > 0])
-            if best_factor_fallback > 0:
-                BlockCandidate.conversion_factor = best_factor_fallback
-                BlockCandidate.conversion_location = 'fallback'
-                BlockCandidate.conversion_factor_pass = passFilter[n_max]
-            # Else complete fail
-            else: 
-                BlockCandidate.conversion_factor = 0
-                BlockCandidate.conversion_location = 'fail'
-                BlockCandidate.conversion_factor_pass = False
-        else:
-            res = sum(factors.values()) / dividend
-            BlockCandidate.conversion_factor = res
-            BlockCandidate.conversion_location = 'average'
-            BlockCandidate.conversion_factor_pass = True
-    # Otherwise use the factor with the most measuements 
+    # Evaluate which factors are valid based on the predicted conversion factor
+    if use_CF_predictor:
+        valid_factors = {key: val for key, val in factors.items() if val != 0 and abs(val - predicted_conversion_factor_cm) <= tolerance}
+        location_options = ', '.join(valid_factors.keys())
     else:
-        BlockCandidate.conversion_factor = best_factor
-        BlockCandidate.conversion_location = n_max
-        BlockCandidate.conversion_factor_pass = passFilter[n_max]
-    BlockCandidate.conversion_location_options = location_options
+        valid_factors = factors
+        location_options = ', '.join(valid_factors.keys())
+
+    if not valid_factors:
+        # Fallback or error handling if no valid factors found
+        BlockCandidate.conversion_factor = 0
+        BlockCandidate.conversion_location = 'fail'
+        BlockCandidate.conversion_factor_pass = False
+        BlockCandidate.conversion_location_options = ''
+    else:
+        # Select the best factor or calculate average if applicable
+        BlockCandidate = select_best_or_average_factor(BlockCandidate, valid_factors)
     return BlockCandidate
 
-def sort_blobs_by_size(logger, RulerCFG, Ruler, isStraighten):
+
+    # # Remove empty keys from n dict
+    # n_max = max(factors_count, key=factors_count.get)
+    # best_factor = factors[n_max]
+    # n_greater = len([f for f, factor in factors.items() if factor > best_factor])
+    # n_lesser = len([f for f, factor in factors.items() if factor < best_factor])
+    # location_options = ', '.join([f for f, factor in factors.items() if factor > 0])
+
+    # # If the factor with the higest number of measurements is the outlier, take the average of all factors
+    # if ((n_greater == 0) | (n_lesser == 0)):
+    #     # Number of keys that = 0
+    #     nZero = sum(x == 0 for x in factors.values())
+    #     dividend = len(factors) - nZero
+    #     # If no blocks pass the filter, return the nMax with a warning 
+    #     if dividend == 0:
+    #         best_factor_fallback = factors_fallback[n_max]
+    #         n_greater = len([f for f, factor in factors_fallback.items() if factor > best_factor_fallback])
+    #         n_lesser = len([f for f, factor in factors_fallback.items() if factor < best_factor_fallback])
+    #         location_options = ', '.join([f for f, factor in factors_fallback.items() if factor > 0])
+    #         if best_factor_fallback > 0:
+    #             BlockCandidate.conversion_factor = best_factor_fallback
+    #             BlockCandidate.conversion_location = 'fallback'
+    #             BlockCandidate.conversion_factor_pass = passFilter[n_max]
+    #         # Else complete fail
+    #         else: 
+    #             BlockCandidate.conversion_factor = 0
+    #             BlockCandidate.conversion_location = 'fail'
+    #             BlockCandidate.conversion_factor_pass = False
+    #     else:
+    #         res = sum(factors.values()) / dividend
+    #         BlockCandidate.conversion_factor = res
+    #         BlockCandidate.conversion_location = 'average'
+    #         BlockCandidate.conversion_factor_pass = True
+    # # Otherwise use the factor with the most measuements 
+    # else:
+    #     BlockCandidate.conversion_factor = best_factor
+    #     BlockCandidate.conversion_location = n_max
+    #     BlockCandidate.conversion_factor_pass = passFilter[n_max]
+    # BlockCandidate.conversion_location_options = location_options
+    # return BlockCandidate
+
+def sort_blobs_by_size(logger, show_all_logs, RulerCFG, Ruler, predicted_conversion_factor_cm, use_CF_predictor, isStraighten):
     nBlockCheck = 4
     success = True
     tryErode = False
@@ -3578,7 +3917,7 @@ def sort_blobs_by_size(logger, RulerCFG, Ruler, isStraighten):
     # cv2.imshow('Ruler.img_bi', Ruler.img_bi)
     # cv2.waitKey(0)
 
-    BlockCandidate = Block(img_bi=Ruler.img_bi,img_bi_overlay=img_best)
+    BlockCandidate = Block(img_bi=Ruler.img_bi,img_bi_overlay=img_best, success_sort=success)
     try: # Start with 4, reduce by one if fail
         # try: # Normal
         BlockCandidate = remove_small_and_biggest_blobs(BlockCandidate,tryErode)
@@ -3595,13 +3934,13 @@ def sort_blobs_by_size(logger, RulerCFG, Ruler, isStraighten):
             tryErode = True
             del BlockCandidate
             nBlockCheck = 3
-            BlockCandidate = Block(img_bi=Ruler.img_bi,img_bi_overlay=img_best)
+            BlockCandidate = Block(img_bi=Ruler.img_bi,img_bi_overlay=img_best, success_sort=success)
             BlockCandidate = remove_small_and_biggest_blobs(BlockCandidate,tryErode)
             for i in range(0,nBlockCheck):
                 BlockCandidate = get_biggest_blob(BlockCandidate)
         except:
             success = False
-            BlockCandidate = Block(img_bi=Ruler.img_bi,img_bi_overlay=img_best)
+            BlockCandidate = Block(img_bi=Ruler.img_bi,img_bi_overlay=img_best, success_sort=success)
             BlockCandidate.conversion_factor = 0
             BlockCandidate.conversion_location = 'unidentifiable'
             BlockCandidate.conversion_location_options = 'unidentifiable'
@@ -3616,16 +3955,16 @@ def sort_blobs_by_size(logger, RulerCFG, Ruler, isStraighten):
     if success:
         # imgPlot = plt.imshow(img_result)
         for i in range(0,nBlockCheck):
-            BlockCandidate = determine_block_blob_type(logger, RulerCFG,BlockCandidate,i)#BlockCandidate.largest_blobs[0],BlockCandidate.img_bi_overlay)
+            BlockCandidate = determine_block_blob_type(logger, show_all_logs, RulerCFG,BlockCandidate,i)#BlockCandidate.largest_blobs[0],BlockCandidate.img_bi_overlay)
         if isStraighten == False:
             Ruler.img_block_overlay = BlockCandidate.img_bi_overlay
 
-        BlockCandidate = calculate_block_conversion_factor(BlockCandidate,nBlockCheck)  
+        BlockCandidate = calculate_block_conversion_factor(BlockCandidate, nBlockCheck, predicted_conversion_factor_cm, use_CF_predictor)  
     BlockCandidate.success_sort = success
     return Ruler, BlockCandidate
 
 
-def convert_blocks(logger, RulerCFG,Ruler,colorOption,img_fname, Dirs, is_redo):
+def convert_blocks(logger, show_all_logs, RulerCFG,Ruler, predicted_conversion_factor_cm, use_CF_predictor, colorOption,img_fname, Dirs, is_redo):
     # if is_redo:
     #     Ruler.img_bi = Ruler.img_bi_backup
     img_bi = copy.deepcopy(Ruler.img_bi)
@@ -3666,12 +4005,12 @@ def convert_blocks(logger, RulerCFG,Ruler,colorOption,img_fname, Dirs, is_redo):
 
     
     # Straighten the image here using the BlockCandidate.remaining_blobs[0].values
-    Ruler,BlockCandidate = sort_blobs_by_size(logger, RulerCFG, Ruler,isStraighten=True) 
+    Ruler,BlockCandidate = sort_blobs_by_size(logger, show_all_logs, RulerCFG, Ruler, predicted_conversion_factor_cm, use_CF_predictor, isStraighten=True) 
     if BlockCandidate.success_sort:
         useRegulerBinary = True
         # Ruler = straighten_img(logger, RulerCFG, Ruler, useRegulerBinary, BlockCandidate.remaining_blobs[0], Dirs, False, False, True)
         del BlockCandidate
-        Ruler,BlockCandidate = sort_blobs_by_size(logger, RulerCFG,Ruler,isStraighten=False) 
+        Ruler,BlockCandidate = sort_blobs_by_size(logger, show_all_logs, RulerCFG,Ruler, predicted_conversion_factor_cm, use_CF_predictor, isStraighten=False) 
 
     
         if BlockCandidate.success_sort: # if this is false, then no marks could be ID'd, will print just the existing Ruler.img_total_overlay
@@ -3679,8 +4018,13 @@ def convert_blocks(logger, RulerCFG,Ruler,colorOption,img_fname, Dirs, is_redo):
                 BlockCandidate = add_unit_marker_block(BlockCandidate,1)
                 BlockCandidate = add_unit_marker_block(BlockCandidate,10)
 
+                add_unit_marker_block(BlockCandidate, 1, is_pred1=True, is_pred2=False, pred_cm=predicted_conversion_factor_cm)
+                add_unit_marker_block(BlockCandidate, 1, is_pred1=False, is_pred2=True, pred_cm=predicted_conversion_factor_cm)
+                add_unit_marker_block(BlockCandidate, 1, is_pred1=True, is_pred2=False, pred_cm=predicted_conversion_factor_cm)
+
     message = ''.join(["Angle (deg): ", str(round(Ruler.avg_angle,2))])
-    logger.debug(message)
+    if show_all_logs:
+        logger.debug(message)
     # Print_Verbose(RulerCFG.cfg,1,message).cyan()
 
     # cv2.imshow('img_bi_overlay', BlockCandidate.img_bi_overlay)
@@ -3690,7 +4034,7 @@ def convert_blocks(logger, RulerCFG,Ruler,colorOption,img_fname, Dirs, is_redo):
     # cv2.imshow('img_bi_copy', BlockCandidate.img_bi_copy)
     # cv2.waitKey(0)
 
-    BlockCandidate.img_bi_overlay = create_overlay_bg_120(logger, RulerCFG,BlockCandidate.img_bi_overlay)
+    BlockCandidate.img_bi_overlay = create_overlay_bg_120(logger, show_all_logs, RulerCFG,BlockCandidate.img_bi_overlay)
     if BlockCandidate.conversion_location in ['average','fallback']:
         addText = 'Used: '+BlockCandidate.conversion_location_options+' Factor 1cm: '+str(round(BlockCandidate.conversion_factor,2))
         Ruler.summary_message.append([addText])
@@ -3723,10 +4067,24 @@ def convert_blocks(logger, RulerCFG,Ruler,colorOption,img_fname, Dirs, is_redo):
 
 
 
-def add_unit_marker_block(BlockCandidate, multiple):
-    COLOR = {'10cm':[0,255,0],'cm':[255,0,255]}
+def add_unit_marker_block(BlockCandidate, multiple, is_pred1=False, is_pred2=False, pred_cm=None):
+    COLOR = {'10cm':[0,255,0],
+             'cm':[255,0,255],
+             'is_pred1':[0,0,0],
+             'is_pred2':[255,255,255],
+             }
     name = 'cm' if multiple == 1 else '10cm'
     offset = 4 if multiple == 1 else 14
+    CF = BlockCandidate.conversion_factor
+
+    if is_pred1:
+        offset = 24
+        name = 'is_pred1'
+        CF = pred_cm
+    elif is_pred2:
+        offset = 29
+        name = 'is_pred2'
+        CF = pred_cm
     h, w, _ = BlockCandidate.img_bi_overlay.shape
 
     if BlockCandidate.conversion_location in ['average','fallback']:
@@ -3738,12 +4096,12 @@ def add_unit_marker_block(BlockCandidate, multiple):
         Y = int(round(np.mean(BlockCandidate.y_points[ind].values)))
 
     start = X
-    end = int(round(start+(BlockCandidate.conversion_factor*multiple))) + 1
+    end = int(round(start+(CF*multiple))) + 1
     if end >= w:
         X = int(round(w/40))
         Y = int(round(h/10))
         start = X
-        end = int(round(start+(BlockCandidate.conversion_factor*multiple))) + 1
+        end = int(round(start+(CF*multiple))) + 1
 
     plot_points = []
     for j in range(start, end):
@@ -3833,7 +4191,7 @@ def add_centroid_to_block_img(imgBG, centroidX, centroidY, ptType):
                         points.append([j + X, Y + i])
     return imgBG, points
 
-def determine_block_blob_type(logger, RulerCFG,BlockCandidate,ind):
+def determine_block_blob_type(logger, show_all_logs, RulerCFG,BlockCandidate,ind):
     largestBlobs = BlockCandidate.largest_blobs[ind]
     img_bi_overlay = BlockCandidate.img_bi_overlay
     # img_bi_overlay = np.stack((img_bi,)*3, axis=-1)
@@ -3869,7 +4227,8 @@ def determine_block_blob_type(logger, RulerCFG,BlockCandidate,ind):
             img_bi_overlay, points = add_centroid_to_block_img(img_bi_overlay,centoidX,centoidY,point_types)
         message = ''.join(["ratio: ", str(round(ratioM,3)), " use_points: ", str(use_points), " point_types: ", str(point_types)])
         # Print_Verbose(RulerCFG.cfg,2,message).plain()
-        logger.debug(message)
+        if show_all_logs:
+            logger.debug(message)
     # plt.imshow(img_bi_overlay)
     BlockCandidate.img_bi_overlay = img_bi_overlay
     BlockCandidate.use_points.append(use_points)

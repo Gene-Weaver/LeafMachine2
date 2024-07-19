@@ -10,13 +10,17 @@ from requests.adapters import HTTPAdapter
 from urllib3.util import Retry
 from torch import ge
 from re import S
-from threading import Lock
+import threading
+from queue import Queue
+from threading import Thread, Lock
 from random import shuffle
 from collections import defaultdict
 import streamlit
 import random
 from tqdm import tqdm
 from bs4 import BeautifulSoup
+
+
 
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
@@ -101,13 +105,91 @@ class ImageCandidate:
     #         print(f"{bcolors.FAIL}                SKIP No Connection or ERROR --> {e}{bcolors.ENDC}")
     #         print(f"{bcolors.WARNING}                Status Code --> {response.status_code}{bcolors.ENDC}")
     #         print(f"{bcolors.WARNING}                Reason --> {response.reason}{bcolors.ENDC}")
+    
+    # Worked fine, tried the SLTP version
+    # def download_image(self, lock) -> None:
+    #     dir_destination = self.cfg['dir_destination_images']
+    #     MP_low = self.cfg['MP_low']
+    #     MP_high = self.cfg['MP_high']
+        
+    #     # Set up a session with retry strategy
+    #     session = requests.Session()
+    #     retries = Retry(connect=3, backoff_factor=1)
+    #     adapter = HTTPAdapter(max_retries=retries)
+    #     session.mount('http://', adapter)
+    #     session.mount('https://', adapter)
+
+    #     print(f"{bcolors.BOLD}      {self.fullname}{bcolors.ENDC}")
+    #     print(f"{bcolors.BOLD}           URL: {self.url}{bcolors.ENDC}")
+
+    #     try:
+    #         response = session.get(self.url, stream=True, timeout=1.0)
+    #         response.raise_for_status()  # Check for HTTP errors
+
+    #         # Check if the content-type of the response is an image
+    #         if 'image' in response.headers['Content-Type']:
+    #             img = Image.open(response.raw)
+    #             self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)
+    #             print(f"{bcolors.OKGREEN}                SUCCESS{bcolors.ENDC}")
+    #         else:
+    #             # The content is not an image, use BeautifulSoup to find the image link
+    #             soup = BeautifulSoup(response.content, 'html.parser')
+    #             image_link = soup.find('a', text='Open Large Image')
+    #             if image_link and 'href' in image_link.attrs:
+    #                 image_url = image_link['href']
+    #                 # Ensure the URL is absolute
+    #                 image_url = requests.compat.urljoin(response.url, image_url)
+    #                 # Fetch and save the image
+    #                 image_response = session.get(image_url, stream=True)
+    #                 image_response.raise_for_status()
+    #                 img = Image.open(image_response.raw)
+    #                 self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)
+    #                 print(f"{bcolors.OKGREEN}                SUCCESS{bcolors.ENDC}")
+
+    #     except requests.exceptions.HTTPError as http_err:
+    #         print(f"{bcolors.FAIL}                HTTP Error --> {http_err}{bcolors.ENDC}")
+
+    #     except requests.exceptions.ConnectionError as conn_err:
+    #         # Handle connection-related errors, ignore if you don't want to print them
+    #         print(f"{bcolors.FAIL}                HTTP Error --> {http_err}{bcolors.ENDC}")
+    #         pass
+
+    #     except Exception as e:
+    #         # This will ignore the "No active exception to reraise" error
+    #         if str(e) != "No active exception to reraise":
+    #             print(f"{bcolors.FAIL}                SKIP --- No Connection or Rate Limited --> {e}{bcolors.ENDC}")
+
+    #     finally:
+    #         # Randomized delay
+    #         time.sleep(1 + random.uniform(0, 1))
     def download_image(self, lock) -> None:
+        import logging
+        import http.client as http_client
+        import requests, time, random, certifi
+
+
+        http_client.HTTPConnection.debuglevel = 1
+
+        logging.basicConfig()
+        logging.getLogger().setLevel(logging.DEBUG)
+        requests_log = logging.getLogger("requests.packages.urllib3")
+        requests_log.setLevel(logging.DEBUG)
+        requests_log.propagate = True
+
+
+
         dir_destination = self.cfg['dir_destination_images']
         MP_low = self.cfg['MP_low']
         MP_high = self.cfg['MP_high']
         
         # Set up a session with retry strategy
         session = requests.Session()
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+        }
+        session.headers.update(headers)
+        session.verify = certifi.where()
         retries = Retry(connect=3, backoff_factor=1)
         adapter = HTTPAdapter(max_retries=retries)
         session.mount('http://', adapter)
@@ -115,30 +197,25 @@ class ImageCandidate:
 
         print(f"{bcolors.BOLD}      {self.fullname}{bcolors.ENDC}")
         print(f"{bcolors.BOLD}           URL: {self.url}{bcolors.ENDC}")
+        
+        
 
         try:
-            response = session.get(self.url, stream=True, timeout=1.0)
+            response = session.get(self.url, stream=True, timeout=5.0, verify=False)
             response.raise_for_status()  # Check for HTTP errors
 
-            # Check if the content-type of the response is an image
-            if 'image' in response.headers['Content-Type']:
-                img = Image.open(response.raw)
-                self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)
-                print(f"{bcolors.OKGREEN}                SUCCESS{bcolors.ENDC}")
-            else:
-                # The content is not an image, use BeautifulSoup to find the image link
-                soup = BeautifulSoup(response.content, 'html.parser')
-                image_link = soup.find('a', text='Open Large Image')
-                if image_link and 'href' in image_link.attrs:
-                    image_url = image_link['href']
-                    # Ensure the URL is absolute
-                    image_url = requests.compat.urljoin(response.url, image_url)
-                    # Fetch and save the image
-                    image_response = session.get(image_url, stream=True)
-                    image_response.raise_for_status()
-                    img = Image.open(image_response.raw)
-                    self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)
-                    print(f"{bcolors.OKGREEN}                SUCCESS{bcolors.ENDC}")
+            img = Image.open(response.raw)
+
+            was_saved = self._save_matching_image(img, MP_low, MP_high, dir_destination, lock)  # TODO make this occ + img code work for MICH *and* GBIF, right now they are seperate 
+            
+            if not was_saved:
+                raise ImageSaveError(f"Failed to save the image: {self.url}")
+
+            print(f"{bcolors.OKGREEN}                SUCCESS{bcolors.ENDC}")
+            self.download_success = True
+
+        except ImageSaveError as e:
+            print(f"{bcolors.FAIL}                {e}{bcolors.ENDC}")
 
         except requests.exceptions.HTTPError as http_err:
             print(f"{bcolors.FAIL}                HTTP Error --> {http_err}{bcolors.ENDC}")
@@ -154,7 +231,7 @@ class ImageCandidate:
 
         finally:
             # Randomized delay
-            time.sleep(1 + random.uniform(0, 1))
+            time.sleep(2 + random.uniform(0, 2))
 
     def _save_matching_image(self, img, MP_low, MP_high, dir_destination, lock) -> None:
         img_mp, img_w, img_h = check_image_size(img)
@@ -265,6 +342,10 @@ def create_subset_file(cfg):
     subset_df.to_csv(os.path.join(cfg['dir_home'], new_filename), sep='\t', index=False)
 
     return new_filename
+
+class ImageSaveError(Exception):
+    """Custom exception for image saving errors."""
+    pass
 
 @dataclass
 class ImageCandidateMulti:
@@ -958,70 +1039,144 @@ def download_all_images_in_images_csv(cfg):
     validate_dir(dir_destination)
     validate_dir(dir_destination_csv)
     
-    # if cfg['is_custom_file']:
-        # download_from_custom_file(cfg)
-    # else:
-    # Get DWC files
-    occ_df, images_df = read_DWC_file(cfg)
+    if cfg['is_custom_file']:
+        download_from_custom_file(cfg)
+    else:
+        # Get DWC files
+        occ_df, images_df = read_DWC_file(cfg)
 
-    # Report summary
-    print(f"{bcolors.BOLD}Beginning of images file:{bcolors.ENDC}")
-    print(images_df.head())
-    print(f"{bcolors.BOLD}Beginning of occurrence file:{bcolors.ENDC}")
-    print(occ_df.head())
+        if occ_df is not None:
 
-    # Ignore problematic Herbaria
-    if cfg['ignore_banned_herb']:
-        for banned_url in cfg['banned_url_stems']:
-            images_df = images_df[~images_df['identifier'].str.contains(banned_url, na=False)]
+            # Report summary
+            print(f"{bcolors.BOLD}Beginning of images file:{bcolors.ENDC}")
+            print(images_df.head())
+            print(f"{bcolors.BOLD}Beginning of occurrence file:{bcolors.ENDC}")
+            print(occ_df.head())
+
+            # Ignore problematic Herbaria
+            if cfg['ignore_banned_herb']:
+                for banned_url in cfg['banned_url_stems']:
+                    images_df = images_df[~images_df['identifier'].str.contains(banned_url, na=False)]
 
 
-    if not cfg['is_custom_file']:
-        ### TODO NEW, needs to match the gbif version
-        # Find common 'id' values in both dataframes
-        common_ids = set(occ_df['id']).intersection(set(images_df['coreid']))
+            if not cfg['is_custom_file']:
+                ### TODO NEW, needs to match the gbif version
+                # Find common 'id' values in both dataframes
+                # common_ids = set(occ_df['id']).intersection(set(images_df['coreid']))
+                # common_ids = set(occ_df['gbifID']).intersection(set(images_df['gbifID']))
 
-        # Filter both dataframes to keep only rows with these common 'id' values
-        # occ_df_filtered = occ_df[occ_df['id'].isin(common_ids)]
-        images_df = images_df[images_df['coreid'].isin(common_ids)]
-    
-    # Report summary
-    n_imgs = images_df.shape[0]
-    n_occ = occ_df.shape[0]
-    print(f"{bcolors.BOLD}Number of images in images file: {n_imgs}{bcolors.ENDC}")
-    print(f"{bcolors.BOLD}Number of occurrence to search through: {n_occ}{bcolors.ENDC}")
+                # Filter both dataframes to keep only rows with these common 'id' values
+                # occ_df_filtered = occ_df[occ_df['id'].isin(common_ids)]
+                # images_df = images_df[images_df['coreid'].isin(common_ids)]
+                # images_df = images_df[images_df['gbifID'].isin(common_ids)]
 
-    results = process_image_batch(cfg, images_df, occ_df)
+                # Ensure the IDs are of the same type, generally string is safer if IDs are alphanumeric
+                occ_df['gbifID'] = occ_df['gbifID'].astype(str)
+                images_df['gbifID'] = images_df['gbifID'].astype(str)
+
+                # Filter images DataFrame based on occurrence DataFrame's IDs
+                images_df = images_df[images_df['gbifID'].isin(occ_df['gbifID'])]
+            
+            # Report summary
+            n_imgs = images_df.shape[0]
+            n_occ = occ_df.shape[0]
+            print(f"{bcolors.BOLD}Number of images in images file: {n_imgs}{bcolors.ENDC}")
+            print(f"{bcolors.BOLD}Number of occurrence to search through: {n_occ}{bcolors.ENDC}")
+
+            results = process_image_batch(cfg, images_df, occ_df)
+        else:
+            pass
+
+# def process_image_batch(cfg, images_df, occ_df):
+#     futures_list = []
+#     results = []
+#     lock = Lock() 
+
+#     # single threaded, useful for debugging
+#     # for index, image_row in images_df.iterrows():
+#     #     futures = process_each_image_row( cfg, image_row, occ_df, lock)
+#     #     futures_list.append(futures)
+#     # for future in futures_list:
+#     #     try:
+#     #         result = future.result(timeout=60)
+#     #         results.append(result)
+#     #     except Exception:
+#     #         results.append(None)
+
+
+#     with th(max_workers=cfg['n_threads']) as executor:
+#         for index, image_row in images_df.iterrows():
+#             futures = executor.submit(process_each_image_row, cfg, image_row, occ_df, lock)
+#             futures_list.append(futures)
+
+#         for future in futures_list:
+#             try:
+#                 result = future.result(timeout=60)
+#                 results.append(result)
+#             except Exception:
+#                 results.append(None)
+#     return results
+        
+def worker_download_standard(queue, cfg, occ_df, results, lock):
+    while True:
+        image_row = queue.get()
+        if image_row is None:
+            break  # None is the signal to stop processing
+        try:
+            result = process_each_image_row(cfg, image_row, occ_df, lock)
+            results.append(result)
+        except Exception as e:
+            print(f"Error processing image: {e}")
+            results.append(None)
+        queue.task_done()
 
 def process_image_batch(cfg, images_df, occ_df):
-    futures_list = []
+    num_workers = cfg['n_threads']
+    queue = Queue()
     results = []
-    lock = Lock() 
+    lock = Lock()
 
-    # single threaded, useful for debugging
-    # for index, image_row in images_df.iterrows():
-    #     futures = process_each_image_row( cfg, image_row, occ_df, lock)
-    #     futures_list.append(futures)
-    # for future in futures_list:
-    #     try:
-    #         result = future.result(timeout=60)
-    #         results.append(result)
-    #     except Exception:
-    #         results.append(None)
+    # Start worker threads
+    threads = []
+    for _ in range(num_workers):
+        t = Thread(target=worker_download_standard, args=(queue, cfg, occ_df, results, lock))
+        t.start()
+        threads.append(t)
 
+    # Enqueue tasks
+    for index, image_row in images_df.iterrows():
+        queue.put(image_row)
 
-    with th(max_workers=cfg['n_threads']) as executor:
-        for index, image_row in images_df.iterrows():
-            futures = executor.submit(process_each_image_row, cfg, image_row, occ_df, lock)
-            futures_list.append(futures)
+    # Block until all tasks are done
+    queue.join()
 
-        for future in futures_list:
-            try:
-                result = future.result(timeout=60)
-                results.append(result)
-            except Exception:
-                results.append(None)
+    # Stop workers
+    for _ in range(num_workers):
+        queue.put(None)  # Send as many None as the number of workers to stop them
+    for t in threads:
+        t.join()
+
     return results
+
+def process_each_image_row(cfg, image_row, occ_df, lock):
+    id_column = next((col for col in ['gbifID', 'id', 'coreid'] if col in image_row), None)
+    if id_column is None:
+        raise KeyError("No valid ID column found in image row.")
+    
+    print(f"Working on image: {image_row[id_column]}")
+    gbif_id = image_row[id_column]
+    if cfg['is_custom_file']:
+        gbif_url = image_row[cfg['custom_url_column_name']]
+    else:
+        gbif_url = image_row['identifier']
+
+    occ_row = find_gbifID(gbif_id, occ_df)
+
+    if occ_row is not None:
+        ImageInfo = ImageCandidate(cfg, image_row, occ_row, gbif_url, lock)
+        return pd.DataFrame(occ_row)
+    else:
+        pass
 
 
 def process_image_batch_multiDirs(cfg, images_df, occ_df, dir_destination, shared_counter, n_imgs_per_species, do_shuffle_occurrences):
@@ -1159,32 +1314,32 @@ def process_each_image_row_multiDirs(cfg, image_row, occ_df, dir_destination, sh
         pass
 
 
-def process_each_image_row(cfg, image_row, occ_df, lock):
-    if 'gbifID' in image_row:
-        id_column = 'gbifID'
-    # If 'gbifID' is not a key, check if 'id' is a key
-    elif 'id' in image_row:
-        id_column = 'id'
-    elif 'coreid' in image_row:
-        id_column = 'coreid'
-    else:
-        raise
+# def process_each_image_row(cfg, image_row, occ_df, lock):
+#     if 'gbifID' in image_row:
+#         id_column = 'gbifID'
+#     # If 'gbifID' is not a key, check if 'id' is a key
+#     elif 'id' in image_row:
+#         id_column = 'id'
+#     elif 'coreid' in image_row:
+#         id_column = 'coreid'
+#     else:
+#         raise
 
-    print(f"{bcolors.BOLD}Working on image: {image_row[id_column]}{bcolors.ENDC}")
-    gbif_id = image_row[id_column]
-    if cfg['is_custom_file']:
-        gbif_url = image_row[cfg['custom_url_column_name']]
-    else:
-        gbif_url = image_row['identifier'] 
+#     print(f"{bcolors.BOLD}Working on image: {image_row[id_column]}{bcolors.ENDC}")
+#     gbif_id = image_row[id_column]
+#     if cfg['is_custom_file']:
+#         gbif_url = image_row[cfg['custom_url_column_name']]
+#     else:
+#         gbif_url = image_row['identifier'] 
 
-    occ_row = find_gbifID(gbif_id,occ_df)
+#     occ_row = find_gbifID(gbif_id,occ_df)
 
-    if occ_row is not None:
-        ImageInfo = ImageCandidate(cfg, image_row, occ_row, gbif_url, lock)
-        return pd.DataFrame(occ_row)
-        # ImageInfo.download_image(cfg, occ_row, image_row)
-    else:
-        pass
+#     if occ_row is not None:
+#         ImageInfo = ImageCandidate(cfg, image_row, occ_row, gbif_url, lock)
+#         return pd.DataFrame(occ_row)
+#         # ImageInfo.download_image(cfg, occ_row, image_row)
+#     else:
+#         pass
 
 def download_from_custom_file(cfg):
     # Get DWC files
@@ -1227,7 +1382,8 @@ def read_custom_file(cfg):
 #     else:
 #         print(f"{bcolors.FAIL}DWC file {DWC_csv_or_txt_file} is not '.txt' or '.csv' and was not opened{bcolors.ENDC}")
 #     return df
-
+'''
+# Works, but could be faster
 def process_custom_image_batch(cfg, images_df):
     futures_list = []
     results = []
@@ -1261,5 +1417,59 @@ def process_each_custom_image_row(cfg, image_row, lock):
     print(f"{bcolors.BOLD}Working on image: {image_row[col_name]}{bcolors.ENDC}")
     if image_row is not None:
         ImageInfo = ImageCandidateCustom(cfg, image_row, gbif_url, col_name, lock)
+    else:
+        pass
+    
+'''
+
+def worker_custom(queue, cfg, results, lock):
+    while True:
+        image_row = queue.get()
+        if image_row is None:
+            break  # None is the signal to stop processing
+        try:
+            result = process_each_custom_image_row(cfg, image_row, lock)
+            results.append(result)
+        except Exception as e:
+            print(f"Error processing image: {e}")
+            results.append(None)
+        queue.task_done()
+
+def process_custom_image_batch(cfg, images_df):
+    num_workers = 13  # you can adjust this number based on your system's capabilities or load
+    queue = Queue()
+    results = []
+    lock = Lock()
+
+    # Start worker threads
+    threads = []
+    for _ in range(num_workers):
+        t = Thread(target=worker_custom, args=(queue, cfg, results, lock))
+        t.start()
+        threads.append(t)
+
+    # Enqueue tasks
+    for index, image_row in images_df.iterrows():
+        queue.put(image_row)
+
+    # Block until all tasks are done
+    queue.join()
+
+    # Stop workers
+    for _ in range(num_workers):
+        queue.put(None)  # send as many None as the number of workers to stop them
+    for t in threads:
+        t.join()
+
+    return results
+
+def process_each_custom_image_row(cfg, image_row, lock):
+    col_url = cfg['col_url'] if cfg['col_url'] else 'identifier'
+    gbif_url = image_row[col_url]
+
+    print(f"Working on image: {image_row[cfg['col_name']]}")
+    if image_row is not None:
+        ImageInfo = ImageCandidateCustom(cfg, image_row, gbif_url, cfg['col_name'], lock)
+        return ImageInfo
     else:
         pass

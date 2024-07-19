@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from time import perf_counter
 
 
-def save_data(cfg, logger, dir_home, Project, batch, n_batches, Dirs):
+def save_data(cfg, time_report, logger, dir_home, Project, batch, n_batches, Dirs):
     start_t = perf_counter()
     logger.name = f'[BATCH {batch+1} Save Data]'
     logger.info(f'Saving data for {batch+1} of {n_batches}')
@@ -16,7 +16,7 @@ def save_data(cfg, logger, dir_home, Project, batch, n_batches, Dirs):
     coeffs_col_names = [f'coeffs_{i}' for i in range(n_order)]
 
     # Create a new DataFrame with the required columns
-    df_project_EFD = pd.DataFrame(columns=['filename', 'image_height', 'image_width','component_name','conversion_factor_applied','conversion_mean','annotation_name',
+    df_project_EFD = pd.DataFrame(columns=['filename', 'image_height', 'image_width','component_name','conversion_factor_applied','conversion_mean','predicted_conversion_factor_cm','annotation_name',
             'efd_order','efd_coeffs_features','efd_a0','efd_c0','efd_scale','efd_angle',
             'efd_phase','efd_area','efd_perimeter','efd_plot_points',] + coeffs_col_names)
     
@@ -30,7 +30,7 @@ def save_data(cfg, logger, dir_home, Project, batch, n_batches, Dirs):
         'plot_x_shift','plot_y_shift',])
 
     df_project_rulers = pd.DataFrame(columns=['filename', 'image_height', 'image_width', 'ruler_image_name', 'ruler_location',
-            'ruler_success', 'conversion_mean', 'pooled_sd', 'ruler_class', 'ruler_class_confidence', 
+            'ruler_success', 'conversion_mean', 'predicted_conversion_factor_cm', 'pooled_sd', 'ruler_class', 'ruler_class_confidence', 
             'units', 'cross_validation_count' ,'n_scanlines' ,'n_data_points_in_avg', 
             'avg_tick_width',])
 
@@ -41,7 +41,7 @@ def save_data(cfg, logger, dir_home, Project, batch, n_batches, Dirs):
             'efd_order','efd_coeffs_features','efd_a0','efd_c0','efd_scale','efd_angle',
             'efd_phase','efd_area','efd_perimeter','efd_plot_points',
 
-            'ruler_image_name', 'ruler_success','conversion_mean','pooled_sd','ruler_class',
+            'ruler_image_name', 'ruler_success','conversion_mean', 'predicted_conversion_factor_cm','pooled_sd','ruler_class',
             'ruler_class_confidence','units', 'cross_validation_count','n_scanlines','n_data_points_in_avg','avg_tick_width',]
     
     if cfg['leafmachine']['data']['include_darwin_core_data_from_combined_file']:
@@ -73,11 +73,16 @@ def save_data(cfg, logger, dir_home, Project, batch, n_batches, Dirs):
 
     df_project_rulers.to_csv(os.path.join(Dirs.data_csv_project_batch_ruler, '.'.join([''.join([Dirs.run_name, '__Ruler__', str(batch+1), 'of', str(n_batches)]), 'csv'])), header=True, index=False)
     df_project_seg.to_csv(os.path.join(Dirs.data_csv_project_batch_measurements, '.'.join([''.join([Dirs.run_name, '__Measurements__', str(batch+1), 'of', str(n_batches)]), 'csv'])), header=True, index=False)
-    df_project_EFD.to_csv(os.path.join(Dirs.data_csv_project_batch_EFD, '.'.join([''.join([Dirs.run_name, '__EFD__', str(batch+1), 'of', str(n_batches)]), 'csv'])), header=True, index=False)
+    if cfg['leafmachine']['leaf_segmentation']['calculate_elliptic_fourier_descriptors']:
+        df_project_EFD.to_csv(os.path.join(Dirs.data_csv_project_batch_EFD, '.'.join([''.join([Dirs.run_name, '__EFD__', str(batch+1), 'of', str(n_batches)]), 'csv'])), header=True, index=False)
     df_project_landmarks.to_csv(os.path.join(Dirs.data_csv_project_batch_landmarks, '.'.join([''.join([Dirs.run_name, '__Landmarks__', str(batch+1), 'of', str(n_batches)]), 'csv'])), header=True, index=False)
 
     end_t = perf_counter()
-    logger.info(f'Batch {batch+1}: Save Data Duration --> {round((end_t - start_t)/60)} minutes')
+
+    t_save = f"[Batch {batch+1}: Save Data elapsed time] {round(end_t - start_t)} seconds ({round((end_t - start_t)/60)} minutes)"
+    logger.info(t_save)
+    time_report['t_save'] = t_save
+    return time_report
 
 
 @dataclass
@@ -128,6 +133,7 @@ class Data_Vault():
     df_ruler_use: list[str] = field(default_factory=list)
 
     def __init__(self, cfg, logger, filename, analysis, Dirs) -> None:
+        self.cfg = cfg
         logger.debug(f"[Saving] {filename}")
         # print(filename)
         # if cfg['leafmachine']['data']['save_json']:
@@ -185,7 +191,7 @@ class Data_Vault():
 
         df_ruler_use = self.ensure_list_values_preruler(df_ruler_use)
 
-        columns_to_extract = ['ruler_image_name', 'ruler_success', 'conversion_mean', 'pooled_sd', 'ruler_class',
+        columns_to_extract = ['ruler_image_name', 'ruler_success', 'conversion_mean', 'predicted_conversion_factor_cm', 'pooled_sd', 'ruler_class',
                             'ruler_class_confidence', 'cross_validation_count',
                             'n_scanlines', 'n_data_points_in_avg', 'avg_tick_width',]
         
@@ -197,7 +203,7 @@ class Data_Vault():
             'lobes','midvein_fit_points','ordered_midvein','ordered_petiole','width_left','width_right','t_apex_center','t_apex_left','t_apex_right',
             't_base_center','t_base_left','t_base_right','t_lamina_base', 't_lamina_tip','t_midvein','t_midvein_fit_points','t_petiole',
             't_width_infer','t_width_left','t_width_right', 'lamina_fit_ax_b','midvein_fit_ax_b', 'plot_x_shift','plot_y_shift', 'ruler_image_name','ruler_success',
-            'conversion_mean','pooled_sd','ruler_class','ruler_class_confidence','units','cross_validation_count','n_scanlines','n_data_points_in_avg','avg_tick_width',
+            'conversion_mean', 'predicted_conversion_factor_cm','pooled_sd','ruler_class','ruler_class_confidence','units','cross_validation_count','n_scanlines','n_data_points_in_avg','avg_tick_width',
             ]
 
         # Initialize an empty dictionary to store the extracted values
@@ -334,6 +340,7 @@ class Data_Vault():
                 export_dict['ruler_image_name'] = self.extract_value_from_dataframe(df_ruler_use, 'ruler_image_name')[0]
                 export_dict['ruler_success'] = self.extract_value_from_dataframe(df_ruler_use, 'ruler_success')[0]
                 export_dict['conversion_mean'] = self.extract_value_from_dataframe(df_ruler_use, 'conversion_mean')[0]
+                export_dict['predicted_conversion_factor_cm'] = self.extract_value_from_dataframe(df_ruler_use, 'predicted_conversion_factor_cm')[0]
                 export_dict['pooled_sd'] = self.extract_value_from_dataframe(df_ruler_use, 'pooled_sd')[0]
 
                 export_dict['ruler_class'] = self.extract_value_from_dataframe(df_ruler_use, 'ruler_class')[0]
@@ -398,7 +405,7 @@ class Data_Vault():
         
         # Define column names
         efd_column_names = [
-            'filename', 'image_height', 'image_width', 'component_name', 'conversion_factor_applied', 'conversion_mean', 'annotation_name',
+            'filename', 'image_height', 'image_width', 'component_name', 'conversion_factor_applied', 'conversion_mean', 'predicted_conversion_factor_cm', 'annotation_name',
             'efd_order', 'efd_coeffs_features', 'efd_a0', 'efd_c0', 'efd_scale', 'efd_angle',
             'efd_phase', 'efd_area', 'efd_perimeter', 'efd_plot_points',
             ]
@@ -437,57 +444,82 @@ class Data_Vault():
                     'image_height': [self.height],  # ruler data
                     'image_width': [self.width],  # ruler data
                 }
-
-                # Handle cases: Data not available
-                if not efd_info_dict:
-                    dict_EFD.update({
-                        'component_name': ['NA'],
-                        'conversion_factor_applied': [do_apply_conversion_factor],
-                        'conversion_mean': [df_ruler_use['conversion_mean'][0]],
-                        'annotation_name': ['NA'],
-                        'efd_order': ['NA'],
-                        'efd_order': ['NA'],
-                        'efd_coeffs_features': ['too_long'],
-                        'efd_a0': ['NA'],
-                        'efd_c0': ['NA'],
-                        'efd_scale': ['NA'],
-                        'efd_angle': ['NA'],
-                        'efd_phase': ['NA'],
-                        'efd_area': ['NA'],
-                        'efd_perimeter': ['NA'],
-                        'efd_plot_points': ['NA'],
-                    })
-                    for col_name in coeffs_col_names:
-                        dict_EFD[col_name] = ['NA']
-
-                # Handle cases: Data available
-                else:
-                    for annotation in efd_info_dict:
-                        annotation_name, annotation_dict = next(iter(annotation.items()))
-                        logger.debug(f'[Annotation] {annotation_name}')
-
+                
+                    
+                if cfg['leafmachine']['leaf_segmentation']['calculate_elliptic_fourier_descriptors']:
+                    # Handle cases: Data not available
+                    if not efd_info_dict:
                         dict_EFD.update({
-                            'component_name': [efd_image_name],
+                            'component_name': ['NA'],
                             'conversion_factor_applied': [do_apply_conversion_factor],
                             'conversion_mean': [df_ruler_use['conversion_mean'][0]],
-                            'annotation_name': [annotation_name],
-                            'efd_order': [int(annotation_dict['efds']['coeffs_normalized'].shape[0])],
-                            'efd_a0': [float(annotation_dict['efds']['a0'])],
-                            'efd_c0': [float(annotation_dict['efds']['c0'])],
-                            'efd_scale': [float(annotation_dict['efds']['scale'])],
-                            'efd_angle': [float(annotation_dict['efds']['angle'])],
-                            'efd_phase': [float(annotation_dict['efds']['phase'])],
-                            'efd_area': [float(annotation_dict['efds']['efd_area'])],
-                            'efd_perimeter': [float(annotation_dict['efds']['efd_perimeter'])],
-                            'efd_plot_points': ['too_long'], #[annotation_dict['efds']['efd_pts_PIL']],
-                            'efd_coeffs_features': ['too_long']#,[annotation_dict['efds']['coeffs_features'].tolist()],
+                            'predicted_conversion_factor_cm': [df_ruler_use['predicted_conversion_factor_cm'][0]],
+                            'annotation_name': ['NA'],
+                            'efd_order': ['NA'],
+                            'efd_order': ['NA'],
+                            'efd_coeffs_features': ['too_long'],
+                            'efd_a0': ['NA'],
+                            'efd_c0': ['NA'],
+                            'efd_scale': ['NA'],
+                            'efd_angle': ['NA'],
+                            'efd_phase': ['NA'],
+                            'efd_area': ['NA'],
+                            'efd_perimeter': ['NA'],
+                            'efd_plot_points': ['NA'],
                         })
-                        for i, coeffs in enumerate(annotation_dict['efds']['coeffs_normalized']):
-                            dict_EFD[coeffs_col_names[i]] = [coeffs]
-                        # Apply conversion factor to the values in the dict
-                        if do_apply_conversion_factor:
-                            # try:
-                            dict_EFD = self.divide_values_length_efd(dict_EFD, df_ruler_use)
+                        for col_name in coeffs_col_names:
+                            dict_EFD[col_name] = ['NA']
+
+                    # Handle cases: Data available
+                    else:
+                        for annotation in efd_info_dict:
+                            annotation_name, annotation_dict = next(iter(annotation.items()))
+                            logger.debug(f'[Annotation] {annotation_name}')
+
+                            dict_EFD.update({
+                                'component_name': [efd_image_name],
+                                'conversion_factor_applied': [do_apply_conversion_factor],
+                                'conversion_mean': [df_ruler_use['conversion_mean'][0]],
+                                'predicted_conversion_factor_cm': [df_ruler_use['predicted_conversion_factor_cm'][0]],
+                                'annotation_name': [annotation_name],
+                                'efd_order': [int(annotation_dict['efds']['coeffs_normalized'].shape[0])],
+                                'efd_a0': [float(annotation_dict['efds']['a0'])],
+                                'efd_c0': [float(annotation_dict['efds']['c0'])],
+                                'efd_scale': [float(annotation_dict['efds']['scale'])],
+                                'efd_angle': [float(annotation_dict['efds']['angle'])],
+                                'efd_phase': [float(annotation_dict['efds']['phase'])],
+                                'efd_area': [float(annotation_dict['efds']['efd_area'])],
+                                'efd_perimeter': [float(annotation_dict['efds']['efd_perimeter'])],
+                                'efd_plot_points': ['too_long'], #[annotation_dict['efds']['efd_pts_PIL']],
+                                'efd_coeffs_features': ['too_long']#,[annotation_dict['efds']['coeffs_features'].tolist()],
+                            })
+                            for i, coeffs in enumerate(annotation_dict['efds']['coeffs_normalized']):
+                                dict_EFD[coeffs_col_names[i]] = [coeffs]
+                            # Apply conversion factor to the values in the dict
+                            if do_apply_conversion_factor:
+                                # try:
+                                dict_EFD = self.divide_values_length_efd(dict_EFD, df_ruler_use)
+                else:
+                    dict_EFD.update({
+                            'component_name': ['NA'],
+                            'conversion_factor_applied': [do_apply_conversion_factor],
+                            'conversion_mean': [df_ruler_use['conversion_mean'][0]],
+                            'predicted_conversion_factor_cm': [df_ruler_use['predicted_conversion_factor_cm'][0]],
+                            'annotation_name': ['NA'],
+                            'efd_order': ['NA'],
+                            'efd_order': ['NA'],
+                            'efd_coeffs_features': ['too_long'],
+                            'efd_a0': ['NA'],
+                            'efd_c0': ['NA'],
+                            'efd_scale': ['NA'],
+                            'efd_angle': ['NA'],
+                            'efd_phase': ['NA'],
+                            'efd_area': ['NA'],
+                            'efd_perimeter': ['NA'],
+                            'efd_plot_points': ['NA'],
+                        })
+                    for col_name in coeffs_col_names:
+                        dict_EFD[col_name] = ['NA']
 
                 # Add to seg_dict_list and update DataFrame
                 self.efd_dict_list.append(dict_EFD)
@@ -581,7 +613,7 @@ class Data_Vault():
             'efd_order','efd_coeffs_features','efd_a0','efd_c0','efd_scale','efd_angle',
             'efd_phase','efd_area','efd_perimeter','efd_plot_points',
 
-            'ruler_image_name', 'ruler_success','conversion_mean','pooled_sd','ruler_class',
+            'ruler_image_name', 'ruler_success','conversion_mean', 'predicted_conversion_factor_cm','pooled_sd','ruler_class',
             'ruler_class_confidence','units', 'cross_validation_count','n_scanlines','n_data_points_in_avg','avg_tick_width',]
 
         if cfg['leafmachine']['data']['include_darwin_core_data_from_combined_file']:
@@ -609,12 +641,10 @@ class Data_Vault():
                     # print(component_name)
                     logger.debug(f"[Leaf] {component_name}")
 
-
-                    
                     if seg_info_dict == []:                      
                         
                         columns_to_extract = [
-                            'ruler_image_name', 'ruler_success', 'conversion_mean', 'pooled_sd', 'ruler_class',
+                            'ruler_image_name', 'ruler_success', 'conversion_mean', 'predicted_conversion_factor_cm', 'pooled_sd', 'ruler_class',
                             'ruler_class_confidence', 'cross_validation_count',
                             'n_scanlines', 'n_data_points_in_avg', 'avg_tick_width'
                         ]
@@ -670,6 +700,7 @@ class Data_Vault():
                             'ruler_image_name': self.extract_value_from_dataframe(df_ruler_use, 'ruler_image_name')[0],
                             'ruler_success': self.extract_value_from_dataframe(df_ruler_use, 'ruler_success')[0],
                             'conversion_mean': self.extract_value_from_dataframe(df_ruler_use, 'conversion_mean')[0],
+                            'predicted_conversion_factor_cm': self.extract_value_from_dataframe(df_ruler_use, 'predicted_conversion_factor_cm')[0],
                             'pooled_sd': self.extract_value_from_dataframe(df_ruler_use, 'pooled_sd')[0],
 
                             'ruler_class': self.extract_value_from_dataframe(df_ruler_use, 'ruler_class')[0],
@@ -701,6 +732,29 @@ class Data_Vault():
                             # print(annotation_name)
                             logger.debug(f'[Annotation] {annotation_name}')
 
+                            if not cfg['leafmachine']['leaf_segmentation']['calculate_elliptic_fourier_descriptors']:
+                                val_efd_order = ['NA']
+                                val_efd_coeffs_features = ['NA']
+                                val_efd_a0 = ['NA']
+                                val_efd_c0 = ['NA']
+                                val_efd_scale = ['NA']
+                                val_efd_angle = ['NA']
+                                val_efd_phase = ['NA']
+                                val_efd_area = ['NA']
+                                val_efd_perimeter = ['NA']
+                                val_efd_plot_points = ['NA']
+                            else:
+                                val_efd_order = [int(annotation_dict['efds']['coeffs_normalized'].shape[0])]
+                                val_efd_coeffs_features = ['too_long']
+                                val_efd_a0 = [float(annotation_dict['efds']['a0'])]
+                                val_efd_c0 = [float(annotation_dict['efds']['c0'])]
+                                val_efd_scale = [float(annotation_dict['efds']['scale'])]
+                                val_efd_angle = [float(annotation_dict['efds']['angle'])]
+                                val_efd_phase = [float(annotation_dict['efds']['phase'])]
+                                val_efd_area = [float(annotation_dict['efds']['efd_area'])]
+                                val_efd_perimeter = [float(annotation_dict['efds']['efd_perimeter'])]
+                                val_efd_plot_points = ['too_long']
+
                             dict_seg = {
                                 'filename': [self.filename], # ruler data
                                 'image_height': [self.height], # ruler data
@@ -726,21 +780,22 @@ class Data_Vault():
                                 'polygon_closed': ['too_long'], #[out_polygon_closed],
                                 'polygon_closed_rotated': ['too_long'], #[out_polygon_closed_rotated],
 
-                                'efd_order': [int(annotation_dict['efds']['coeffs_normalized'].shape[0])],
-                                'efd_coeffs_features': ['too_long'], #[annotation_dict['efds']['coeffs_features'].tolist()],
-                                'efd_a0': [float(annotation_dict['efds']['a0'])],
-                                'efd_c0': [float(annotation_dict['efds']['c0'])],
-                                'efd_scale': [float(annotation_dict['efds']['scale'])],
-                                'efd_angle': [float(annotation_dict['efds']['angle'])],
-                                'efd_phase': [float(annotation_dict['efds']['phase'])],
-                                'efd_area': [float(annotation_dict['efds']['efd_area'])],
-                                'efd_perimeter': [float(annotation_dict['efds']['efd_perimeter'])],
-                                'efd_plot_points': ['too_long'], #[annotation_dict['efds']['efd_pts_PIL']],
+                                'efd_order': val_efd_order,
+                                'efd_coeffs_features': val_efd_coeffs_features, #[annotation_dict['efds']['coeffs_features'].tolist()],
+                                'efd_a0': val_efd_a0,
+                                'efd_c0': val_efd_c0,
+                                'efd_scale': val_efd_scale,
+                                'efd_angle': val_efd_angle,
+                                'efd_phase': val_efd_phase,
+                                'efd_area': val_efd_area,
+                                'efd_perimeter': val_efd_perimeter,
+                                'efd_plot_points': val_efd_plot_points, #[annotation_dict['efds']['efd_pts_PIL']],
 
                                 # All from ruler data
                                 'ruler_image_name': self.extract_value_from_dataframe(df_ruler_use, 'ruler_image_name')[0],
                                 'ruler_success': self.extract_value_from_dataframe(df_ruler_use, 'ruler_success')[0],
                                 'conversion_mean': self.extract_value_from_dataframe(df_ruler_use, 'conversion_mean')[0],
+                                'predicted_conversion_factor_cm': self.extract_value_from_dataframe(df_ruler_use, 'predicted_conversion_factor_cm')[0],
                                 'pooled_sd': self.extract_value_from_dataframe(df_ruler_use, 'pooled_sd')[0],
 
                                 'ruler_class': self.extract_value_from_dataframe(df_ruler_use, 'ruler_class')[0],
@@ -801,7 +856,7 @@ class Data_Vault():
         
     def gather_ruler_info(self, cfg, Dirs, ruler_info):
         ruler_column_names = ['filename', 'image_height', 'image_width','ruler_image_name', 'ruler_location', 
-            'ruler_success', 'conversion_mean', 'pooled_sd', 'ruler_class', 'ruler_class_confidence', 
+            'ruler_success', 'conversion_mean', 'predicted_conversion_factor_cm', 'pooled_sd', 'ruler_class', 'ruler_class_confidence', 
             'units', 'cross_validation_count' ,'n_scanlines' ,'n_data_points_in_avg', 
             'avg_tick_width',]
 
@@ -824,6 +879,7 @@ class Data_Vault():
 
                 'ruler_success': ['False'],
                 'conversion_mean': ['NA'],
+                'predicted_conversion_factor_cm': ['NA'],
                 'pooled_sd': ['NA'],
 
                 'ruler_class': ['not_supported'],
@@ -866,6 +922,7 @@ class Data_Vault():
 
                         'ruler_success': ['False'],
                         'conversion_mean': ['NA'],
+                        'predicted_conversion_factor_cm': ['NA'],
                         'pooled_sd': ['NA'],
 
                         'ruler_class': ['not_supported'],
@@ -915,6 +972,7 @@ class Data_Vault():
                         # All from ruler data
                         'ruler_success': self.extract_value_from_dataframe(ruler_data_part, 'success'),
                         'conversion_mean': self.extract_value_from_dataframe(ruler_data_part, 'conversion_mean'),
+                        'predicted_conversion_factor_cm': self.extract_value_from_dataframe(ruler_data_part, 'predicted_conversion_factor_cm'),
                         'pooled_sd': self.extract_value_from_dataframe(ruler_data_part, 'pooled_sd'),
 
                         'ruler_class': self.extract_value_from_dataframe(ruler_data_part, 'ruler_class'),
@@ -1193,16 +1251,20 @@ class Data_Vault():
         if (df_ruler_use['conversion_mean'][0] == 0) or (df_ruler_use['conversion_mean'][0] == 'NA'):
             return dict_seg
         else:
-            try:
-                bbox_min_long_side = round(dict_seg['bbox_min_long_side'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['bbox_min_long_side'][0] is not None else None
-                bbox_min_short_side = round(dict_seg['bbox_min_short_side'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['bbox_min_short_side'][0] is not None else None
-                perimeter = round(dict_seg['perimeter'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['perimeter'][0] is not None else None
+            # try:
+            bbox_min_long_side = round(dict_seg['bbox_min_long_side'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['bbox_min_long_side'][0] is not None else None
+            bbox_min_short_side = round(dict_seg['bbox_min_short_side'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['bbox_min_short_side'][0] is not None else None
+            perimeter = round(dict_seg['perimeter'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['perimeter'][0] is not None else None
+            
+            if self.cfg['leafmachine']['leaf_segmentation']['calculate_elliptic_fourier_descriptors']:
                 efd_perimeter = round(dict_seg['efd_perimeter'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['efd_perimeter'][0] is not None else None
-            except:
-                bbox_min_long_side = round(dict_seg['bbox_min_long_side'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['bbox_min_long_side'][0] is not None else None
-                bbox_min_short_side = round(dict_seg['bbox_min_short_side'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['bbox_min_short_side'][0] is not None else None
-                perimeter = round(dict_seg['perimeter'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['perimeter'][0] is not None else None
-                efd_perimeter = round(dict_seg['efd_perimeter'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['efd_perimeter'][0] is not None else None
+            else:
+                efd_perimeter = 0
+            # except:
+            #     bbox_min_long_side = round(dict_seg['bbox_min_long_side'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['bbox_min_long_side'][0] is not None else None
+            #     bbox_min_short_side = round(dict_seg['bbox_min_short_side'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['bbox_min_short_side'][0] is not None else None
+            #     perimeter = round(dict_seg['perimeter'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['perimeter'][0] is not None else None
+            #     efd_perimeter = round(dict_seg['efd_perimeter'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['efd_perimeter'][0] is not None else None
             dict_seg['bbox_min_long_side'] = bbox_min_long_side
             dict_seg['bbox_min_short_side'] = bbox_min_short_side
             dict_seg['perimeter'] = perimeter
@@ -1213,14 +1275,17 @@ class Data_Vault():
         if (df_ruler_use['conversion_mean'][0] == 0) or (df_ruler_use['conversion_mean'][0] == 'NA'):
             return dict_seg
         else:
-            try:
+            # try:
+            if self.cfg['leafmachine']['leaf_segmentation']['calculate_elliptic_fourier_descriptors']:
                 efd_area = round(dict_seg['efd_area'][0] / (df_ruler_use['conversion_mean'][0] * df_ruler_use['conversion_mean'][0]), 2) if dict_seg['efd_area'][0] is not None else None
-                area = round(dict_seg['area'][0] / (df_ruler_use['conversion_mean'][0] * df_ruler_use['conversion_mean'][0]), 2) if dict_seg['area'][0] is not None else None
-                convex_hull = round(dict_seg['convex_hull'][0] / (df_ruler_use['conversion_mean'][0] * df_ruler_use['conversion_mean'][0]), 2) if dict_seg['convex_hull'][0] is not None else None
-            except:
-                efd_area = round(dict_seg['efd_area'][0] / (df_ruler_use['conversion_mean'][0][0] * df_ruler_use['conversion_mean'][0][0]), 2) if dict_seg['efd_area'][0] is not None else None
-                area = round(dict_seg['area'][0] / (df_ruler_use['conversion_mean'][0][0] * df_ruler_use['conversion_mean'][0][0]), 2) if dict_seg['area'][0] is not None else None
-                convex_hull = round(dict_seg['convex_hull'][0] / (df_ruler_use['conversion_mean'][0][0] * df_ruler_use['conversion_mean'][0][0]), 2) if dict_seg['convex_hull'][0] is not None else None
+            else:
+                efd_area = 0
+            area = round(dict_seg['area'][0] / (df_ruler_use['conversion_mean'][0] * df_ruler_use['conversion_mean'][0]), 2) if dict_seg['area'][0] is not None else None
+            convex_hull = round(dict_seg['convex_hull'][0] / (df_ruler_use['conversion_mean'][0] * df_ruler_use['conversion_mean'][0]), 2) if dict_seg['convex_hull'][0] is not None else None
+            # except:
+            #     efd_area = round(dict_seg['efd_area'][0] / (df_ruler_use['conversion_mean'][0][0] * df_ruler_use['conversion_mean'][0][0]), 2) if dict_seg['efd_area'][0] is not None else None
+            #     area = round(dict_seg['area'][0] / (df_ruler_use['conversion_mean'][0][0] * df_ruler_use['conversion_mean'][0][0]), 2) if dict_seg['area'][0] is not None else None
+            #     convex_hull = round(dict_seg['convex_hull'][0] / (df_ruler_use['conversion_mean'][0][0] * df_ruler_use['conversion_mean'][0][0]), 2) if dict_seg['convex_hull'][0] is not None else None
 
             dict_seg['efd_area'] = [efd_area]
             dict_seg['area'] = [area]

@@ -3,7 +3,11 @@ import math
 from typing import List, Tuple
 import torch
 
-from detectron2.layers.rotated_boxes import pairwise_iou_rotated
+import os, sys, inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
+from segmentation.detectron2.detectron2.layers.rotated_boxes import pairwise_iou_rotated
 
 from .boxes import Boxes
 

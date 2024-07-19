@@ -1,4 +1,4 @@
-from leafmachine2.machine.specimencrop import machine
+from leafmachine2.machine.machine_specimencrop import machine
 import os
 if __name__ == '__main__':
     # To use LeafMachine2.yaml file, set cfg_file_path = None

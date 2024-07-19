@@ -1,0 +1,230 @@
+#  __   __   ___  __           ___       __   __   __   __   __          __  
+# /__` |__) |__  /  ` |  |\/| |__  |\ | /  ` |__) /  \ |__) |__) | |\ | / _` 
+# .__/ |    |___ \__, |  |  | |___ | \| \__, |  \ \__/ |    |    | | \| \__> 
+# LeafMachine2 SpecimenCropping Module
+# William N. Weaver 2023
+# University of Michigan
+# 
+# 
+# Cite:
+# Weaver, W. N., and S. A.Smith. 2023. From leaves to labels: Building modular
+#     machine learning networks for rapid herbarium specimen analysis with LeafMachine2.
+#     Applications in Plant Sciences. e11548. https://doi.org/10.1002/aps3.11548
+# 
+# 
+# This configuration is for the `SpecimenCrop.py` script and relies on the `LeafMachine2` machine learning model. The primary purpose of this script is to locate all the desired objects inside a specimen image and crop the image to minimize blank space. The primary use case for this is the creation of XMP sidecar files to enhance the efficiency of working in Adobe Lightroom. There are two general usages:
+#   1. (Recommended) Only create XMP sidecar files
+#       - Contains cropping and orientation settings
+#       - Applied to RAW images when imported into Adobe Lightroom
+#       - Original RAW files are not edited/changed at all by LeafMachine2
+#       - For crops to be applied, open and export using Lightroom
+#   2. Use LeafMachine2 to create TIFFs or JPGs from the original RAW files
+#       - Color accuracy is not guaranteed
+#       - Quality retention is not guaranteed
+#       - EXIF data is copied from the RAW files and added to the EXIF data of the created TIFFs and JPGs
+#
+#
+# Example workflow:
+#   1. Locate a folder containing the raw files that you want to process. We have validated with CR2 files, but raw file types should work too
+#   2. The path to the folder containing the raw files needs to be set to the 'dir_images_local' argument
+#   3. Set the output file location.
+#       - This is the 'dir_output' argument. 
+#       - LeafMachine2 creates intermediate files during the analysis, give them a home somewhere. 
+#       - If you only need the XMP files, then you can delete this directory once the process has finished.
+#       - This folder will contain useful debugging images if you set both 
+#         component detector 'do_save_prediction_overlay_images' arguments to True
+#   4. Are your input images raw files?
+#       - YES 
+#           -- Set save_XMP_to_original_dir: True
+#               --- Will save XMP files in the 'dir_images_local' directory
+#           -- Optional
+#               --- Can save TIFF versions of the cropped files to 'dir_images_local' and/or 'dir_output'
+#               --- Can save JPG versions of the cropped files to 'dir_output'
+#       - NO
+#           -- Can save JPG versions of the cropped files to 'dir_output'
+#   5. Set the orientation argument (raw only)
+#       - Trial and error to end up with correctly oriented images.
+#       - Run a few and see which settings work for your images
+#   6. Set pixel padding around the identified objects
+#       - The default of 150 pixels is usually fine, but if 
+#         your images are low resolution you will want to decrease this value.
+#   7. Set optional/remaining arguments
+#   8. Run a small subset and adjust any settings
+#   9. Import the RAW + XMP files into Lightroom to confirm that things are working smoothly
+#       - If you need to rerun the images with new settings, delete the old images from Lightroom 
+#         to apply the new XMP settings when you open the reworked images again.
+#   10. In Lightroom, edit and export the images as normal
+#
+#
+# IMPORTANT ARGUMENTS:
+#    If cropping from RAW files:
+#       * save_XMP_to_original_dir: True
+#           -- Saves an XMP sidecar file 
+#               --- Places an XMP file in the original directory of the raw files
+#               --- Only works with raw files (validated with .CR2 files so far)
+#               --- Does not edit original raw file at all
+#               --- Cropping and orientation information is added to XMP
+#               --- Applied to the image when it is imported into Adobe Lightroom
+#
+#       * save_TIFF_to_original_dir: False
+#           -- Uses rawpy to create cropped tiffs. Colorspace may be changed in undesirable ways.
+#           -- Saves TIFF inside of original directory
+#
+#       * save_TIFF_to_dir_output: False
+#           -- Uses rawpy to create cropped tiffs. Colorspace may be changed in undesirable ways.
+#           -- Saves TIFF inside specified 'dir_output' directory
+#
+#       * orientation: "1"
+#            "1" Normal
+#            "2" Flipped horizontally
+#            "3" Upside down
+#            "4" Flipped vertically
+#            "5" Rotated 90° CCW and flipped vertically
+#            "6" Rotated 90° CCW
+#            "7" Rotated 90° CW and flipped vertically
+#            "8" Rotated 90° CW
+#
+#    If cropping from JPG files:
+#       * save_JPG_to_dir_output
+#           -- Uses rawpy to create cropped JPGs. Colorspace may be changed in undesirable ways.
+#
+#    Picking which components will be used to determine the final crop.
+#       - Add items to the list that you want to be used to define the crop boundary
+#       - LeafMachine2 will identify those items and then determine the minimum bounding box that contains all of them
+#       - We recommend starting with all items in the list and removing items if the final crop is too large and includes unwanted items
+#       - Typically, we include all items except the 'weights' class
+#
+#       * include_these_objects_in_specimen_crop: ['objects']
+#           -- Archival components
+#               --- ruler, barcode, colorcard, label, map, envelope, photo, attached_item, weights
+#           -- Plant components
+#               --- leaf_whole, leaf_partial, leaflet, seed_fruit_one, seed_fruit_many, flower_one, flower_many, bud, specimen, roots, wood
+
+
+leafmachine:
+    do:
+        check_for_illegal_filenames: False 
+        check_for_corrupt_images_make_vertical: False
+
+    # Overall Project Input Settings
+    project:
+        # Image to Process
+        dir_images_local: 'C:/ML_Projects/Dan_Park/annotated_images/Dioscorea-HNC-ColombianHerbarium/Annotated_Dioscorea_HNCOL' #'path/to/input/images'
+        run_name: 'Censored__Annotated_Dioscorea_HNCOL'
+
+        # Project Output Dir
+        # Can set this to a temp location if the intermediate files are not needed
+        dir_output: 'C:/ML_Projects/Dan_Park/annotated_images/Dioscorea-HNC-ColombianHerbarium' #'path/to/output/dir'
+
+        censor_archival_components: True
+        hide_archival_components: ['ruler', 'barcode', 'label', 'colorcard', 'map', 'photo', 'weights',]
+        replacement_color: '#FFFFFF'
+
+        # Processing Options
+        batch_size: 50000                   # Default: 50    | Determines RAM usage
+        num_workers: 8                    # Default: 4     | Most hardware loses performance beyond 4 workers
+        image_location: 'local'
+
+    cropped_components:
+        # empty list for all, add to list to IGNORE, lowercase, comma seperated
+        # archival |FROM| 
+        #           ruler, barcode, colorcard, label, map, envelope, photo, attached_item, weights
+        # plant |FROM| 
+        #           leaf_whole, leaf_partial, leaflet, seed_fruit_one, seed_fruit_many, flower_one, flower_many, bud, specimen, roots, wood
+        
+        include_these_objects_in_specimen_crop: ['ruler','barcode','colorcard', 'label', 'map', 'envelope', 'photo', 'attached_item', 'leaf_whole', 'leaf_partial', 'leaflet', 'seed_fruit_one', 'seed_fruit_many', 'flower_one', 'flower_many', 'bud', 'specimen', 'roots', 'wood']
+        
+        save_per_image: False # creates a folder for each image, saves crops into class-names folders # TODO
+        save_per_annotation_class: True # saves crops into class-names folders
+
+        # Optional: Save individual components as images 
+        #          - Save jpgs for each identified object
+        #          - e.g. Save a jpg of each barcode that is identified from the input images
+        #          - can pick from any of the items listed in archival |FROM| and plant |FROM| 
+        do_save_cropped_annotations: False # Saves individual cropped components 
+        save_cropped_annotations: ['ruler','barcode','colorcard', 'label',] # Saves individual cropped components of these classes
+
+
+
+    # For almost all use cases, the settings below do not need to be changed
+    #
+    # minimum_confidence_threshold 
+    #       - By default the detector confidence is set quite low to make sure that
+    #         the detector actually finds the objects in the image.
+    #       - If you expereince issues and the detector is skipping or detecting too many objects, 
+    #         try increaseing or decreasing the 'minimum_confidence_threshold' 
+    #         values. They must be between 0 and 1. 
+    #       - Higher values will yeild fewer but more confident detections
+    #
+    # do_save_prediction_overlay_images
+    #       - To save space, set:
+    #                do_save_prediction_overlay_images = False
+    #       - False will not save the intermediate object detection images. 
+    #       - These intermediate images are useful for debugging, but are otherwise unimportant. 
+    #
+    #       NOTE: For everyday use, we recommend setting 'do_save_prediction_overlay_images to False 
+    #             so that you are not saving hundreds of overlay images.
+    modules:
+        specimen_crop: True
+
+    # Configure Plant Component Detector
+    plant_component_detector:
+        # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
+        detector_type: 'Plant_Detector' 
+        detector_version: 'PLANT_LeafPriority'
+        detector_iteration: 'PLANT_LeafPriority'
+        detector_weights: 'LeafPriority.pt'
+        minimum_confidence_threshold: 0.2 # 0.2 = default
+        do_save_prediction_overlay_images: True
+        ignore_objects_for_overlay: []
+    
+    # Configure Archival Component Detector
+    archival_component_detector:
+        # ./leafmachine2/component_detector/runs/train/detector_type/detector_version/detector_iteration/weights/detector_weights
+        detector_type: 'Archival_Detector' 
+        detector_version: 'PREP_final'
+        detector_iteration: 'PREP_final'
+        detector_weights: 'best.pt'
+        minimum_confidence_threshold: 0.2 # 0.2 = default
+        do_save_prediction_overlay_images: True
+        ignore_objects_for_overlay: [] 
+
+    print:
+        verbose: True
+        optional_warnings: True
+    
+    leaf_segmentation:
+        segment_whole_leaves: False
+        segment_partial_leaves: False
+    landmark_detector:
+        landmark_whole_leaves: False
+        landmark_partial_leaves: False
+
+    logging:
+        log_level: null
+
+    overlay:
+        save_overlay_to_pdf: False
+        save_overlay_to_jpgs: True
+        overlay_dpi: 300 # int |FROM| 100 to 300
+        overlay_background_color: 'black' # str |FROM| 'white' or 'black'
+
+        show_archival_detections: True
+        ignore_archival_detections_classes: []
+        show_plant_detections: True
+        ignore_plant_detections_classes: [] #['leaf_whole', 'specimen'] #['leaf_whole', 'leaf_partial', 'specimen']
+        show_segmentations: True
+        show_landmarks: True
+        ignore_landmark_classes: []
+
+        line_width_archival: 12 # int
+        line_width_plant: 12 # int
+        line_width_seg: 12 # int # thick = 12
+        line_width_efd: 12 # int # thick = 3
+        alpha_transparency_archival: 0.3  # float between 0 and 1
+        alpha_transparency_plant: 0
+        alpha_transparency_seg_whole_leaf: 0.4
+        alpha_transparency_seg_partial_leaf: 0.3
+
+    
+    

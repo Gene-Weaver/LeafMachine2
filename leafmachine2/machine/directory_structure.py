@@ -12,11 +12,14 @@ class Dir_Structure():
     run_name: str = ''
     dir_home: str = ''
     dir_project: str = ''
+    dir_images_local: str = ''
+    database: str = ''
 
     # Processing dirs
     path_plant_components: str = ''
     path_archival_components: str = ''
     path_armature_components: str = ''
+    path_phenology: str = ''
     path_config_file: str = ''
 
     whole_leaves: str = ''
@@ -66,6 +69,10 @@ class Dir_Structure():
     landmarks_armature_overlay: str = ''
 
 
+    # Keypoints
+    keypoints: str = ''
+    oriented_cropped_leaves: str = ''
+
     # logging
     path_log: str = ''
     
@@ -73,16 +80,26 @@ class Dir_Structure():
         # Home 
         self.run_name = cfg['leafmachine']['project']['run_name']
         self.dir_home = cfg['leafmachine']['project']['dir_output']
+        self.dir_images_local = cfg['leafmachine']['project']['dir_images_local']
+
+
         self.dir_project = os.path.join(self.dir_home,self.run_name)
         validate_dir(self.dir_home)
         self.__add_time_to_existing_project_dir()
         validate_dir(self.dir_project)
+
+
+        self.database = os.path.join(self.dir_project, "LM2_Data.db")
+
 
         # Processing dirs
         self.path_plant_components = os.path.join(self.dir_project,'Plant_Components')
         self.path_archival_components = os.path.join(self.dir_project,'Archival_Components')
         self.path_config_file = os.path.join(self.dir_project,'Config_File')
         validate_dir(self.path_config_file)
+
+        self.path_phenology = os.path.join(self.dir_project,'Phenology')
+        validate_dir(self.path_phenology)
 
         # Modules
         if cfg['leafmachine']['modules']['armature']:
@@ -258,8 +275,27 @@ class Dir_Structure():
             validate_dir(self.landmarks_partial_leaves_overlay_final)
 
         
+        # Keypoints 
+        self.keypoints = os.path.join(self.dir_project,'Keypoints')
+        self.dir_oriented_images = os.path.join(self.dir_project,'Keypoints','Oriented_Cropped_Leaves')
+        self.dir_keypoint_overlay = os.path.join(self.dir_project,'Keypoints','Keypoint_Overlay')
+        self.dir_oriented_masks = os.path.join(self.dir_project,'Keypoints','Oriented_Masks')
+        self.dir_simple_txt = os.path.join(self.dir_project,'Keypoints','Simple_Labels')
+        if cfg['leafmachine']['leaf_segmentation']['save_oriented_images'] or cfg['leafmachine']['leaf_segmentation']['save_keypoint_overlay'] or cfg['leafmachine']['leaf_segmentation']['save_oriented_mask'] or cfg['leafmachine']['leaf_segmentation']['save_simple_txt'] :
+            validate_dir(self.keypoints)
+        if cfg['leafmachine']['leaf_segmentation']['save_oriented_images']:
+            validate_dir(self.dir_oriented_images)
+        if cfg['leafmachine']['leaf_segmentation']['save_keypoint_overlay']:
+            validate_dir(self.dir_keypoint_overlay)
+        if cfg['leafmachine']['leaf_segmentation']['save_oriented_mask']:
+            validate_dir(self.dir_oriented_masks)
+        if cfg['leafmachine']['leaf_segmentation']['save_simple_txt']:
+            validate_dir(self.dir_simple_txt)
 
-            
+        # Censor
+        self.censor_archival_components = os.path.join(self.dir_project,'Archival_Components_Censored')
+        if cfg['leafmachine']['project']['censor_archival_components']:
+            validate_dir(self.censor_archival_components)
 
         # armature
         self.landmarks_armature_overlay = os.path.join(self.dir_project,'Armature_Components','Landmarks_Armature_Overlay')

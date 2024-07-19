@@ -86,7 +86,17 @@ def run(opts):
     #     metadata['thing_classes'] = ['Leaf','Petiole','Hole']
 
     # Create config 
-    cfg_leaf = leaf_config_pr(opts.model_name, opts.base_architecture,opts.dir_out,opts.do_validate_in_training,"train",opts.batch_size,opts.iterations,opts.checkpoint_freq,opts.warmup,opts.n_workers,opts.aug)
+    cfg_leaf = leaf_config_pr(opts.model_name, 
+                              opts.base_architecture,
+                              opts.dir_out,
+                              opts.do_validate_in_training,
+                              "train",
+                              opts.batch_size,
+                              opts.iterations,
+                              opts.checkpoint_freq,
+                              opts.warmup,
+                              opts.n_workers,
+                              None)#opts.aug)
     print(cfg_leaf.dump())
 
     # Save metadata from the congig / dataset
@@ -98,24 +108,24 @@ def run(opts):
     cfg_wandb = yaml.safe_load(cfg_leaf.dump())
     wandb.init(project=opts.project,name=opts.model_name, entity=opts.entity, config = cfg_wandb, sync_tensorboard=False)
 
-    RESUME_TRAIN = False
-    # if RESUME_TRAIN:
-    #     DIR_ROOT = os.getcwd()
-    #     cfg.OUTPUT_DIR = os.path.join(DIR_ROOT,'leaf_seg__2022_09_19__20-19-04')
-    #     model_list = os.listdir(cfg.OUTPUT_DIR)
-    #     if "model_final.pth" in model_list:
-    #         model_to_use = os.path.join(cfg.OUTPUT_DIR, "model_final.pth")
-    #     else:
-    #         candidate = []
-    #         for m in model_list:
-    #             if "model" in m:
-    #                 candidate.append(int(m.split("_")[1].split(".")[0]))
-    #         model_to_use = [i for i, s in enumerate(model_list) if str(max(candidate)) in s][0]
-    #         model_to_use = os.path.join(cfg.OUTPUT_DIR, model_list[model_to_use])
-    #     cfg.MODEL.WEIGHTS = model_to_use
-    #     cfg.SOLVER.BASE_LR = 0.00025
-    #     cfg.SOLVER.WARMUP_ITERS = 0
-    #     cfg.SOLVER.MAX_ITER = 3000
+    RESUME_TRAIN = True
+    if RESUME_TRAIN:
+        DIR_ROOT = os.getcwd()
+        # cfg_leaf.OUTPUT_DIR = os.path.join(DIR_ROOT,'leaf_seg__2022_09_19__20-19-04')
+        model_list = os.listdir(cfg_leaf.OUTPUT_DIR)
+        if "model_final.pth" in model_list:
+            model_to_use = os.path.join(cfg_leaf.OUTPUT_DIR, "model_final.pth")
+        else:
+            candidate = []
+            for m in model_list:
+                if "model" in m:
+                    candidate.append(int(m.split("_")[1].split(".")[0]))
+            model_to_use = [i for i, s in enumerate(model_list) if str(max(candidate)) in s][0]
+            model_to_use = os.path.join(cfg_leaf.OUTPUT_DIR, model_list[model_to_use])
+        cfg_leaf.MODEL.WEIGHTS = model_to_use
+        cfg_leaf.SOLVER.BASE_LR = 0.00025
+        cfg_leaf.SOLVER.WARMUP_ITERS = 0
+        cfg_leaf.SOLVER.MAX_ITER = 200000
     
     trainer = DefaultTrainer(cfg_leaf) 
     if RESUME_TRAIN:

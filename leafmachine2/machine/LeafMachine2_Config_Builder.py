@@ -51,6 +51,8 @@ def build_LM2_config():
         'GBIF_mode': 'all',
         'batch_size': 100, #40
         'num_workers': 4, #2
+        'num_workers_seg': 4,
+        'num_workers_ruler': 4,
         'dir_images_local': '',
         # 'dir_images_local': 'D:\Dropbox\LM2_Env\Image_Datasets\Manuscript_Images',
         'path_combined_csv_local': None,
@@ -61,7 +63,17 @@ def build_LM2_config():
         'process_subset_of_images': False,
         'dir_images_subset': '',
         'n_images_per_species': 10,
-        'species_list': ''
+        'species_list': '',
+
+        # Thresholds for counting and reporting
+        'accept_only_ideal_leaves': True, # For the 'has_leaves' variable, this restricts the counts to only whole/ideal leaves
+        'minimum_total_reproductive_counts': 0, # If you get false positives, increase this to set a minimum threshold for the is_fertile designation 
+
+        'use_CF_predictor': True,
+        
+        'censor_archival_components': True,
+        'hide_archival_components': ['ruler', 'barcode', 'label', 'colorcard', 'map', 'photo', 'weights',],
+        'replacement_color': '#FFFFFF',
     }
 
     cropped_components_section = {
@@ -100,7 +112,7 @@ def build_LM2_config():
         'show_segmentations': True,
         'show_landmarks': True,
         'ignore_archival_detections_classes': [],
-        'ignore_plant_detections_classes': ['leaf_partial',], # Could also include 'leaf_partial' and others if needed
+        'ignore_plant_detections_classes': ['leaf_whole',], # Could also include 'leaf_partial' and others if needed
         'ignore_landmark_classes': [],
 
         'line_width_archival': 12, # Previous value given was 2
@@ -207,11 +219,17 @@ def build_LM2_config():
         'calculate_elliptic_fourier_descriptors': True, # Default is True
         'elliptic_fourier_descriptor_order': 40, # Default is 40
 
-        'segmentation_model': 'GroupB_Dataset_100000_Iter_1176PTS_512Batch_smooth_l1_LR00025_BGR',
+        'segmentation_model': 'Group3_Dataset_100000_Iter_1176PTS_512Batch_smooth_l1_LR00025_BGR', #'GroupB_Dataset_100000_Iter_1176PTS_512Batch_smooth_l1_LR00025_BGR',
         'minimum_confidence_threshold': 0.7, # Alternatively: 0.9
         'generate_overlay': True,
         'overlay_dpi': 300, # Range: 100 to 300
-        'overlay_background_color': 'black' # Options: 'white' or 'black'
+        'overlay_background_color': 'black', # Options: 'white' or 'black',
+
+        'save_oriented_images': True,
+        'save_keypoint_overlay': True,
+        'save_oriented_mask': True,
+        'save_simple_txt': True,
+        'detector_version': 'uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2'
     }
 
     # Add the sections to the 'leafmachine' key

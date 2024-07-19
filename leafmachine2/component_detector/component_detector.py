@@ -6,10 +6,15 @@ from PIL import Image
 from tqdm import tqdm
 from time import perf_counter
 import concurrent.futures
-from threading import Lock
+from threading import Thread, Lock
+from queue import Queue
 from collections import defaultdict
 import multiprocessing
 import torch
+from sqlite3 import Error
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import asyncio, aiofiles
+
 
 currentdir = os.path.dirname(inspect.getfile(inspect.currentframe()))
 parentdir = os.path.dirname(currentdir)
@@ -19,10 +24,11 @@ sys.path.append(parentdir)
 from landmark_processing import LeafSkeleton
 from armature_processing import ArmatureSkeleton
 
-def detect_plant_components(cfg, logger, dir_home, Project, Dirs):
+def detect_plant_components(cfg, time_report, logger, dir_home, Project, Dirs):
     t1_start = perf_counter()
+    n_images = len(os.listdir(Project.dir_images))
     logger.name = 'Locating Plant Components'
-    logger.info(f"Detecting plant components in {len(os.listdir(Project.dir_images))} images")
+    logger.info(f"Detecting plant components in {n_images} images")
 
     try:
         dir_exisiting_labels = cfg['leafmachine']['project']['use_existing_plant_component_detections']
@@ -51,12 +57,12 @@ def detect_plant_components(cfg, logger, dir_home, Project, Dirs):
     if dir_exisiting_labels != None:
         logger.info("Loading existing plant labels")
         fetch_labels(dir_exisiting_labels, os.path.join(Dirs.path_plant_components, 'labels'))
-        if len(Project.dir_images) <= 4000:
-            logger.debug("Single-threaded create_dictionary_from_txt() len(Project.dir_images) <= 4000")
-            A = create_dictionary_from_txt(logger, dir_exisiting_labels, 'Detections_Plant_Components', Project)
-        else:
-            logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() len(Project.dir_images) > 4000")
-            A = create_dictionary_from_txt_parallel(logger, cfg, dir_exisiting_labels, 'Detections_Plant_Components', Project)
+        # if n_images <= 4000:
+            # logger.debug("Single-threaded create_dictionary_from_txt() n_images <= 4000")
+        A = create_dictionary_from_txt(logger, dir_exisiting_labels, 'Detections_Plant_Components', Project)
+        # else:
+            # logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() n_images > 4000")
+            # A = create_dictionary_from_txt_parallel(logger, cfg, dir_exisiting_labels, 'Detections_Plant_Components', Project)
 
     else:
         logger.info("Running YOLOv5 to generate plant labels")
@@ -82,40 +88,45 @@ def detect_plant_components(cfg, logger, dir_home, Project, Dirs):
         mode = 'LM2'
         LOGGER = logger
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-            futures = [executor.submit(run_in_parallel, weights, source, project, name, imgsz, nosave, anno_type,
-                                    conf_thres, 10, ignore_objects_for_overlay, mode, LOGGER, i, num_workers) for i in
-                    range(num_workers)]
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    _ = future.result()
-                except Exception as e:
-                    logger.error(f'Error in thread: {e}')
-                    continue
+        # with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+        #     futures = [executor.submit(run_in_parallel, weights, source, project, name, imgsz, nosave, anno_type,
+        #                             conf_thres, 10, ignore_objects_for_overlay, mode, LOGGER, i, num_workers) for i in
+        #             range(num_workers)]
+        #     for future in concurrent.futures.as_completed(futures):
+        #         try:
+        #             _ = future.result()
+        #         except Exception as e:
+        #             logger.error(f'Error in thread: {e}')
+        #             continue
+        distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers)
+
 
         t2_stop = perf_counter()
         logger.info(f"[Plant components detection elapsed time] {round(t2_stop - t1_start)} seconds")
         logger.info(f"Threads [{num_workers}]")
 
-        if len(Project.dir_images) <= 4000:
-            logger.debug("Single-threaded create_dictionary_from_txt() len(Project.dir_images) <= 4000")
-            A = create_dictionary_from_txt(logger, os.path.join(Dirs.path_plant_components, 'labels'), 'Detections_Plant_Components', Project)
-        else:
-            logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() len(Project.dir_images) > 4000")
-            A = create_dictionary_from_txt_parallel(logger, cfg, os.path.join(Dirs.path_plant_components, 'labels'), 'Detections_Plant_Components', Project)
+        # if len(Project.dir_images) <= 4000:
+            # A = create_dictionary_from_txt_parallel(logger, cfg, os.path.join(Dirs.path_plant_components, 'labels'), 'Detections_Plant_Components', Project)
+        A = create_dictionary_from_txt(logger, os.path.join(Dirs.path_plant_components, 'labels'), 'Detections_Plant_Components', Project)
+        # else:
+            # logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() len(Project.dir_images) > 4000")
+            # A = create_dictionary_from_txt_parallel(logger, cfg, os.path.join(Dirs.path_plant_components, 'labels'), 'Detections_Plant_Components', Project)
     
-    dict_to_json(Project.project_data, Dirs.path_plant_components, 'Detections_Plant_Components.json')
+    # dict_to_json(Project.project_data, Dirs.path_plant_components, 'Detections_Plant_Components.json')
     
     t1_stop = perf_counter()
-    logger.info(f"[Processing plant components elapsed time] {round(t1_stop - t1_start)} seconds")
+    t_pcd = f"[Processing plant components elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
+    logger.info(t_pcd)
+    time_report['t_pcd'] = t_pcd
     torch.cuda.empty_cache()
-    return Project
+    return Project, time_report
     
 
-def detect_archival_components(cfg, logger, dir_home, Project, Dirs):
+def detect_archival_components(cfg, time_report, logger, dir_home, Project, Dirs):
     t1_start = perf_counter()
+    n_images = len(os.listdir(Project.dir_images))
     logger.name = 'Locating Archival Components'
-    logger.info(f"Detecting archival components in {len(os.listdir(Project.dir_images))} images")
+    logger.info(f"Detecting archival components in {n_images} images")
 
     
     try:
@@ -146,12 +157,13 @@ def detect_archival_components(cfg, logger, dir_home, Project, Dirs):
     if dir_exisiting_labels != None:
         logger.info("Loading existing archival labels")
         fetch_labels(dir_exisiting_labels, os.path.join(Dirs.path_archival_components, 'labels'))
-        if len(Project.dir_images) <= 4000:
-            logger.debug("Single-threaded create_dictionary_from_txt() len(Project.dir_images) <= 4000")
-            A = create_dictionary_from_txt(logger, dir_exisiting_labels, 'Detections_Archival_Components', Project)
-        else:
-            logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() len(Project.dir_images) > 4000")
-            A = create_dictionary_from_txt_parallel(logger, cfg, dir_exisiting_labels, 'Detections_Archival_Components', Project)
+        # if n_images <= 4000:
+            # logger.debug("Single-threaded create_dictionary_from_txt() n_images <= 4000")
+            # A = create_dictionary_from_txt_parallel(logger, cfg, dir_exisiting_labels, 'Detections_Archival_Components', Project)
+        A = create_dictionary_from_txt(logger, dir_exisiting_labels, 'Detections_Archival_Components', Project)
+        # else:
+            # logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() n_images > 4000")
+            # A = create_dictionary_from_txt_parallel(logger, cfg, dir_exisiting_labels, 'Detections_Archival_Components', Project)
 
     else:
         logger.info("Running YOLOv5 to generate archival labels")
@@ -178,40 +190,46 @@ def detect_archival_components(cfg, logger, dir_home, Project, Dirs):
         mode = 'LM2'
         LOGGER = logger
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-            futures = [executor.submit(run_in_parallel, weights, source, project, name, imgsz, nosave, anno_type,
-                                    conf_thres, 10, ignore_objects_for_overlay, mode, LOGGER, i, num_workers) for i in
-                    range(num_workers)]
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    _ = future.result()
-                except Exception as e:
-                    logger.error(f'Error in thread: {e}')
-                    continue
+        # with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+        #     futures = [executor.submit(run_in_parallel, weights, source, project, name, imgsz, nosave, anno_type,
+        #                             conf_thres, 10, ignore_objects_for_overlay, mode, LOGGER, i, num_workers) for i in
+        #             range(num_workers)]
+        #     for future in concurrent.futures.as_completed(futures):
+        #         try:
+        #             _ = future.result()
+        #         except Exception as e:
+        #             logger.error(f'Error in thread: {e}')
+        #             continue
+        distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers)
+
 
         t2_stop = perf_counter()
         logger.info(f"[Archival components detection elapsed time] {round(t2_stop - t1_start)} seconds")
         logger.info(f"Threads [{num_workers}]")
 
-        if len(Project.dir_images) <= 4000:
-            logger.debug("Single-threaded create_dictionary_from_txt() len(Project.dir_images) <= 4000")
-            A = create_dictionary_from_txt(logger, os.path.join(Dirs.path_archival_components, 'labels'), 'Detections_Archival_Components', Project)
-        else:
-            logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() len(Project.dir_images) > 4000")
-            A = create_dictionary_from_txt_parallel(logger, cfg, os.path.join(Dirs.path_archival_components, 'labels'), 'Detections_Archival_Components', Project)
+        # if n_images <= 4000:
+            # logger.debug("Single-threaded create_dictionary_from_txt() n_images <= 4000")
+        A = create_dictionary_from_txt(logger, os.path.join(Dirs.path_archival_components, 'labels'), 'Detections_Archival_Components', Project)
+        # else:
+            # logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() n_images > 4000")
+            # A = create_dictionary_from_txt_parallel(logger, cfg, os.path.join(Dirs.path_archival_components, 'labels'), 'Detections_Archival_Components', Project)
     
-    dict_to_json(Project.project_data, Dirs.path_archival_components, 'Detections_Archival_Components.json')
+    # dict_to_json(Project.project_data, Dirs.path_archival_components, 'Detections_Archival_Components.json')
 
     t1_stop = perf_counter()
-    logger.info(f"[Processing archival components elapsed time] {round(t1_stop - t1_start)} seconds")
+    t_acd = f"[Processing archival components elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
+    logger.info(t_acd)
+    time_report['t_acd'] = t_acd
+
     torch.cuda.empty_cache()
-    return Project
+    return Project, time_report
 
 
 def detect_armature_components(cfg, logger, dir_home, Project, Dirs):
     t1_start = perf_counter()
+    n_images = len(os.listdir(Project.dir_images))
     logger.name = 'Locating Armature Components'
-    logger.info(f"Detecting armature components in {len(os.listdir(Project.dir_images))} images")
+    logger.info(f"Detecting armature components in {n_images} images")
 
     if cfg['leafmachine']['project']['num_workers'] is None:
         num_workers = 1
@@ -246,16 +264,17 @@ def detect_armature_components(cfg, logger, dir_home, Project, Dirs):
     mode = 'LM2'
     LOGGER = logger
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-        futures = [executor.submit(run_in_parallel, weights, source, project, name, imgsz, nosave, anno_type,
-                                conf_thres, 10, ignore_objects_for_overlay, mode, LOGGER, i, num_workers) for i in
-                range(num_workers)]
-        for future in concurrent.futures.as_completed(futures):
-            try:
-                _ = future.result()
-            except Exception as e:
-                logger.error(f'Error in thread: {e}')
-                continue
+    # with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+    #     futures = [executor.submit(run_in_parallel, weights, source, project, name, imgsz, nosave, anno_type,
+    #                             conf_thres, 10, ignore_objects_for_overlay, mode, LOGGER, i, num_workers) for i in
+    #             range(num_workers)]
+    #     for future in concurrent.futures.as_completed(futures):
+    #         try:
+    #             _ = future.result()
+    #         except Exception as e:
+    #             logger.error(f'Error in thread: {e}')
+    #             continue
+    distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers)
 
     t2_stop = perf_counter()
     logger.info(f"[Plant components detection elapsed time] {round(t2_stop - t1_start)} seconds")
@@ -268,7 +287,7 @@ def detect_armature_components(cfg, logger, dir_home, Project, Dirs):
         logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() len(Project.dir_images) > 4000")
         A = create_dictionary_from_txt_parallel(logger, cfg, os.path.join(Dirs.path_armature_components, 'labels'), 'Detections_Armature_Components', Project)
 
-    dict_to_json(Project.project_data, Dirs.path_armature_components, 'Detections_Armature_Components.json')
+    # dict_to_json(Project.project_data, Dirs.path_armature_components, 'Detections_Armature_Components.json')
     
     t1_stop = perf_counter()
     logger.info(f"[Processing armature components elapsed time] {round(t1_stop - t1_start)} seconds")
@@ -277,7 +296,61 @@ def detect_armature_components(cfg, logger, dir_home, Project, Dirs):
 
 
 ''' RUN IN PARALLEL'''
-def run_in_parallel(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, line_thickness, ignore_objects_for_overlay, mode, LOGGER, chunk, n_workers):
+def distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers):
+    num_files = len(os.listdir(source))
+    LOGGER.info(f"The number of worker threads: ({num_workers}), number of files ({num_files}).")
+
+    files = [os.path.join(source, f) for f in os.listdir(source) if f.lower().endswith('.jpg')]
+    chunk_size = (num_files + num_workers - 1) // num_workers  # Ensuring each worker has something to do, ceiling division
+
+    queue = Queue()
+    # Start worker threads
+    workers = []
+    for _ in range(num_workers):
+        t = Thread(target=worker_object_detector, args=(queue, weights, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER))
+        t.start()
+        workers.append(t)
+
+    # Enqueue sublists of files
+    for i in range(num_workers):
+        start = i * chunk_size
+        end = min(start + chunk_size, num_files)
+        sub_source = files[start:end]
+        queue.put(sub_source)
+
+    # Block until all tasks are done
+    queue.join()
+
+    # Stop workers
+    for _ in range(num_workers):
+        queue.put(None)  # send as many None as the number of workers to stop them
+    for t in workers:
+        t.join()
+        
+def worker_object_detector(queue, weights, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER):
+    while True:
+        sub_source = queue.get()
+        if sub_source is None:
+            break  # None is the signal to stop processing
+        try:
+            run(weights=weights,
+                source=sub_source,
+                project=project,
+                name=name,
+                imgsz=imgsz,
+                nosave=nosave,
+                anno_type=anno_type,
+                conf_thres=conf_thres,
+                ignore_objects_for_overlay=ignore_objects_for_overlay,
+                mode=mode,
+                LOGGER=LOGGER)
+        except Exception as e:
+            LOGGER.error(f'Error in processing: {e}')
+        queue.task_done()
+
+
+
+def run_in_parallel(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, line_thickness, ignore_objects_for_overlay, mode, LOGGER, show_all_logs, chunk, n_workers):
     num_files = len(os.listdir(source))
     LOGGER.info(f"The number of worker threads: ({n_workers}), number of files ({num_files}).")
 
@@ -303,53 +376,165 @@ def run_in_parallel(weights, source, project, name, imgsz, nosave, anno_type, co
 
 
 ###### Multi-thread NOTE this works, but unless there are several thousand images, it will be slower
-def process_file(logger, file, dir_components, component, Project, lock):
-    file_name = str(file.split('.')[0])
-    with open(os.path.join(dir_components, file), "r") as f:
-        with lock:
-            Project.project_data[file_name][component] = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
-            try:
-                image_path = glob.glob(os.path.join(Project.dir_images, file_name + '.*'))[0]
-                name_ext = os.path.basename(image_path)
-                with Image.open(image_path) as im:
-                    _, ext = os.path.splitext(name_ext)
-                    if ext not in ['.jpg']:
-                        im = im.convert('RGB')
-                        im.save(os.path.join(Project.dir_images, file_name) + '.jpg', quality=100)
-                        # file_name += '.jpg'
-                    width, height = im.size
-            except Exception as e:
-                print(f"Unable to get image dimensions. Error: {e}")
-                logger.info(f"Unable to get image dimensions. Error: {e}")
-                width, height = None, None
-            if width and height:
-                Project.project_data[file_name]['height'] = int(height)
-                Project.project_data[file_name]['width'] = int(width)
+# def process_file(logger, file, dir_components, component, Project, lock):
+#     file_name = str(file.split('.')[0])
+#     with open(os.path.join(dir_components, file), "r") as f:
+#         with lock:
+#             Project.project_data[file_name][component] = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
+#             try:
+#                 image_path = glob.glob(os.path.join(Project.dir_images, file_name + '.*'))[0]
+#                 name_ext = os.path.basename(image_path)
+#                 with Image.open(image_path) as im:
+#                     _, ext = os.path.splitext(name_ext)
+#                     if ext not in ['.jpg']:
+#                         im = im.convert('RGB')
+#                         im.save(os.path.join(Project.dir_images, file_name) + '.jpg', quality=100)
+#                         # file_name += '.jpg'
+#                     width, height = im.size
+#             except Exception as e:
+#                 print(f"Unable to get image dimensions. Error: {e}")
+#                 logger.info(f"Unable to get image dimensions. Error: {e}")
+#                 width, height = None, None
+#             if width and height:
+#                 Project.project_data[file_name]['height'] = int(height)
+#                 Project.project_data[file_name]['width'] = int(width)
 
+
+# def create_dictionary_from_txt_parallel(logger, cfg, dir_components, component, Project):
+#     if cfg['leafmachine']['project']['num_workers'] is None:
+#         num_workers = 4 
+#     else:
+#         num_workers = int(cfg['leafmachine']['project']['num_workers'])
+
+#     files = [file for file in os.listdir(dir_components) if file.endswith(".txt")]
+#     lock = Lock()
+#     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+#         futures = []
+#         for file in files:
+#             futures.append(executor.submit(process_file, logger, file, dir_components, component, Project, lock))
+#         for future in concurrent.futures.as_completed(futures):
+#             pass
+#     return Project.project_data
+# def create_dictionary_from_txt_parallel(logger, cfg, dir_components, component, Project):
+#     if cfg['leafmachine']['project']['num_workers'] is None:
+#         num_workers = 4
+#     else:
+#         num_workers = int(cfg['leafmachine']['project']['num_workers'])
+
+#     files = [file for file in os.listdir(dir_components) if file.endswith(".txt")]
+#     lock = Lock()
+#     queue = Queue()
+
+#     # Start worker threads
+#     workers = []
+#     for _ in range(num_workers):
+#         t = Thread(target=worker, args=(queue, logger, dir_components, component, Project, lock))
+#         t.start()
+#         workers.append(t)
+
+#     # Enqueue all files
+#     for file in files:
+#         queue.put(file)
+
+#     # Block until all tasks are done
+#     queue.join()
+
+#     # Stop workers
+#     for _ in range(num_workers):
+#         queue.put(None)  # send as many None as the number of workers to stop them
+#     for t in workers:
+#         t.join()
+
+#     return Project.project_data
+
+# def process_file(logger, file, dir_components, component, Project, lock):
+#     file_name = str(file.split('.')[0])
+#     with open(os.path.join(dir_components, file), "r") as f:
+#         with lock:
+#             Project.project_data[file_name][component] = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
+#             try:
+#                 image_path = glob.glob(os.path.join(Project.dir_images, file_name + '.*'))[0]
+#                 name_ext = os.path.basename(image_path)
+#                 with Image.open(image_path) as im:
+#                     _, ext = os.path.splitext(name_ext)
+#                     if ext not in ['.jpg']:
+#                         im.convert('RGB').save(os.path.join(Project.dir_images, file_name + '.jpg'), quality=100)
+#                     width, height = im.size
+#             except Exception as e:
+#                 logger.info(f"Unable to get image dimensions. Error: {e}")
+#                 width, height = None, None
+#             if width and height:
+#                 Project.project_data[file_name]['height'] = int(height)
+#                 Project.project_data[file_name]['width'] = int(width)
+
+# def worker(queue, logger, dir_components, component, Project, lock):
+#     while True:
+#         file = queue.get()
+#         if file is None:
+#             break  # None is the signal to stop processing
+#         process_file(logger, file, dir_components, component, Project, lock)
+#         queue.task_done()
+
+
+
+async def read_file_parallel(file_path):
+    async with aiofiles.open(file_path, mode='r') as f:
+        return await f.readlines()
+
+def process_image_parallel(file_name, Project, logger):
+    result = {}
+    try:
+        image_path = glob.glob(os.path.join(Project.dir_images, file_name + '.*'))[0]
+        name_ext = os.path.basename(image_path)
+        with Image.open(image_path) as im:
+            _, ext = os.path.splitext(name_ext)
+            if ext not in ['.jpg']:
+                im = im.convert('RGB')
+                im.save(os.path.join(Project.dir_images, file_name) + '.jpg', quality=100)
+            width, height = im.size
+            result['height'] = int(height)
+            result['width'] = int(width)
+    except Exception as e:
+        logger.info(f"Unable to process image for file {file_name}. Error: {e}")
+    return result
+
+def process_file_parallel(file, dir_components, component, Project, logger):
+    result = {}
+    try:
+        if file.endswith(".txt"):
+            file_name = str(file.split('.')[0])
+            file_path = os.path.join(dir_components, file)
+            lines = asyncio.run(read_file_parallel(file_path))
+            result[file_name] = {
+                component: [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in lines]
+            }
+            image_result = process_image_parallel(file_name, Project, logger)
+            if image_result:
+                result[file_name].update(image_result)
+    except Exception as e:
+        logger.info(f"Unable to process file {file}. Error: {e}")
+    return result
 
 def create_dictionary_from_txt_parallel(logger, cfg, dir_components, component, Project):
-    if cfg['leafmachine']['project']['num_workers'] is None:
-        num_workers = 4 
-    else:
-        num_workers = int(cfg['leafmachine']['project']['num_workers'])
-
+    num_workers = cfg['leafmachine']['project'].get('num_workers', 4)
     files = [file for file in os.listdir(dir_components) if file.endswith(".txt")]
-    lock = Lock()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-        futures = []
-        for file in files:
-            futures.append(executor.submit(process_file, logger, file, dir_components, component, Project, lock))
-        for future in concurrent.futures.as_completed(futures):
-            pass
-    return Project.project_data
 
+    with ThreadPoolExecutor(max_workers=num_workers) as executor:
+        futures = {executor.submit(process_file_parallel, file, dir_components, component, Project, logger): file for file in files}
+        for future in tqdm(as_completed(futures), total=len(futures), desc="Loading Annotations", colour='green'):
+            result = future.result()
+            if result:
+                for file_name, data in result.items():
+                    Project.project_data[file_name] = data
+
+    return Project.project_data
 ######
 
 
 
 
 
-# Single threaded
+# Single threaded for non-SQL Project
 def create_dictionary_from_txt(logger, dir_components, component, Project):
     # dict_labels = {}
     for file in tqdm(os.listdir(dir_components), desc="Loading Annotations", colour='green'):
@@ -378,6 +563,51 @@ def create_dictionary_from_txt(logger, dir_components, component, Project):
     # for key, value in dict_labels.items():
     #     print(f'{key}  --> {value}')
     return Project.project_data
+def create_dictionary_from_txt_SQL(logger, dir_components, component, Project):
+    for file in tqdm(os.listdir(dir_components), desc="Loading Annotations", colour='green'):
+        if file.endswith(".txt"):
+            file_name = str(file.split('.')[0])
+            annotations = []
+            with open(os.path.join(dir_components, file), "r") as f:
+                annotations = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
+
+            try:
+                image_path = glob.glob(os.path.join(Project.dir_images, file_name + '.*'))[0]
+                name_ext = os.path.basename(image_path)
+                with Image.open(image_path) as im:
+                    _, ext = os.path.splitext(name_ext)
+                    if ext not in ['.jpg']:
+                        im = im.convert('RGB')
+                        im.save(os.path.join(Project.dir_images, file_name) + '.jpg', quality=100)
+                        image_path = os.path.join(Project.dir_images, file_name) + '.jpg'
+                    width, height = im.size
+            except Exception as e:
+                logger.info(f"Unable to get image dimensions for {file_name}. Error: {e}")
+                width, height = None, None
+
+            # Insert the annotations into the archival_components table
+            try:
+                cur = Project.conn.cursor()
+                
+                if component == "Detections_Archival_Components":
+                    cur.execute('''INSERT INTO archival_components (image_name, component, annotations)
+                                VALUES (?, ?, ?)''', (file_name, component, str(annotations)))
+                    
+                elif component == "Detections_Plant_Components":
+                    cur.execute('''INSERT INTO plant_components (image_name, component, annotations)
+                                VALUES (?, ?, ?)''', (file_name, component, str(annotations)))
+                else:
+                    raise
+
+                if width and height:
+                    cur.execute('''UPDATE images SET width = ?, height = ? WHERE name = ?''',
+                                (width, height, file_name))
+                Project.conn.commit()
+            except Error as e:
+                logger.info(f"Error inserting annotations for {file_name} into database: {e}")
+    
+    return "Annotations added to the database"
+
 
 
 # old below   
@@ -412,10 +642,12 @@ def fetch_labels(dir_exisiting_labels, new_dir):
 
 
 '''Landmarks - uses YOLO, but works differently than above. A hybrid between segmentation and component detector'''
-def detect_landmarks(cfg, logger, dir_home, Project, batch, n_batches, Dirs, segmentation_complete):
+def detect_landmarks(cfg, time_report, logger, dir_home, Project, batch, n_batches, Dirs, segmentation_complete):
     start_t = perf_counter()
     logger.name = f'[BATCH {batch+1} Detect Landmarks]'
     logger.info(f'Detecting landmarks for batch {batch+1} of {n_batches}')
+
+    show_all_logs = False
 
     landmark_whole_leaves = cfg['leafmachine']['landmark_detector']['landmark_whole_leaves']
     landmark_partial_leaves = cfg['leafmachine']['landmark_detector']['landmark_partial_leaves']
@@ -426,9 +658,9 @@ def detect_landmarks(cfg, logger, dir_home, Project, batch, n_batches, Dirs, seg
     landmarks_partial_leaves_overlay = {}
 
     if landmark_whole_leaves:
-        run_landmarks(cfg, logger, dir_home, Project, batch, n_batches, Dirs, 'Landmarks_Whole_Leaves', segmentation_complete)
+        run_landmarks(cfg, logger, show_all_logs, dir_home, Project, batch, n_batches, Dirs, 'Landmarks_Whole_Leaves', segmentation_complete)
     if landmark_partial_leaves:
-        run_landmarks(cfg, logger, dir_home, Project, batch, n_batches, Dirs, 'Landmarks_Partial_Leaves', segmentation_complete)
+        run_landmarks(cfg, logger, show_all_logs, dir_home, Project, batch, n_batches, Dirs, 'Landmarks_Partial_Leaves', segmentation_complete)
 
     # if cfg['leafmachine']['leaf_segmentation']['segment_whole_leaves']:
     #     landmarks_whole_leaves_props_batch, landmarks_whole_leaves_overlay_batch = run_landmarks(Instance_Detector_Whole, Project.project_data_list[batch], 0, 
@@ -442,8 +674,10 @@ def detect_landmarks(cfg, logger, dir_home, Project, batch, n_batches, Dirs, seg
     #     landmarks_partial_leaves_overlay.update(landmarks_partial_leaves_overlay_batch)
     
     end_t = perf_counter()
-    logger.info(f'Batch {batch+1}/{n_batches}: Landmark Detection Duration --> {round((end_t - start_t)/60)} minutes')
-    return Project
+    t_land = f"[Batch {batch+1}/{n_batches}: Landmark Detection elapsed time] {round(end_t - start_t)} seconds ({round((end_t - start_t)/60)} minutes)"
+    logger.info(t_land)
+    time_report['t_land'] = t_land
+    return Project, time_report
 
 
 def detect_armature(cfg, logger, dir_home, Project, batch, n_batches, Dirs, segmentation_complete):
@@ -550,7 +784,7 @@ def run_armature(cfg, logger, dir_home, Project, batch, n_batches, Dirs, leaf_ty
     return Project
 
 
-def run_landmarks(cfg, logger, dir_home, Project, batch, n_batches, Dirs, leaf_type, segmentation_complete):
+def run_landmarks(cfg, logger, show_all_logs, dir_home, Project, batch, n_batches, Dirs, leaf_type, segmentation_complete):
     use_existing_landmark_detections = cfg['leafmachine']['landmark_detector']['use_existing_landmark_detections']
     
     if use_existing_landmark_detections is None:
@@ -624,7 +858,7 @@ def run_landmarks(cfg, logger, dir_home, Project, batch, n_batches, Dirs, leaf_t
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
                 futures = [executor.submit(run_in_parallel, weights, source, project, name, imgsz, nosave, anno_type,
-                                        conf_thres, line_thickness, ignore_objects_for_overlay, mode, LOGGER, i, num_workers) for i in
+                                        conf_thres, line_thickness, ignore_objects_for_overlay, mode, LOGGER, show_all_logs, i, num_workers) for i in
                         range(num_workers)]
                 for future in concurrent.futures.as_completed(futures):
                     try:
@@ -636,7 +870,7 @@ def run_landmarks(cfg, logger, dir_home, Project, batch, n_batches, Dirs, leaf_t
             with lock:
                 if has_images:
                     dimensions_dict = get_cropped_dimensions(dir_temp)
-                    A = add_to_dictionary_from_txt(cfg, logger, Dirs, leaf_type, os.path.join(dir_overlay, 'labels'), leaf_type, Project, dimensions_dict, dir_temp, batch, n_batches)
+                    A = add_to_dictionary_from_txt(cfg, logger, show_all_logs, Dirs, leaf_type, os.path.join(dir_overlay, 'labels'), leaf_type, Project, dimensions_dict, dir_temp, batch, n_batches)
                 else:
                     # TODO add empty placeholder to the image data
                     pass
@@ -741,7 +975,7 @@ def add_to_dictionary_from_txt_armature(cfg, logger, Dirs, leaf_type, dir_compon
         if row != 0 or col != 0:
             pdf.savefig(fig)  # Save the remaining images on the last page
 
-def add_to_dictionary_from_txt(cfg, logger, Dirs, leaf_type, dir_components, component, Project, dimensions_dict, dir_temp, batch, n_batches):
+def add_to_dictionary_from_txt(cfg, logger, show_all_logs, Dirs, leaf_type, dir_components, component, Project, dimensions_dict, dir_temp, batch, n_batches):
     dpi = cfg['leafmachine']['overlay']['overlay_dpi']
     if leaf_type == 'Landmarks_Whole_Leaves':
         logger.info(f'Detecting landmarks whole leaves')
@@ -760,50 +994,50 @@ def add_to_dictionary_from_txt(cfg, logger, Dirs, leaf_type, dir_components, com
     # dict_labels = {}
     fig = plt.figure(figsize=(8.27, 11.69), dpi=dpi) # A4 size, 300 dpi
     row, col = 0, 0
-    with PdfPages(pdf_path_final) as pdf:
+    # with PdfPages(pdf_path_final) as pdf: #*********************************removed for minimal test
         
-        
+    
 
-        for file in os.listdir(dir_components):
-            file_name = str(file.split('.')[0])
-            file_name_parent = file_name.split('__')[0]
+    for file in os.listdir(dir_components):
+        file_name = str(file.split('.')[0])
+        file_name_parent = file_name.split('__')[0]
 
-            # Project.project_data_list[batch][file_name_parent][component] = []
+        # Project.project_data_list[batch][file_name_parent][component] = []
 
-            if file_name_parent in Project.project_data_list[batch]:
+        if file_name_parent in Project.project_data_list[batch]:
 
-                
+            
 
-                if file.endswith(".txt"):
-                    with open(os.path.join(dir_components, file), "r") as f:
-                        all_points = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
-                        # Project.project_data_list[batch][file_name_parent][component][file_name] = all_points
+            if file.endswith(".txt"):
+                with open(os.path.join(dir_components, file), "r") as f:
+                    all_points = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
+                    # Project.project_data_list[batch][file_name_parent][component][file_name] = all_points
 
-                        height = dimensions_dict[file_name][0]
-                        width = dimensions_dict[file_name][1]
+                    height = dimensions_dict[file_name][0]
+                    width = dimensions_dict[file_name][1]
 
-                        Leaf_Skeleton = LeafSkeleton(cfg, logger, Dirs, leaf_type, all_points, height, width, dir_temp, file_name)
-                        Project = add_leaf_skeleton_to_project(cfg, logger, Project, batch, file_name_parent, component, Dirs, leaf_type, all_points, height, width, dir_temp, file_name, Leaf_Skeleton)
-                        final_add = cv2.cvtColor(Leaf_Skeleton.get_final(), cv2.COLOR_BGR2RGB)
+                    Leaf_Skeleton = LeafSkeleton(cfg, logger, show_all_logs, Dirs, leaf_type, all_points, height, width, dir_temp, file_name)
+                    Project = add_leaf_skeleton_to_project(cfg, logger, Project, batch, file_name_parent, component, Dirs, leaf_type, all_points, height, width, dir_temp, file_name, Leaf_Skeleton)
+                    final_add = cv2.cvtColor(Leaf_Skeleton.get_final(), cv2.COLOR_BGR2RGB)
 
-                        # Add image to the current subplot
-                        ax = fig.add_subplot(5, 3, row * 3 + col + 1)
-                        ax.imshow(final_add)
-                        ax.axis('off')
+                    # Add image to the current subplot
+                    ax = fig.add_subplot(5, 3, row * 3 + col + 1)
+                    ax.imshow(final_add)
+                    ax.axis('off')
 
-                        col += 1
-                        if col == 3:
-                            col = 0
-                            row += 1
-                        if row == 5:
-                            row = 0
-                            pdf.savefig(fig)  # Save the current page
-                            fig = plt.figure(figsize=(8.27, 11.69), dpi=300) # Create a new page
-            else:
-                pass
+                    col += 1
+                    if col == 3:
+                        col = 0
+                        row += 1
+                    if row == 5:
+                        row = 0
+                        # pdf.savefig(fig)  # Save the current page
+                        # fig = plt.figure(figsize=(8.27, 11.69), dpi=300) # Create a new page
+        else:
+            pass
 
-        if row != 0 or col != 0:
-            pdf.savefig(fig)  # Save the remaining images on the last page
+        # if row != 0 or col != 0: ############################################################################
+        #     pdf.savefig(fig)  # Save the remaining images on the last page
 
     ### QC
     '''do_save_QC_pdf = False # TODO refine this

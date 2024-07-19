@@ -1,11 +1,19 @@
 import streamlit as st
-import os, yaml, platform, re, queue, time, csv
+import os, yaml, platform, re, queue, time, csv, inspect, sys, asyncio
 import threading
 import pandas as pd
+import os, asyncio
+from multiprocessing import Manager, Process
+
+currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
+sys.path.append(currentdir)
+
 from dwc_downloader import download_dwc_archive, get_taxon_key, month_name_to_number
 from mappings import continent_mapping, country_mapping, type_status_mapping, iucn_status_mapping
-from download_from_GBIF_all_images_in_file import download_all_images_in_images_csv
-from leafmachine2.machine.utils_GBIF import create_subset_file
+from leafmachine2.downloading.utils_downloads import run_download_parallel
+# from leafmachine2.machine.utils_GBIF import create_subset_file
 
 def get_default_download_folder():
     system_platform = platform.system()  # Gets the system platform, e.g., 'Linux', 'Windows', 'Darwin'
@@ -200,15 +208,21 @@ def download_images():
 
     st.session_state.is_custom_download = st.checkbox("Is a custom download", value=False)
     if st.session_state.is_custom_download:
-        st.session_state.custom_download_url_column = st.text_input("Custom Download URL column",value="", placeholder="Column_Name")
+        st.session_state.custom_download_url_column = st.text_input("Custom Download URL Column",value="", placeholder="Column_Name")
+        st.session_state.custom_download_filename_column = st.text_input("Custom Download Filename Column",value="", placeholder="Column_Name")
+        st.session_state.DWC_occ_name = None
     else:
         st.session_state.custom_download_url_column = None
+        st.session_state.custom_download_filename_column = None
+        st.markdown("If the url and occ is in the same file, enter the same file name for both occ and img.")
+        st.session_state.DWC_occ_name = st.text_input("DWC Occurrence File Name",value=st.session_state.DWC_occ_name)
 
     st.markdown("If the url and occ is in the same file, enter the same file name for both occ and img.")
-    st.session_state.DWC_occ_name = st.text_input("DWC Occurrence File Name",value=st.session_state.DWC_occ_name)
 
     st.session_state.DWC_img_name = st.text_input("DWC Multimedia File Name",value=st.session_state.DWC_img_name)
 
+    st.session_state.n_to_download = st.number_input("Maximum Number of Images to Download per Fullname (Family_Genus_species)",value=st.session_state.n_to_download,min_value=1)
+    
     st.session_state.DWC_min_res = st.number_input("Minimum Resolution",value=st.session_state.DWC_min_res,min_value=1)
 
     st.session_state.DWC_max_res = st.number_input("Maximum Resolution",value=st.session_state.DWC_max_res,min_value=1)
@@ -216,6 +230,7 @@ def download_images():
     st.session_state.do_resize = st.checkbox("Resize images larger than 'Maximum Resolution' to have long side of 5000 pixels", value=False, help="If the Maximum Resolution is set to be 30MP, any images larger that 30MP will be A) skipped/not downloaded if this is set to False B) will be downloaded and resized to ~24MP if this is set to True. If you want to download all images regardless of size, set very large an very low bounds like 1 and 200.")
 
     st.session_state.DWC_n_threads = st.number_input("Number of Threads",value=st.session_state.DWC_n_threads,min_value=1)
+    st.session_state.num_drivers = st.number_input("Number of Selenium Drivers",value=st.session_state.num_drivers,min_value=1)
 
     st.session_state.project_download_list = get_non_zip_folders(st.session_state.DWC_folder_containing_records)
 
@@ -260,26 +275,48 @@ def download_images():
                 'filename_occ': st.session_state.DWC_occ_name,
                 'filename_img': st.session_state.DWC_img_name, 
                 'filename_combined': 'combined_occ_img_downloaded.csv',
+                'n_to_download': st.session_state.n_to_download,
                 'MP_low': st.session_state.DWC_min_res,
                 'MP_high': st.session_state.DWC_max_res,
                 'do_resize': st.session_state.do_resize,
                 'n_threads': st.session_state.DWC_n_threads,
+                'num_drivers': st.session_state.num_drivers,
                 'ignore_banned_herb': False,
                 # 'banned_url_stems': [], #['mediaphoto.mnhn.fr'] # ['mediaphoto.mnhn.fr', 'stock.images.gov'] etc....
                 'is_custom_file': st.session_state.is_custom_download,
-                'custom_url_column_name': st.session_state.custom_download_url_column,
-                # 'col_url': 'url',
-                # 'col_name': 'lab_code',
+                # 'custom_url_column_name': st.session_state.custom_download_url_column,
+                'custom_download_filename_column': st.session_state.custom_download_filename_column,
+                'col_url': st.session_state.custom_download_url_column,
+                'col_name': st.session_state.custom_download_filename_column,
             }
             ######################################################################################################
-            if not st.session_state.is_custom_download:
-                new_filename = create_subset_file(cfg)
-            else:
-                new_filename = st.session_state.DWC_occ_name
+            # if not st.session_state.is_custom_download:
+            #     new_filename = create_subset_file(cfg)
+            # else:
+            #     new_filename = st.session_state.DWC_occ_name
+            new_filename = st.session_state.DWC_occ_name
+            
             cfg['filename_occ'] = new_filename
             cfg['dir_destination_images'] = os.path.join(path, 'img_subset')
             ######################################################################################################
-            download_all_images_in_images_csv(cfg)
+            # download_all_images_in_images_csv(cfg)
+            # manager = Manager()
+            # download_tracker = manager.dict()  # Shared dictionary for tracking downloads
+
+            # # Call the function
+            # # download_all_images_in_images_csv(cfg)
+            # asyncio.run(download_all_images_in_images_csv_selenium(cfg, download_tracker))
+
+            manager = Manager()
+            download_tracker = manager.dict()  # Shared dictionary for tracking downloads
+
+            process = Process(target=run_download_parallel, args=(cfg, download_tracker))
+            process.start()
+            process.join()
+
+            manager.shutdown()
+
+
             st.success(f"Download images for {os.path.basename(os.path.normpath(path))}")
             percentage_completed = (index + 1) / total_projects
             st.session_state.progress_bar_total.progress(percentage_completed)
@@ -455,12 +492,16 @@ if "DWC_occ_name" not in st.session_state:
     st.session_state.DWC_occ_name = 'occurrence.txt'
 if "DWC_img_name" not in st.session_state:
     st.session_state.DWC_img_name = 'multimedia.txt'
+if "n_to_download" not in st.session_state:
+    st.session_state.n_to_download = 50
 if "DWC_min_res" not in st.session_state:
     st.session_state.DWC_min_res = 1
 if "DWC_max_res" not in st.session_state:
     st.session_state.DWC_max_res = 200
 if "DWC_n_threads" not in st.session_state:
     st.session_state.DWC_n_threads = 32
+if "num_drivers" not in st.session_state:
+    st.session_state.num_drivers = 8
 if "do_resize" not in st.session_state:
     st.session_state.do_resize = False
 

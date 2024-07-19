@@ -1,6 +1,9 @@
 import os
 from leafmachine2.machine.machine import machine
 
+'''
+git ls-files | grep '\.py' | xargs wc -l
+'''
 if __name__ == '__main__':
     # To use LeafMachine2.yaml file, set cfg_file_path = None
     # To switch between config files, you can provide the full path to a different config file

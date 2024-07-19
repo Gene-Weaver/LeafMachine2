@@ -33,6 +33,8 @@ class LeafSkeleton:
 
     is_split = False
 
+    show_all_logs = False
+
     ordered_petiole: float = None
     ordered_petiole_length: float = None
     has_ordered_petiole = False
@@ -70,7 +72,7 @@ class LeafSkeleton:
     lobe_count: float = None
     lobes: float = None
 
-    def __init__(self, cfg, logger, Dirs, leaf_type, all_points, height, width, dir_temp, file_name) -> None:
+    def __init__(self, cfg, logger, show_all_logs, Dirs, leaf_type, all_points, height, width, dir_temp, file_name) -> None:
         # Store the necessary arguments as instance attributes
         self.cfg = cfg
         self.Dirs = Dirs
@@ -83,6 +85,7 @@ class LeafSkeleton:
 
         logger.name = f'[{leaf_type} - {file_name}]'
         self.logger = logger
+        self.show_all_logs = show_all_logs
 
         self.init_lists_dicts()
 
@@ -289,17 +292,20 @@ class LeafSkeleton:
 
                     # print(self.points_list['apex_angle'])   
                     # print(f'apex_center: {self.apex_center} apex_left: {self.apex_left} apex_right: {self.apex_right}')
-                    self.logger.debug(f"[apex_angle_list] {self.points_list['apex_angle']}")
-                    self.logger.debug(f"[apex_center] {self.apex_center} [apex_left] {self.apex_left} [apex_right] {self.apex_right}")
+                    if self.show_all_logs:
+                        self.logger.debug(f"[apex_angle_list] {self.points_list['apex_angle']}")
+                        self.logger.debug(f"[apex_center] {self.apex_center} [apex_left] {self.apex_left} [apex_right] {self.apex_right}")
                     
                     if self.has_apex:
                         self.apex_angle_type, self.apex_angle_degrees = self.determine_reflex(self.apex_left, self.apex_right, self.apex_center)
                         # print(f'angle_type {self.apex_angle_type} angle {self.apex_angle_degrees}')
-                        self.logger.debug(f"[angle_type] {self.apex_angle_type} [angle] {self.apex_angle_degrees}")
+                        if self.show_all_logs:
+                            self.logger.debug(f"[angle_type] {self.apex_angle_type} [angle] {self.apex_angle_degrees}")
                     else:
                         self.apex_angle_type = 'NA'
                         self.apex_angle_degrees = None
-                        self.logger.debug(f"[angle_type] {self.apex_angle_type} [angle] {self.apex_angle_degrees}")
+                        if self.show_all_logs:
+                            self.logger.debug(f"[angle_type] {self.apex_angle_type} [angle] {self.apex_angle_degrees}")
 
 
                     if self.has_apex:
@@ -311,16 +317,19 @@ class LeafSkeleton:
                             cv2.circle(self.image, self.apex_right, radius=3, color=(0, 0, 255), thickness=-1)
         
     def determine_apex_redo(self):
-        self.logger.debug(f"[apex_angle_list REDO] ")
-        self.logger.debug(f"[apex_center REDO] {self.apex_center} [apex_left] {self.apex_left} [apex_right] {self.apex_right}")
+        if self.show_all_logs:
+            self.logger.debug(f"[apex_angle_list REDO] ")
+            self.logger.debug(f"[apex_center REDO] {self.apex_center} [apex_left] {self.apex_left} [apex_right] {self.apex_right}")
         
         if self.has_apex:
             self.apex_angle_type, self.apex_angle_degrees = self.determine_reflex(self.apex_left, self.apex_right, self.apex_center)
-            self.logger.debug(f"[angle_type REDO] {self.apex_angle_type} [angle] {self.apex_angle_degrees}")
+            if self.show_all_logs:
+                self.logger.debug(f"[angle_type REDO] {self.apex_angle_type} [angle] {self.apex_angle_degrees}")
         else:
             self.apex_angle_type = 'NA'
             self.apex_angle_degrees = None
-            self.logger.debug(f"[angle_type REDO] {self.apex_angle_type} [angle] {self.apex_angle_degrees}")
+            if self.show_all_logs:
+                self.logger.debug(f"[angle_type REDO] {self.apex_angle_type} [angle] {self.apex_angle_degrees}")
 
 
         if self.has_apex:
@@ -332,16 +341,19 @@ class LeafSkeleton:
                 cv2.circle(self.image, self.apex_right, radius=3, color=(0, 0, 255), thickness=-1)
     
     def determine_base_redo(self):
-        self.logger.debug(f"[base_angle_list REDO] ")
-        self.logger.debug(f"[base_center REDO] {self.base_center} [base_left] {self.base_left} [base_right] {self.base_right}")
+        if self.show_all_logs:
+            self.logger.debug(f"[base_angle_list REDO] ")
+            self.logger.debug(f"[base_center REDO] {self.base_center} [base_left] {self.base_left} [base_right] {self.base_right}")
         
         if self.has_base:
             self.base_angle_type, self.base_angle_degrees = self.determine_reflex(self.base_left, self.base_right, self.base_center)
-            self.logger.debug(f"[angle_type REDO] {self.base_angle_type} [angle] {self.base_angle_degrees}")
+            if self.show_all_logs:
+                self.logger.debug(f"[angle_type REDO] {self.base_angle_type} [angle] {self.base_angle_degrees}")
         else:
             self.base_angle_type = 'NA'
             self.base_angle_degrees = None
-            self.logger.debug(f"[angle_type REDO] {self.base_angle_type} [angle] {self.base_angle_degrees}")
+            if self.show_all_logs:
+                self.logger.debug(f"[angle_type REDO] {self.base_angle_type} [angle] {self.base_angle_degrees}")
 
 
         if self.has_base:
@@ -391,18 +403,21 @@ class LeafSkeleton:
 
                     # print(self.points_list['base_angle'])   
                     # print(f'base_center: {self.base_center} base_left: {self.base_left} base_right: {self.base_right}')
-                    self.logger.debug(f"[base_angle_list] {self.points_list['base_angle']}")
-                    self.logger.debug(f"[base_center] {self.base_center} [base_left] {self.base_left} [base_right] {self.base_right}")
+                    if self.show_all_logs:
+                        self.logger.debug(f"[base_angle_list] {self.points_list['base_angle']}")
+                        self.logger.debug(f"[base_center] {self.base_center} [base_left] {self.base_left} [base_right] {self.base_right}")
 
                     
                     if self.has_base:
                         self.base_angle_type, self.base_angle_degrees = self.determine_reflex(self.base_left, self.base_right, self.base_center)
                         # print(f'angle_type {self.base_angle_type} angle {self.base_angle_degrees}')
-                        self.logger.debug(f"[angle_type] {self.base_angle_type} [angle] {self.base_angle_degrees}")
+                        if self.show_all_logs:
+                            self.logger.debug(f"[angle_type] {self.base_angle_type} [angle] {self.base_angle_degrees}")
                     else:
                         self.base_angle_type = 'NA'
                         self.base_angle_degrees = None
-                        self.logger.debug(f"[angle_type] {self.base_angle_type} [angle] {self.base_angle_degrees}")
+                        if self.show_all_logs:
+                            self.logger.debug(f"[angle_type] {self.base_angle_type} [angle] {self.base_angle_degrees}")
 
                     if self.has_base:
                         if self.base_center:
@@ -832,9 +847,11 @@ class LeafSkeleton:
                 self.lamina_base = self.ordered_midvein[-1]
                 cv2.circle(self.image, self.lamina_base, radius=4, color=(0, 0, 0), thickness=-1)
                 cv2.circle(self.image, self.lamina_base, radius=8, color=(0, 0, 255), thickness=2)
-                self.logger.debug(f'Check Tips - lamina base - made lamina base the last midvein point')
+                if self.show_all_logs:
+                    self.logger.debug(f'Check Tips - lamina base - made lamina base the last midvein point')
             else:
-                self.logger.debug(f'Check Tips - lamina base - kept lamina base')
+                if self.show_all_logs:
+                    self.logger.debug(f'Check Tips - lamina base - kept lamina base')
 
         
         if self.has_lamina_tip:
@@ -847,23 +864,29 @@ class LeafSkeleton:
                 self.lamina_tip = self.ordered_midvein[-1]
                 cv2.circle(self.image, self.lamina_tip, radius=4, color=(0, 0, 0), thickness=-1)
                 cv2.circle(self.image, self.lamina_tip, radius=8, color=(0, 0, 255), thickness=2)
-                self.logger.debug(f'Check Tips - lamina tip - made lamina tip the first midvein point')
+                
+                if self.show_all_logs:
+                    self.logger.debug(f'Check Tips - lamina tip - made lamina tip the first midvein point')
             else:
-                self.logger.debug(f'Check Tips - lamina tip - kept lamina tip')
+                if self.show_all_logs:
+                    self.logger.debug(f'Check Tips - lamina tip - kept lamina tip')
 
     def connect_midvein_to_tips(self):
-        self.logger.debug(f'Restrictions [Midvein Connect] - connect_midvein_to_tips()')
+        if self.show_all_logs:
+            self.logger.debug(f'Restrictions [Midvein Connect] - connect_midvein_to_tips()')
         if self.has_midvein:
             if self.has_lamina_tip:
                 original_lamina_tip = self.lamina_tip
 
                 start_or_end = self.add_tip(self.lamina_tip)
-                self.logger.debug(f'Restrictions [Midvein Connect] - Lamina tip [{self.lamina_tip}]')
+                if self.show_all_logs:
+                    self.logger.debug(f'Restrictions [Midvein Connect] - Lamina tip [{self.lamina_tip}]')
 
 
                 self.ordered_midvein, move_midvein = self.check_momentum_complex(self.ordered_midvein, True, start_or_end)
                 if move_midvein: # the tip changed the momentum too much
-                    self.logger.debug(f'Restrictions [Midvein Connect] - REDO APEX ANGLE - SWAP LAMINA TIP FOR FIRST MIDVEIN POINT')
+                    if self.show_all_logs:
+                        self.logger.debug(f'Restrictions [Midvein Connect] - REDO APEX ANGLE - SWAP LAMINA TIP FOR FIRST MIDVEIN POINT')
                     # get midvein point cloases to tip
                     # new_endpoint_side, _ = self.get_closest_point_to_sampled_points(self.ordered_midvein, original_lamina_tip)
                     # new_endpoint, _ = self.get_closest_point_to_sampled_points([self.ordered_midvein[0], self.ordered_midvein[-1]], new_endpoint_side)
@@ -878,9 +901,11 @@ class LeafSkeleton:
                 # cv2.imshow('img', self.image)
                 # cv2.waitKey(0)
                 # self.order_points_plot(self.ordered_midvein, 'midvein_trace')
-                self.logger.debug(f'Restrictions [Midvein Connect] - connected lamina tip to midvein')
+                if self.show_all_logs:
+                    self.logger.debug(f'Restrictions [Midvein Connect] - connected lamina tip to midvein')
             else:
-                self.logger.debug(f'Restrictions [Midvein Connect] - lacks lamina tip')
+                if self.show_all_logs:
+                    self.logger.debug(f'Restrictions [Midvein Connect] - lacks lamina tip')
 
 
 
@@ -888,11 +913,13 @@ class LeafSkeleton:
                 original_lamina_base = self.lamina_base
                 
                 start_or_end = self.add_tip(self.lamina_base)
-                self.logger.debug(f'Restrictions [Midvein Connect] - Lamina base [{self.lamina_base}]')
+                if self.show_all_logs:
+                    self.logger.debug(f'Restrictions [Midvein Connect] - Lamina base [{self.lamina_base}]')
 
                 self.ordered_midvein, move_midvein = self.check_momentum_complex(self.ordered_midvein, True, start_or_end)
                 if move_midvein: # the tip changed the momentum too much
-                    self.logger.debug(f'Restrictions [Midvein Connect] - REDO BASE ANGLE - SWAP LAMINA BASE FOR LAST MIDVEIN POINT')
+                    if self.show_all_logs:
+                        self.logger.debug(f'Restrictions [Midvein Connect] - REDO BASE ANGLE - SWAP LAMINA BASE FOR LAST MIDVEIN POINT')
 
                     # get midvein point cloases to tip
                     # new_endpoint_side, _ = self.get_closest_point_to_sampled_points(self.ordered_midvein, original_lamina_base)
@@ -906,9 +933,11 @@ class LeafSkeleton:
                     self.determine_base_redo()
 
                 # self.order_points_plot(self.ordered_midvein, 'midvein_trace')
-                self.logger.debug(f'Restrictions [Midvein Connect] - connected lamina base to midvein')
+                if self.show_all_logs:
+                    self.logger.debug(f'Restrictions [Midvein Connect] - connected lamina base to midvein')
             else:
-                self.logger.debug(f'Restrictions [Midvein Connect] - lacks lamina base')
+                if self.show_all_logs:
+                    self.logger.debug(f'Restrictions [Midvein Connect] - lacks lamina base')
             
 
     def connect_petiole_to_midvein(self):
@@ -968,11 +997,13 @@ class LeafSkeleton:
 
 
     def check_crossing_width(self):
-        self.logger.debug(f'Restrictions [Crossing Width Line] - check_crossing_width()')
+        if self.show_all_logs:
+            self.logger.debug(f'Restrictions [Crossing Width Line] - check_crossing_width()')
         self.width_infer = None
 
         if self.has_width:
-            self.logger.debug(f'Restrictions [Crossing Width Line] - has width')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Crossing Width Line] - has width')
             # Given two points
             x1, y1 = self.width_left
             x2, y2 = self.width_right
@@ -989,7 +1020,8 @@ class LeafSkeleton:
 
         elif not self.has_width:
             # generate approximate width line
-            self.logger.debug(f'Restrictions [Crossing Width Line] - infer width')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Crossing Width Line] - infer width')
             if self.has_apex and self.has_base:
                 line_params = self.infer_width_relation()
                 self.restrict_by_width_relation(line_params)
@@ -1000,10 +1032,12 @@ class LeafSkeleton:
                 self.has_base = False
                 self.has_valid_apex_loc = False
                 self.has_valid_base_loc = False
-                self.logger.debug(f'Restrictions [Crossing Width Line] - CANNOT VALIDATE APEX, BASE, PETIOLE LOCATIONS')
+                if self.show_all_logs:
+                    self.logger.debug(f'Restrictions [Crossing Width Line] - CANNOT VALIDATE APEX, BASE, PETIOLE LOCATIONS')
         
         else:
-            self.logger.debug(f'Restrictions [Crossing Width Line] - width fail *** ERROR ***')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Crossing Width Line] - width fail *** ERROR ***')
 
     def infer_width_relation(self):
         top = [np.array((self.apex_center[0], self.apex_center[1])), np.array((self.apex_left[0], self.apex_left[1])), np.array((self.apex_right[0], self.apex_right[1]))]
@@ -1013,9 +1047,11 @@ class LeafSkeleton:
 
         if self.has_midvein:
             midvein = np.array(self.ordered_midvein)
-            self.logger.debug(f'Restrictions [Crossing Width Line] - infer width - using midvein points')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Crossing Width Line] - infer width - using midvein points')
         else:
-            self.logger.debug(f'Restrictions [Crossing Width Line] - infer width - estimating midvein points')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Crossing Width Line] - infer width - estimating midvein points')
             x_increment = (centroid2[0] - centroid1[0]) / 11
             y_increment = (centroid2[1] - centroid1[1]) / 11
             midvein = []
@@ -1088,9 +1124,11 @@ class LeafSkeleton:
                 cv2.circle(self.image, self.lamina_tip, radius=5, color=(0, 0, 0), thickness=2) # pink solid
                 cv2.circle(self.image, self.lamina_base, radius=5, color=(0, 0, 0), thickness=2) # purple
 
-                self.logger.debug(f'Restrictions [Lamina Tip/Base] - fail - Lamina tip and base are on same side')
+                if self.show_all_logs:
+                    self.logger.debug(f'Restrictions [Lamina Tip/Base] - fail - Lamina tip and base are on same side')
             else:
-                self.logger.debug(f'Restrictions [Lamina Tip/Base] - pass - Lamina tip and base are on opposite side')
+                if self.show_all_logs:
+                    self.logger.debug(f'Restrictions [Lamina Tip/Base] - pass - Lamina tip and base are on opposite side')
 
         '''
         are all apex and base values on their respecitive sides?
@@ -1108,9 +1146,11 @@ class LeafSkeleton:
                 self.has_valid_apex_loc = True
             else:
                 self.has_valid_apex_loc = False
-                self.logger.debug(f'Restrictions [Angles] - has_valid_apex_loc = False, apex loc crosses width')
+                if self.show_all_logs:self.logger.debug(f'Restrictions [Angles] - has_valid_apex_loc = False, apex loc crosses width')
+
         else:
-            self.logger.debug(f'Restrictions [Angles] - has_valid_apex_loc = False, no apex')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Angles] - has_valid_apex_loc = False, no apex')
 
         if self.has_base:
             loc_left_b = self.point_position_relative_to_line(self.base_left, line_params)
@@ -1120,12 +1160,15 @@ class LeafSkeleton:
                 base_side = loc_center_b
                 self.has_valid_base_loc = True
             else:
-                self.logger.debug(f'Restrictions [Angles] - has_valid_base_loc = False, base loc crosses width')
+                if self.show_all_logs:
+                    self.logger.debug(f'Restrictions [Angles] - has_valid_base_loc = False, base loc crosses width')
         else:
-            self.logger.debug(f'Restrictions [Angles] - has_valid_base_loc = False')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Angles] - has_valid_base_loc = False')
 
         if self.has_valid_apex_loc and self.has_valid_base_loc and (base_side != apex_side):
-            self.logger.debug(f'Restrictions [Angles] - pass - apex and base')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Angles] - pass - apex and base')
         elif (base_side == apex_side) and (self.has_apex) and (self.has_base):
             self.has_valid_apex_loc = False
             self.has_valid_base_loc = False
@@ -1136,18 +1179,22 @@ class LeafSkeleton:
             self.order_points_plot([self.apex_left, self.apex_center, self.apex_right], 'failed_angle', 'QC')
             self.order_points_plot([self.base_left, self.base_center, self.base_right], 'failed_angle', 'QC')
 
-            self.logger.debug(f'Restrictions [Angles] - fail -  apex and base')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Angles] - fail -  apex and base')
         elif (not self.has_valid_apex_loc) and (self.has_apex):
             self.has_apex = False
             self.order_points_plot([self.apex_left, self.apex_center, self.apex_right], 'failed_angle', 'QC')
-            self.logger.debug(f'Restrictions [Angles] - fail - apex')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Angles] - fail - apex')
 
         elif (not self.has_valid_base_loc) and (self.has_base):
             self.has_base = False
             self.order_points_plot([self.base_left, self.base_center, self.base_right], 'failed_angle', 'QC')
-            self.logger.debug(f'Restrictions [Angles] - fail - base')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Angles] - fail - base')
         else:
-            self.logger.debug(f'Restrictions [Angles] - no change')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Angles] - no change')
             
 
         '''
@@ -1159,17 +1206,22 @@ class LeafSkeleton:
                 check_val = self.point_position_relative_to_line(point, line_params)
                 petiole_check.append(check_val)
             petiole_check = list(set(petiole_check))
-            self.logger.debug(f'Restrictions [Petiole] - petiole set = {petiole_check}')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Petiole] - petiole set = {petiole_check}')
 
             if len(petiole_check) == 1:
                 self.has_ordered_petiole = True # Keep the petiole
                 petiole_check = petiole_check[0]
-                self.logger.debug(f'Restrictions [Petiole] - petiole does not cross width - pass')
+                if self.show_all_logs:
+                    self.logger.debug(f'Restrictions [Petiole] - petiole does not cross width - pass')
             else:
                 self.has_ordered_petiole = False # Reject the petiole, it crossed the center
-                self.logger.debug(f'Restrictions [Petiole] - petiole does cross width - fail')
+                
+                if self.show_all_logs:
+                    self.logger.debug(f'Restrictions [Petiole] - petiole does cross width - fail')
         else:
-            self.logger.debug(f'Restrictions [Petiole] - has_ordered_petiole = False')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Petiole] - has_ordered_petiole = False')
 
         '''
         Is the lamina base on the same side as the petiole?
@@ -1186,18 +1238,22 @@ class LeafSkeleton:
                     cv2.circle(self.image, self.lamina_tip, radius=9, color=(255, 0, 230), thickness=2) # pink solid
                     cv2.circle(self.image, self.lamina_base, radius=9, color=(0, 100, 255), thickness=2) # purple
 
-                    self.logger.debug(f'Restrictions [Petiole/Lamina Tip Same Side] - pass - swapped lamina tip and lamina base')
+                    if self.show_all_logs:
+                        self.logger.debug(f'Restrictions [Petiole/Lamina Tip Same Side] - pass - swapped lamina tip and lamina base')
                 else:
                     self.has_lamina_base = False
                     self.has_lamina_tip = False
-                    self.logger.debug(f'Restrictions [Petiole/Lamina Tip Same Side] - fail - lamina base not on same side as petiole, base and tip are on same side')
+                    if self.show_all_logs:
+                        self.logger.debug(f'Restrictions [Petiole/Lamina Tip Same Side] - fail - lamina base not on same side as petiole, base and tip are on same side')
             else: # base is on correct side
                 if loc_base == loc_tip: # base and tip are on the same side. error
                     self.has_lamina_base = False
                     self.has_lamina_tip = False
-                    self.logger.debug(f'Restrictions [Petiole/Lamina Tip Same Side] - fail - base and tip are on the same side, but base and petiole are ok')
+                    if self.show_all_logs:
+                        self.logger.debug(f'Restrictions [Petiole/Lamina Tip Same Side] - fail - base and tip are on the same side, but base and petiole are ok')
                 else:
-                    self.logger.debug(f'Restrictions [Petiole/Lamina Tip Same Side] - pass - no swap')
+                    if self.show_all_logs:
+                        self.logger.debug(f'Restrictions [Petiole/Lamina Tip Same Side] - pass - no swap')
 
 
     def add_tip(self, tip):
@@ -1209,11 +1265,13 @@ class LeafSkeleton:
         if dist_start < dist_end:
             self.ordered_midvein.insert(0, tip)
             start_or_end = 'start'
-            self.logger.debug(f'Restrictions [Midvein Connect] - tip added to beginning of ordered_midvein')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Midvein Connect] - tip added to beginning of ordered_midvein')
         else:
             self.ordered_midvein.append(tip)
             start_or_end = 'end'
-            self.logger.debug(f'Restrictions [Midvein Connect] - tip added to end of ordered_midvein')
+            if self.show_all_logs:
+                self.logger.debug(f'Restrictions [Midvein Connect] - tip added to end of ordered_midvein')
         return start_or_end
 
     def find_min_width(self, left, right):
@@ -1396,7 +1454,8 @@ class LeafSkeleton:
     def order_petiole(self):
         if 'petiole_trace' in self.points_list:
             if len(self.points_list['petiole_trace']) >= 5:
-                self.logger.debug(f"Ordered Petiole - Raw list contains {len(self.points_list['petiole_trace'])} points - using momentum")
+                if self.show_all_logs:
+                    self.logger.debug(f"Ordered Petiole - Raw list contains {len(self.points_list['petiole_trace'])} points - using momentum")
                 self.ordered_petiole = self.order_points(self.points_list['petiole_trace'])
                 self.ordered_petiole = self.remove_duplicate_points(self.ordered_petiole)
 
@@ -1406,7 +1465,8 @@ class LeafSkeleton:
                 self.ordered_petiole_length, self.ordered_petiole = self.get_length_of_ordered_points(self.ordered_petiole, 'petiole_trace')
                 self.has_ordered_petiole = True
             elif len(self.points_list['petiole_trace']) >= 2:
-                self.logger.debug(f"Ordered Petiole - Raw list contains {len(self.points_list['petiole_trace'])} points - SKIPPING momentum")
+                if self.show_all_logs:
+                    self.logger.debug(f"Ordered Petiole - Raw list contains {len(self.points_list['petiole_trace'])} points - SKIPPING momentum")
                 self.ordered_petiole = self.order_points(self.points_list['petiole_trace'])
                 self.ordered_petiole = self.remove_duplicate_points(self.ordered_petiole)
 
@@ -1414,12 +1474,14 @@ class LeafSkeleton:
                 self.ordered_petiole_length, self.ordered_petiole = self.get_length_of_ordered_points(self.ordered_petiole, 'petiole_trace')
                 self.has_ordered_petiole = True
             else:
-                self.logger.debug(f"Ordered Petiole - Raw list contains {len(self.points_list['petiole_trace'])} points - SKIPPING PETIOLE")
+                if self.show_all_logs:
+                    self.logger.debug(f"Ordered Petiole - Raw list contains {len(self.points_list['petiole_trace'])} points - SKIPPING PETIOLE")
 
     def order_midvein(self):
         if 'midvein_trace' in self.points_list:
             if len(self.points_list['midvein_trace']) >= 5:
-                self.logger.debug(f"Ordered Midvein - Raw list contains {len(self.points_list['midvein_trace'])} points - using momentum")
+                if self.show_all_logs:
+                    self.logger.debug(f"Ordered Midvein - Raw list contains {len(self.points_list['midvein_trace'])} points - using momentum")
                 self.ordered_midvein = self.order_points(self.points_list['midvein_trace'])
                 self.ordered_midvein = self.remove_duplicate_points(self.ordered_midvein)
 
@@ -1429,7 +1491,8 @@ class LeafSkeleton:
                 self.ordered_midvein_length, self.ordered_midvein = self.get_length_of_ordered_points(self.ordered_midvein, 'midvein_trace')
                 self.has_midvein = True
             else:
-                self.logger.debug(f"Ordered Midvein - Raw list contains {len(self.points_list['midvein_trace'])} points - SKIPPING MIDVEIN")
+                if self.show_all_logs:
+                    self.logger.debug(f"Ordered Midvein - Raw list contains {len(self.points_list['midvein_trace'])} points - SKIPPING MIDVEIN")
 
 
     def check_momentum(self, coords, info):
@@ -1568,7 +1631,8 @@ class LeafSkeleton:
             scale_factor = 0.5
         else:
             scale_factor = 1
-        self.logger.debug(f'Scale factor - [{scale_factor}]')
+        if self.show_all_logs:
+            self.logger.debug(f'Scale factor - [{scale_factor}]')
 
         # find middle index of coordinates
         mid_idx = len(coords) // 2
@@ -1601,9 +1665,11 @@ class LeafSkeleton:
             if (end_vector_mag > (scale_factor * 0.01 * avg_dist * len(new_coords))) and (len(cur_idx_list) > 0):
                 # new_coords = coords[:cur_idx+1] + coords[-2:cur_idx:-1][::-1] #coords[-2:cur_idx:-1]
                 new_coords = coords[:len(new_coords)-1]# + coords[-2:cur_idx:-1][::-1] #coords[-2:cur_idx:-1]
-                self.logger.debug(f'Momentum - removing last point')
+                if self.show_all_logs:
+                    self.logger.debug(f'Momentum - removing last point')
             else:
-                self.logger.debug(f'Momentum - change not detected, no change')
+                if self.show_all_logs:
+                    self.logger.debug(f'Momentum - change not detected, no change')
 
                 
 
@@ -1630,9 +1696,11 @@ class LeafSkeleton:
                 # new_coords = coords[:mid_idx+1] + coords[cur_idx2:mid_idx:-1][::-1] # #coords[cur_idx2:mid_idx:-1]
                 new_coords = coords[1:]#ur_idx2-1] + coords[mid_idx+1:]
                 # new_coords = coords[cur_idx2:mid_idx+1][::-1] + coords[mid_idx+1:]
-                self.logger.debug(f'Momentum - removing first point')
+                if self.show_all_logs:
+                    self.logger.debug(f'Momentum - removing first point')
             else:
-                self.logger.debug(f'Momentum - change not detected, no change')
+                if self.show_all_logs:
+                    self.logger.debug(f'Momentum - change not detected, no change')
         else:
             print('hi')
 
@@ -1640,8 +1708,9 @@ class LeafSkeleton:
         # second_first_change = self.check_momentum_change_complex(second_first_dir, first_middle_dir)
         # second_last_change = self.check_momentum_change_complex(second_last_dir, middle_last_dir)
 
-        self.logger.debug(f'Original midvein points complex - {start_or_end} - {self.ordered_midvein}')
-        self.logger.debug(f'Momentum midvein points complex - {start_or_end} - {new_coords}')
+        if self.show_all_logs:
+            self.logger.debug(f'Original midvein points complex - {start_or_end} - {self.ordered_midvein}')
+            self.logger.debug(f'Momentum midvein points complex - {start_or_end} - {new_coords}')
         if info:
             return new_coords, len(original_coords) != len(new_coords) #or second_first_change or second_last_change
         else:
@@ -1789,8 +1858,9 @@ class LeafSkeleton:
         cutoff = total_length_first_pass / 2
         # print(f'Total length of {name}: {total_length_first_pass}')
         # print(f'points length {len(points)}')
-        self.logger.debug(f"Total length of {name}: {total_length_first_pass}")
-        self.logger.debug(f"Points length {len(points)}")
+        if self.show_all_logs:
+            self.logger.debug(f"Total length of {name}: {total_length_first_pass}")
+            self.logger.debug(f"Points length {len(points)}")
 
 
         # If there are more than 2 points, this will exclude extreme outliers, or
@@ -1811,9 +1881,10 @@ class LeafSkeleton:
             # print(f'Total length of {name}: {total_length}')
             # print(f'Excluded {len(pop_ind)} points')
             # print(f'points length {len(points)}')
-            self.logger.debug(f"Total length of {name}: {total_length}")
-            self.logger.debug(f"Excluded {len(pop_ind)} points")
-            self.logger.debug(f"Points length {len(points)}")
+            if self.show_all_logs:
+                self.logger.debug(f"Total length of {name}: {total_length}")
+                self.logger.debug(f"Excluded {len(pop_ind)} points")
+                self.logger.debug(f"Points length {len(points)}")
 
         else:
             total_length = total_length_first_pass

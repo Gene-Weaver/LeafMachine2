@@ -17,7 +17,7 @@ if __name__ == "__main__":
         "run",
         resolve_path(os.path.join(dir_home,"dwc_downloader_Streamlit.py")),
         "--global.developmentMode=false",
-        "--server.port=8534",
+        "--server.port=8537",
 
     ]
     sys.exit(stcli.main())

@@ -1,0 +1,27 @@
+dir_export_base: 'D:\Dropbox\LM2_Env\Image_Datasets\GroundTruth_SEG_Herbarium_Sheet_Corners' #'D:\Dropbox\LeafMachine2\data\archival_component_detector_data\final'
+
+project_name: 'GroundTruth_SEG_Herbarium_Sheet_Corners'
+
+
+accumulate_all_projects_in_run: True
+
+fetch_reviewed_annotations_only: True
+
+use_template_yaml_file: True
+
+do_redo_export: True
+
+do_partition_data: True
+partition_ratio: 0.90 # percent sent to training set
+
+
+include_annotations: [] # PLANT # [] for all labels
+annotation_type_to_export: ['POINTS'] # 'SEG'
+include_projects: ['POINTS_Herbarium_Sheet_Corners']
+ignore_projects: []
+
+
+
+
+
+

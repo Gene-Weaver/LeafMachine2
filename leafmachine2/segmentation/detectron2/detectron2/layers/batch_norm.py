@@ -5,7 +5,11 @@ from fvcore.nn.distributed import differentiable_all_reduce
 from torch import nn
 from torch.nn import functional as F
 
-from detectron2.utils import comm, env
+import os, sys, inspect
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)
+from segmentation.detectron2.detectron2.utils import comm, env
 
 from .wrappers import BatchNorm2d
 

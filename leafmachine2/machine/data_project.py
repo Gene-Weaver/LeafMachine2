@@ -9,7 +9,9 @@ from leafmachine2.machine.general_utils import import_csv, import_tsv
 from leafmachine2.machine.general_utils import Print_Verbose, print_main_warn, print_main_success, make_file_names_valid, make_images_in_dir_vertical
 from leafmachine2.machine.utils_GBIF import generate_image_filename
 from leafmachine2.downloading.download_from_GBIF_all_images_in_file import download_all_images_from_GBIF_LM2
-from PIL import Image
+from PIL import Image, ImageFile
+
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 @dataclass
 class Project_Info():
@@ -192,6 +194,21 @@ class Project_Info():
             batch = {key: self.project_data[key] for key in batch_keys}
             self.project_data_list.append(batch)
         return num_batches, len(self.project_data)
+    
+    def process_in_batches_spoof(self, cfg):
+        self.project_data_list = []
+        keys = list(self.project_data.keys())
+        batch_size = len(keys)  # Entire dataset as one batch
+
+        # Directly use the original input data
+        num_batches = 1  # Only one batch since we're not splitting the data
+        start = 0
+        end = batch_size
+        batch_keys = keys[start:end]
+        batch = {key: self.project_data[key] for key in batch_keys}
+        self.project_data_list.append(batch)
+        return num_batches, len(self.project_data)
+
 
     # Original
     '''def __make_project_dict(self):

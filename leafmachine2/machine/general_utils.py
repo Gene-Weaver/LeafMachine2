@@ -15,7 +15,8 @@ import subprocess
 import platform
 from xml.etree.ElementTree import Element, SubElement, tostring, register_namespace
 from xml.dom import minidom
-
+import sqlite3
+import ast
 '''
 TIFF --> DNG
 Install
@@ -56,8 +57,8 @@ def get_cfg_from_full_path(path_cfg):
 #     return cfg
 
 def load_cfg(pathToCfg, system='LeafMachine2'):
-    if system not in ['LeafMachine2', 'VoucherVision', 'SpecimenCrop']:
-        raise ValueError("Invalid system. Expected 'LeafMachine2', 'VoucherVision' or 'SpecimenCrop'.")
+    if system not in ['LeafMachine2', 'VoucherVision', 'SpecimenCrop', 'DetectPhenology', 'CensorArchivalComponents']:
+        raise ValueError("Invalid system. Expected 'LeafMachine2', 'VoucherVision' or 'SpecimenCrop' or 'DetectPhenology' or 'CensorArchivalComponents'.")
 
     try:
         with open(os.path.join(pathToCfg, f"{system}.yaml"), "r") as ymlfile:
@@ -173,6 +174,13 @@ def split_into_batches(Project, logger, cfg):
     m = f'Created {n_batches} Batches to Process {n_images} Images'
     logger.info(m)
     return Project, n_batches, m 
+
+def split_into_batches_spoof(Project, logger, cfg):
+    logger.name = 'Creating spoof Batches'
+    n_batches, n_images = Project.process_in_batches_spoof(cfg)
+    m = f'Created {n_batches} Batches to Process {n_images} Images'
+    logger.info(m)
+    return Project, 1, m 
 
 # Define shared variables and their locks
 import threading
@@ -495,8 +503,8 @@ def print_main_info(message):
 def report_config(dir_home, cfg_file_path, system='LeafMachine2'):
     print_main_start("Loading Configuration File")
     
-    if system not in ['LeafMachine2', 'VoucherVision', 'SpecimenCrop']:
-        raise ValueError("Invalid system. Expected 'LeafMachine2' or 'VoucherVision' or 'SpecimenCrop'.")
+    if system not in ['LeafMachine2', 'VoucherVision', 'SpecimenCrop', 'DetectPhenology', 'CensorArchivalComponents']:
+        raise ValueError("Invalid system. Expected 'LeafMachine2' or 'VoucherVision' or 'SpecimenCrop', or 'DetectPhenology', 'CensorArchivalComponents'.")
     
     if cfg_file_path == None:
         print_main_info(''.join([os.path.join(dir_home, f'{system}.yaml')]))
@@ -546,8 +554,8 @@ def make_file_names_valid(dir, cfg):
 #             return get_cfg_from_full_path(cfg_file_path)
 
 def load_config_file(dir_home, cfg_file_path, system='LeafMachine2'):
-    if system not in ['LeafMachine2', 'VoucherVision', 'SpecimenCrop']:
-        raise ValueError("Invalid system. Expected 'LeafMachine2' or 'VoucherVision' or 'SpecimenCrop'.")
+    if system not in ['LeafMachine2', 'VoucherVision', 'SpecimenCrop','DetectPhenology', 'CensorArchivalComponents']:
+        raise ValueError("Invalid system. Expected 'LeafMachine2' or 'VoucherVision' or 'SpecimenCrop' or 'DetectPhenology', 'CensorArchivalComponents'.")
 
     if cfg_file_path is None:  # Default path
         if system == 'LeafMachine2':
@@ -558,6 +566,13 @@ def load_config_file(dir_home, cfg_file_path, system='LeafMachine2'):
 
         elif system == 'SpecimenCrop': # SpecimenCrop
             return load_cfg(dir_home, system='SpecimenCrop')  # For SpecimenCrop
+        
+        elif system == 'DetectPhenology': # DetectPhenology
+            return load_cfg(dir_home, system='DetectPhenology')  # For DetectPhenology
+        
+        elif system == 'CensorArchivalComponents': # CensorArchivalComponents
+            return load_cfg(dir_home, system='CensorArchivalComponents')  # For CensorArchivalComponents
+
 
     else:
         if cfg_file_path == 'test_installation':
@@ -681,6 +696,8 @@ def crop_detections_from_images_worker_VV(filename, analysis, Project, Dirs, sav
     if has_archival and (save_per_image or save_per_class):
         crop_component_from_yolo_coords_VV('ARCHIVAL', Dirs, analysis, archival, full_image, filename, save_per_image, save_per_class, save_list)
  
+"""
+Works with Project, not SQL
 def crop_detections_from_images_worker(filename, analysis, Project, Dirs, save_per_image, save_per_class, save_list, binarize_labels):
     try:
         full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpg'])))
@@ -703,9 +720,42 @@ def crop_detections_from_images_worker(filename, analysis, Project, Dirs, save_p
         crop_component_from_yolo_coords('ARCHIVAL', Dirs, analysis, archival, full_image, filename, save_per_image, save_per_class, save_list)
     if has_plant and (save_per_image or save_per_class):
         crop_component_from_yolo_coords('PLANT', Dirs, analysis, plant, full_image, filename, save_per_image, save_per_class, save_list)
+"""
+def crop_detections_from_images_worker(image_name, archival_components, plant_components, Dirs, save_per_image, save_per_class, save_list, binarize_labels):
+    try:
+        full_image = cv2.imread(os.path.join(Dirs.dir_images_local, f"{image_name}.jpg"))
+        if full_image is None:
+            full_image = cv2.imread(os.path.join(Dirs.dir_images_local, f"{image_name}.jpeg"))
+    except Exception as e:
+        print(e)
+        full_image = cv2.imread(os.path.join(Dirs.dir_images_local, f"{image_name}.jpeg"))
+
+    # Get height and width from the images table
+    try:
+        conn = sqlite3.connect(Dirs.database)
+        cursor = conn.cursor()
+        cursor.execute("SELECT width, height FROM images WHERE name = ?", (image_name,))
+        row = cursor.fetchone()
+        width, height = row if row else (None, None)
+        conn.close()
+    except Exception as e:
+        width, height = None, None
+        print(f"Error retrieving dimensions for {image_name}: {e}")
+
+    if archival_components:
+        archival_annotations = ast.literal_eval(archival_components[0][1]) 
+        crop_component_from_yolo_coords('ARCHIVAL', Dirs, archival_annotations, full_image, image_name, save_per_image, save_per_class, save_list, width, height)
+    
+    if plant_components:
+        plant_annotations = ast.literal_eval(plant_components[0][1]) 
+        crop_component_from_yolo_coords('PLANT', Dirs, plant_annotations, full_image, image_name, save_per_image, save_per_class, save_list, width, height)
 
 
-def crop_detections_from_images(cfg, logger, dir_home, Project, Dirs, batch_size=50):
+
+
+"""
+works with Project, not with SQL
+def crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dirs, batch_size=50):
     t2_start = perf_counter()
     logger.name = 'Crop Components'
     
@@ -747,7 +797,74 @@ def crop_detections_from_images(cfg, logger, dir_home, Project, Dirs, batch_size
                 futures.clear()
 
     t2_stop = perf_counter()
-    logger.info(f"Save cropped components --- elapsed time: {round(t2_stop - t2_start)} seconds")
+    t_crops = f"[Cropping elapsed time] {round(t2_stop - t2_start)} seconds ({round((t2_stop - t2_start)/60)} minutes)"
+    logger.info(t_crops)
+    time_report['t_crops'] = t_crops
+    return time_report
+"""
+def crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dirs, batch_size=50):
+    t2_start = perf_counter()
+    logger.name = 'Crop Components'
+    
+    if cfg['leafmachine']['cropped_components']['do_save_cropped_annotations']:
+        detections = cfg['leafmachine']['cropped_components']['save_cropped_annotations']
+        logger.info(f"Cropping {detections} components from images")
+
+        save_per_image = cfg['leafmachine']['cropped_components']['save_per_image']
+        save_per_class = cfg['leafmachine']['cropped_components']['save_per_annotation_class']
+        save_list = cfg['leafmachine']['cropped_components']['save_cropped_annotations']
+        try:
+            binarize_labels = cfg['leafmachine']['cropped_components']['binarize_labels']
+        except:
+            binarize_labels = False
+        if cfg['leafmachine']['project']['batch_size'] is None:
+            batch_size = 50
+        else:
+            batch_size = int(cfg['leafmachine']['project']['batch_size'])
+        if cfg['leafmachine']['project']['num_workers'] is None:
+            num_workers = 4 
+        else:
+            num_workers = int(cfg['leafmachine']['project']['num_workers'])
+
+        if binarize_labels:
+            save_per_class = True
+
+        conn = sqlite3.connect(Dirs.database)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT name FROM images")
+        image_names = [row[0] for row in cursor.fetchall()]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = []
+            for i in range(0, len(image_names), batch_size):
+                batch = image_names[i:i+batch_size]
+                logger.info(f'Cropping {detections} from images {i} to {i+batch_size} [{len(image_names)}]')
+                for image_name in batch:
+                    cursor.execute("SELECT component, annotations FROM archival_components WHERE image_name = ?", (image_name,))
+                    archival_components = cursor.fetchall()
+                    
+                    cursor.execute("SELECT component, annotations FROM plant_components WHERE image_name = ?", (image_name,))
+                    plant_components = cursor.fetchall()
+                    
+                    if archival_components or plant_components:
+                        futures.append(executor.submit(crop_detections_from_images_worker, image_name, archival_components, plant_components, Dirs, save_per_image, save_per_class, save_list, binarize_labels))
+
+                for future in concurrent.futures.as_completed(futures):
+                    pass
+                futures.clear()
+
+        conn.close()
+
+    t2_stop = perf_counter()
+    t_crops = f"[Cropping elapsed time] {round(t2_stop - t2_start)} seconds ({round((t2_stop - t2_start)/60)} minutes)"
+    logger.info(t_crops)
+    time_report['t_crops'] = t_crops
+    return time_report
+
+
+
+
 
 def crop_detections_from_images_VV(cfg, logger, dir_home, Project, Dirs, batch_size=50):
     t2_start = perf_counter()
@@ -821,7 +938,7 @@ def crop_detections_from_images_VV(cfg, logger, dir_home, Project, Dirs, batch_s
 
 
 
-def crop_detections_from_images_SpecimenCrop(cfg, logger, dir_home, Project, Dirs, original_img_dir=None):
+def crop_detections_from_images_SpecimenCrop(cfg, time_report, logger, dir_home, Project, Dirs, original_img_dir=None):
     t2_start = perf_counter()
     logger.name = 'Crop Components --- Specimen Crop'
 
@@ -838,7 +955,10 @@ def crop_detections_from_images_SpecimenCrop(cfg, logger, dir_home, Project, Dir
                 crop_detections_from_images_worker_SpecimenCrop(filename, analysis, Project, Dirs, cfg, save_list, original_img_dir)
 
     t2_stop = perf_counter()
-    logger.info(f"Save cropped components --- elapsed time: {round(t2_stop - t2_start)} seconds")
+    t_speccrops = f"[SpecimenCrop elapsed time] {round(t2_stop - t2_start)} seconds ({round((t2_stop - t2_start)/60)} minutes)"
+    logger.info(t_speccrops)
+    time_report['t_speccrops'] = t_speccrops
+    return time_report
 
 # def crop_detections_from_images_SpecimenCrop(cfg, logger, dir_home, Project, Dirs, original_img_dir=None, batch_size=50):
 #     t2_start = perf_counter()
@@ -1460,9 +1580,7 @@ def crop_component_from_yolo_coords_VV(anno_type, Dirs, analysis, all_detections
         
 
 
-def crop_component_from_yolo_coords(anno_type, Dirs, analysis, all_detections, full_image, filename, save_per_image, save_per_class, save_list):
-    height = analysis['height']
-    width = analysis['width']
+def crop_component_from_yolo_coords(anno_type, Dirs, all_detections, full_image, filename, save_per_image, save_per_class, save_list, width, height):
     if len(all_detections) < 1:
         print('     MAKE THIS HAVE AN EMPTY PLACEHOLDER') # TODO ###################################################################################
     else:

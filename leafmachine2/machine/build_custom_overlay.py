@@ -14,7 +14,7 @@ sys.path.append(currentdir)
 sys.path.append(parentdir)
 # from segmentation.detectron2.segment_leaves import create_insert
 
-def build_custom_overlay_parallel(cfg, logger, dir_home, Project, batch, Dirs):
+def build_custom_overlay_parallel(cfg, time_report, logger, dir_home, Project, batch, Dirs):
     start_t = perf_counter()
     logger.name = f'[BATCH {batch+1} Build Custom Overlay]'
     logger.info(f'Creating overlay for batch {batch+1}')
@@ -56,7 +56,11 @@ def build_custom_overlay_parallel(cfg, logger, dir_home, Project, batch, Dirs):
     logger.info(f'Saving batch {batch+1} overlay images to PDF')
     save_custom_overlay_to_PDF(filenames, overlay_images, ruler_images, batch, Dirs, Project, cfg)
     end_t = perf_counter()
-    logger.info(f'Batch {batch+1}: Build Custom Overlay Duration --> {round((end_t - start_t)/60)} minutes')
+
+    t_overlay = f"[Batch {batch+1}: Build Custom Overlay elapsed time] {round(end_t - start_t)} seconds ({round((end_t - start_t)/60)} minutes)"
+    logger.info(t_overlay)
+    time_report['t_overlay'] = t_overlay
+    return time_report
 
 
 def process_file(Project, filename, analysis, line_w_archival, show_archival, ignore_archival, line_w_plant, show_plant, ignore_plant, show_segmentations, show_landmarks, cfg, Dirs, lock):
@@ -331,7 +335,10 @@ def add_segmentations(image_overlay, Segmentation_Whole_Leaf, Segmentation_Parti
                         key, overlay_data_insert = next(iter(part.items()))   
                         overlay_poly = overlay_data_insert['polygon_closed']
                         overlay_rect = overlay_data_insert['bbox_min']
-                        overlay_efd = overlay_data_insert['efds']['efd_pts_PIL']
+                        if cfg['leafmachine']['leaf_segmentation']['calculate_elliptic_fourier_descriptors']:
+                            overlay_efd = overlay_data_insert['efds']['efd_pts_PIL']
+                        else:
+                            overlay_efd = None
 
                         if 'leaf' in key:
                             c_outline, c_fill = get_color('seg_leaf_whole', 'SEG_WHOLE', cfg)
@@ -541,9 +548,10 @@ def insert_seg(full_image, overlay_data, seg_name_short, cfg):
         overlay_rect = [(x+origin_x, y+origin_y) for x, y in overlay_rect]
         draw.polygon(overlay_rect, fill=None, outline=c_outline, width=width)
         
-    if len(overlay_efd) != 0:
-        overlay_efd = [(x+origin_x, y+origin_y) for x, y in overlay_efd]
-        draw.polygon(overlay_efd, fill=None, outline=(135,30,210), width=width_efd)
+    if overlay_efd:
+        if len(overlay_efd) != 0:
+            overlay_efd = [(x+origin_x, y+origin_y) for x, y in overlay_efd]
+            draw.polygon(overlay_efd, fill=None, outline=(135,30,210), width=width_efd)
         
 
     return full_image

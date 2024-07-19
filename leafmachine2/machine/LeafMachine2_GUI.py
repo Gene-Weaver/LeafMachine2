@@ -32,7 +32,7 @@ class ProgressReport:
         self.text_batch = text_batch
         self.text_batch_part = text_batch_part
         self.current_overall_step = 0
-        self.total_overall_steps = 11  # number of major steps in machine function
+        self.total_overall_steps = 12  # number of major steps in machine function
         self.current_batch = 0
         self.total_batches = total_batches
         self.current_batch_part = 0
@@ -66,7 +66,7 @@ def show_photo(photo_path,paths_images):
     st.write(f"Image Index: {st.session_state.counter + 1}/{len(paths_images)}")
 
 
-st.set_page_config(layout="wide", page_icon='img/icon_VV.ico', page_title='LeafMachine2')
+st.set_page_config(layout="wide", page_icon='img/icon.ico', page_title='LeafMachine2')
 
 # Default YAML file path
 if 'config' not in st.session_state:
@@ -144,7 +144,7 @@ with col_run_2:
 
 
 # Adding 2 Page Tabs
-tab_settings, tab_component, tab_landmark, tab_segmentation, tab_overlay, tab_training = st.tabs(["Settings", "Component Detector","Landmark Detector","Segmentation", "Image Overlay", "Training Settings"])
+tab_settings, tab_component, tab_landmark, tab_segmentation, tab_phenology, tab_overlay, tab_training = st.tabs(["Settings", "Component Detector","Landmark Detector","Segmentation", "Phenology", "Image Overlay", "Training Settings"])
 
 
 
@@ -168,8 +168,7 @@ with tab_settings:
     col_processing_1, _, col_processing_2,col_processing_3 = st.columns([1,2,3,3])
 
     st.write("---")
-    st.header('Modules')
-    st.markdown("If you only need to process the Archival Components, you can disable the `Process leaves` option.")
+    
     col_m1, col_m2 = st.columns(2)
 
     st.write("---")
@@ -267,7 +266,9 @@ with tab_settings:
     ### Processing Options
     with col_processing_1:
         st.subheader('Compute Options')
-        st.session_state.config['leafmachine']['project']['num_workers'] = st.number_input("Number of CPU workers", value=st.session_state.config['leafmachine']['project'].get('num_workers', 2),help="4 workers is typically fine. More than 8 results in poor performance.")
+        st.session_state.config['leafmachine']['project']['num_workers'] = st.number_input("Number of CPU workers for ACD/PCD, general", value=st.session_state.config['leafmachine']['project'].get('num_workers', 4),help="Start with 4. GPU and CPU limited.")
+        st.session_state.config['leafmachine']['project']['num_workers_seg'] = st.number_input("Number of CPU workers for leaf segmentation", value=st.session_state.config['leafmachine']['project'].get('num_workers_seg', 4),help="Start with 4. GPU and CPU limited.")
+        st.session_state.config['leafmachine']['project']['num_workers_ruler'] = st.number_input("Number of CPU workers for ruler conversion", value=st.session_state.config['leafmachine']['project'].get('num_workers_ruler', 4),help="Start with 4. CPU limited.")
         st.session_state.config['leafmachine']['project']['batch_size'] = st.number_input("Batch size", value=st.session_state.config['leafmachine']['project'].get('batch_size', 2),help="Determines how many images are processed at a time. These are stored in RAM, so start with 25 or 50 and verify performance.")
 
     with col_processing_2:
@@ -284,11 +285,36 @@ with tab_settings:
         st.session_state.config['leafmachine']['data']['save_json_rulers'] = st.checkbox("Save ruler data to JSON files", st.session_state.config['leafmachine']['data'].get('save_json_rulers', False),disabled=True)
         st.session_state.config['leafmachine']['data']['save_json_measurements'] = st.checkbox("Save measurements to JSON files", st.session_state.config['leafmachine']['data'].get('save_json_measurements', False),disabled=True)
         
+
     ### Modules
     with col_m1:
+        st.header('Modules')
+        st.markdown("If you only need to process the Archival Components, you can disable the `Process leaves` option.")
         st.session_state.config['leafmachine']['do']['run_leaf_processing'] = st.checkbox("Process leaves", st.session_state.config['leafmachine']['do'].get('run_leaf_processing', True))
         st.session_state.config['leafmachine']['modules']['armature'] = st.checkbox("Armature", st.session_state.config['leafmachine']['modules'].get('armature', False),disabled=True)
         st.session_state.config['leafmachine']['modules']['specimen_crop'] = st.checkbox("Specimen Close-up", st.session_state.config['leafmachine']['modules'].get('specimen_crop', False),disabled=True)
+        
+        default_components = ['ruler', 'barcode', 'label', 'colorcard', 'map', 'photo', 'weights',]
+        default_color = '#FFFFFF'  # White color
+
+        st.header('Create images with hidden archival components')
+        st.session_state.config['leafmachine']['project']['censor_archival_components'] = st.checkbox("Hide archival components", st.session_state.config['leafmachine']['project'].get('censor_archival_components', True))
+        st.session_state.config['leafmachine']['project']['hide_archival_components'] = st.multiselect("Components to hide",  
+                ['ruler','barcode','label','colorcard','map','envelope','photo','attached_item','weights',],
+                default=default_components)
+        # Color picker input for selecting the hide color
+        st.session_state.config['leafmachine']['project']['replacement_color'] = st.color_picker(
+            "Select replacement color",
+            value=default_color
+        )
+
+    ### Predictive Ruler
+    with col_m2:
+        st.header('Predict Conversion Factor')
+        st.markdown("If you are processing regular herbarium images, leave this turned on. If you are processing custom images, try it both ways.")
+        st.markdown("This will use the image's resolution to predict the conversoin factor. It significantly helps LM2's algorithms calculate the true image-specific conversion factor. When enabled, the predicted value is calculated for each image and reported even when the algorithmic determination fails or when rulers are not present in the image.")
+        st.session_state.config['leafmachine']['project']['use_CF_predictor'] = st.checkbox("Use CF predictor", st.session_state.config['leafmachine']['project'].get('use_CF_predictor', True),disabled=False)
+
 
     ### cropped_components
     with col_cropped_1:
@@ -438,8 +464,10 @@ with tab_landmark:
 
 with tab_segmentation:
     st.header('Leaf Segmentation')
+    st.markdown('***Version 2.2*** is new as of April 2024. It is trained on 3x the original dataset and for longer and should produce better masks overall.')
+    st.markdown('***Version 2.1*** is the version that came out with the publication for LM2.')
 
-    SEG_version = st.selectbox("Leaf Segmentation (SEG) Version", ["Version 2.1", "Version 2.2"])
+    SEG_version = st.selectbox("Leaf Segmentation (SEG) Version", ["Version 2.2", "Version 2.1"]) # Group3_Dataset_100000_Iter_1176PTS_512Batch_smooth_l1_LR00025_BGR
 
     SEG_confidence_default = int(st.session_state.config['leafmachine']['leaf_segmentation']['minimum_confidence_threshold'] * 100)
     SEG_confidence = st.number_input("PLD Confidence Threshold (%)", min_value=0, max_value=100,value=SEG_confidence_default)
@@ -448,7 +476,7 @@ with tab_segmentation:
     st.session_state.config['leafmachine']['leaf_segmentation']['segment_whole_leaves'] = st.checkbox("Segment whole leaves", st.session_state.config['leafmachine']['leaf_segmentation'].get('segment_whole_leaves', True))
     st.session_state.config['leafmachine']['leaf_segmentation']['segment_partial_leaves'] = st.checkbox("Segment partial leaves", st.session_state.config['leafmachine']['leaf_segmentation'].get('segment_partial_leaves', False))
 
-    st.session_state.config['leafmachine']['leaf_segmentation']['save_segmentation_overlay_images_to_pdf'] = st.checkbox("Save segmentation overlay images to PDF", st.session_state.config['leafmachine']['leaf_segmentation'].get('save_segmentation_overlay_images_to_pdf', True))
+    st.session_state.config['leafmachine']['leaf_segmentation']['save_segmentation_overlay_images_to_pdf'] = st.checkbox("Save segmentation overlay images to PDF", st.session_state.config['leafmachine']['leaf_segmentation'].get('save_segmentation_overlay_images_to_pdf', False))
     st.session_state.config['leafmachine']['leaf_segmentation']['save_each_segmentation_overlay_image'] = st.checkbox("Save each segmentation overlay image", st.session_state.config['leafmachine']['leaf_segmentation'].get('save_each_segmentation_overlay_image', True))
     st.session_state.config['leafmachine']['leaf_segmentation']['save_individual_overlay_images'] = st.checkbox("Save individual overlay images", st.session_state.config['leafmachine']['leaf_segmentation'].get('save_individual_overlay_images', True))
     st.session_state.config['leafmachine']['leaf_segmentation']['keep_only_best_one_leaf_one_petiole'] = st.checkbox("Keep best leaf/petiole if conflict", st.session_state.config['leafmachine']['leaf_segmentation'].get('keep_only_best_one_leaf_one_petiole', True),disabled=True)
@@ -482,13 +510,26 @@ with tab_segmentation:
     
     st.session_state.config['leafmachine']['leaf_segmentation']['overlay_background_color'] = st.selectbox("Leaf segmentation background color", ["black", "white"], index=["black", "white"].index(st.session_state.config['leafmachine']['leaf_segmentation'].get('overlay_background_color', 'black')))
 
+    st.session_state.config['leafmachine']['leaf_segmentation']['save_oriented_images'] = st.checkbox("save_oriented_images", st.session_state.config['leafmachine']['leaf_segmentation'].get('save_oriented_images', True))
+    st.session_state.config['leafmachine']['leaf_segmentation']['save_keypoint_overlay'] = st.checkbox("save_keypoint_overlay", st.session_state.config['leafmachine']['leaf_segmentation'].get('save_keypoint_overlay', True))
+    st.session_state.config['leafmachine']['leaf_segmentation']['save_oriented_mask'] = st.checkbox("save_oriented_mask", st.session_state.config['leafmachine']['leaf_segmentation'].get('save_oriented_mask', True))
+    st.session_state.config['leafmachine']['leaf_segmentation']['save_simple_txt'] = st.checkbox("save_simple_txt", st.session_state.config['leafmachine']['leaf_segmentation'].get('save_simple_txt', True))
+    st.session_state.config['leafmachine']['leaf_segmentation']['detector_version'] = st.selectbox("detector_version", ["uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2",], index=["uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2",].index(st.session_state.config['leafmachine']['leaf_segmentation'].get('detector_version', 'uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2')))
+        
     
     # Depending on the selected version, set the configuration
     if SEG_version == "Version 2.1":
         st.session_state.config['leafmachine']['leaf_segmentation']['segmentation_model'] = 'GroupB_Dataset_100000_Iter_1176PTS_512Batch_smooth_l1_LR00025_BGR'
     elif SEG_version == "Version 2.2": #TODO update this to version 2.2
-        st.session_state.config['leafmachine']['leaf_segmentation']['segmentation_model'] = 'GroupB_Dataset_100000_Iter_1176PTS_512Batch_smooth_l1_LR00025_BGR'
+        st.session_state.config['leafmachine']['leaf_segmentation']['segmentation_model'] = 'Group3_Dataset_100000_Iter_1176PTS_512Batch_smooth_l1_LR00025_BGR'
 
+with tab_phenology:
+    st.header('Phenology')
+    st.markdown("Counts number of detected objects from the PCD as a proxy for phenology. This will report counts for all PCD classes, plus a determination of whether the image has leaves and whether the specimen is fertile.")
+    st.markdown("We recommend manually verifying images when both 'has_leaves' & 'is_fertile' are false. Flowers and fruits are morphologically diverse and sometimes LM2 may not be able to ID all reproductive structures. For example, bare peduncles are frequently skipped because they closely resemble thin stems; if no other flowers/fruits are apparent, then this could cause a false negative. LM2 has a huge training dataset, but not every flowering/fruiting morphology has been included in the training data yet.")
+    st.write("---")    
+    st.session_state.config['leafmachine']['project']['accept_only_ideal_leaves'] = st.checkbox("'has_leaves' is determined by the presenece of 'ideal leaves', ignores partial leaves.", st.session_state.config['leafmachine']['project'].get('accept_only_ideal_leaves', True), help="Counts for partial leaves is still provided")
+    st.session_state.config['leafmachine']['project']['minimum_total_reproductive_counts'] = st.number_input("Set the minimum required count of reproductive structures for the 'is_fertile' determination to return 'True'.", st.session_state.config['leafmachine']['project'].get('minimum_total_reproductive_counts', 0), help="Default is zero, any reproductive structure counts.")
 
 with tab_overlay:
     st.header('Save Options')
@@ -504,7 +545,7 @@ with tab_overlay:
 
     with col_saveoverlay_2:
         st.text("Save images to:")
-        st.session_state.config['leafmachine']['overlay']['save_overlay_to_pdf'] = st.checkbox("PDF per batch", st.session_state.config['leafmachine']['print'].get('save_overlay_to_pdf', True))
+        st.session_state.config['leafmachine']['overlay']['save_overlay_to_pdf'] = st.checkbox("PDF per batch", st.session_state.config['leafmachine']['print'].get('save_overlay_to_pdf', False))
         st.session_state.config['leafmachine']['overlay']['save_overlay_to_jpgs'] = st.checkbox("JPG per specimen", st.session_state.config['leafmachine']['print'].get('save_overlay_to_jpgs', True))
     with col_saveoverlay_1:
         st.session_state.config['leafmachine']['project']['overlay_dpi'] = st.number_input("Overlay resolution (dpi)", value=st.session_state.config['leafmachine']['project'].get('overlay_dpi', 300))
@@ -519,7 +560,8 @@ with tab_overlay:
 
     with col_viz_3:
         st.subheader("Hide from overlay image:")
-        default_ignore_plant = st.session_state.config['leafmachine']['overlay'].get('save_cropped_annotations', ['leaf_partial'])
+        st.markdown("This hides the bboxes from the ACD and PCD. Default hides the leaf_whole bboxes because leaf_whole already will always have a fitted/rotated bbox. Optionally hide anything else from the ACD/PCD.")
+        default_ignore_plant = st.session_state.config['leafmachine']['overlay'].get('save_cropped_annotations', ['leaf_whole'])
         default_ignore_archival = st.session_state.config['leafmachine']['overlay'].get('ignore_archival_detections_classes', [])
         default_ignore_landmark = st.session_state.config['leafmachine']['overlay'].get('ignore_landmark_classes', [])
 
