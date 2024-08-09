@@ -204,6 +204,8 @@ def build_LM2_config():
 
         'keep_only_best_one_leaf_one_petiole': True,
 
+        'save_oriented_images': True,
+
         'save_segmentation_overlay_images_to_pdf': True,
         'save_each_segmentation_overlay_image': True,
         'save_individual_overlay_images': True, # Not recommended due to potential file count

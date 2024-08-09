@@ -29,6 +29,7 @@ from measure_leaf_segmentation import polygon_properties
 from detector import Detector_LM2
 from leafmachine2.keypoint_detector.ultralytics.models.yolo.pose.predict_direct import PosePredictor
 from leafmachine2.component_detector.component_detector import unpack_class_from_components#, crop_images_to_bbox
+from leafmachine2.segmentation.detectron2.segment_utils import get_largest_polygon, keep_rows, get_string_indices
 
 def segment_leaves(cfg, time_report, logger, dir_home, Project, batch, n_batches, Dirs): 
     start_t = perf_counter()
@@ -77,9 +78,9 @@ def segment_leaves(cfg, time_report, logger, dir_home, Project, batch, n_batches
     }
 
     # Initialize PosePredictor
-    Pose_Predictor = PosePredictor(weights, Dirs.dir_oriented_images, Dirs.dir_keypoint_overlay, 
-                                   save_oriented_images=save_oriented_images, save_keypoint_overlay=save_keypoint_overlay, 
-                                   overrides=overrides)
+    # Pose_Predictor = PosePredictor(weights, Dirs.dir_oriented_images, Dirs.dir_keypoint_overlay, 
+    #                                save_oriented_images=save_oriented_images, save_keypoint_overlay=save_keypoint_overlay, 
+    #                                overrides=overrides)
 
     # Old batch method ...
     # segment_whole_leaves_props = {}
@@ -915,71 +916,7 @@ def save_full_image_segmentations(save_overlay_pdf, dict_name_seg, full_images, 
                     except:
                         pass
 
-def keep_rows(list1, list2, list3, list4, string_indices):
-    leaf_index, petiole_index, hole_indices = string_indices
-    # All
-    if (leaf_index is not None) and (petiole_index is not None) and (hole_indices is not None):
-        indices_to_keep = [leaf_index, petiole_index] + hole_indices
-    # No holes
-    elif (leaf_index is not None) and (petiole_index is not None) and (hole_indices is None):
-        indices_to_keep = [leaf_index, petiole_index]
-    # Only leaves
-    elif (leaf_index is not None) and (petiole_index is None) and (hole_indices is None):
-        indices_to_keep = [leaf_index]
-    # Only petiole
-    elif (leaf_index is None) and (petiole_index is not None) and (hole_indices is None):
-        indices_to_keep = [petiole_index]
-    # Only hole
-    elif (leaf_index is None) and (petiole_index is None) and (hole_indices is not None):
-        indices_to_keep = hole_indices
-    # Only petiole and hole
-    elif (leaf_index is None) and (petiole_index is not None) and (hole_indices is not None):
-        indices_to_keep =  [petiole_index] + hole_indices
-    # Only holes and no leaves or petiole
-    elif (leaf_index is None) and (petiole_index is None) and (hole_indices is not None):
-        indices_to_keep = hole_indices
-    # Only leaves and hole
-    elif (leaf_index is not None) and (petiole_index is None) and (hole_indices is not None):
-        indices_to_keep =  [leaf_index] + hole_indices
-    else:
-        indices_to_keep = None
 
-    # get empty list1 values []
-    indices_empty = [i for i, lst in enumerate(list1) if not lst]
-    indices_to_keep = [i for i in indices_to_keep if i not in indices_empty]
-
-    if indices_to_keep is not None:
-        list1 = [list1[i] for i in indices_to_keep]
-        list2 = [list2[i] for i in indices_to_keep]
-        list3 = [list3[i] for i in indices_to_keep]
-        list4 = [list4[i] for i in indices_to_keep]
-        return list1, list2, list3, list4
-    else:
-        return None, None, None, None
-
-def get_string_indices(strings):
-    leaf_strings = [s for s in strings if s.startswith('leaf')]
-    petiole_strings = [s for s in strings if s.startswith('petiole')]
-    hole_strings = [s for s in strings if s.startswith('hole')]
-
-    if len(leaf_strings) > 0:
-        leaf_value = max([int(s.split(' ')[1].replace('%','')) for s in leaf_strings])
-        leaf_index = strings.index([s for s in leaf_strings if int(s.split(' ')[1].replace('%','')) == leaf_value][0])
-    else:
-        leaf_index = None
-
-    if len(petiole_strings) > 0:
-        petiole_value = max([int(s.split(' ')[1].replace('%','')) for s in petiole_strings])
-        petiole_index = strings.index([s for s in petiole_strings if int(s.split(' ')[1].replace('%','')) == petiole_value][0])
-    else:
-        petiole_index = None
-
-    if len(hole_strings) > 0:
-        hole_indices = [i for i, s in enumerate(strings) if s.startswith('hole')]
-    else:
-        hole_indices = None
-
-    return leaf_index, petiole_index, hole_indices
 
 
 def rotate_point(cx, cy, angle, px, py):
@@ -1220,27 +1157,6 @@ def plot_polygons_on_image(polygons, img, color):
     # cv2.destroyAllWindows()
     return img
 
-def get_largest_polygon(polygons):
-    try:
-        # polygons = max(polygons, key=len)
-        # Keep the polygon that has the most points
-        polygons = [polygon for polygon in polygons if len(polygon) == max([len(p) for p in polygons])]
-        # convert the list of polygons to a list of contours
-        contours = [np.array(polygon, dtype=np.int32).reshape((-1,1,2)) for polygon in polygons]
-        # filter the contours to only closed contours
-        closed_contours = [c for c in contours if cv2.isContourConvex(c)]
-        if len(closed_contours) > 0:
-            # sort the closed contours by area
-            closed_contours = sorted(closed_contours, key=cv2.contourArea, reverse=True)
-            # take the largest closed contour
-            largest_closed_contour = closed_contours[0]
-        else:
-            contours = sorted(contours, key=cv2.contourArea, reverse=True)
-            largest_closed_contour = contours[0]
-        largest_polygon = [tuple(i[0]) for i in largest_closed_contour]
-    except:
-        largest_polygon = None
-    return largest_polygon
 
 def convert_index_to_class(ind):
     mapping = {

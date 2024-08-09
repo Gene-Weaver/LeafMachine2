@@ -23,6 +23,8 @@ leafmachine:
         GBIF_mode: 'all' # str |FROM| 'all' or 'filter'. All = config_download_from_GBIF_all_images_in_file.yml Filter = config_download_from_GBIF_all_images_in_filter.yml
         batch_size: 50 #null # null = all
         num_workers: 2 # int |DEFAULT| 4 # More is not always better. Most hardware loses performance after 4
+        num_workers_ruler: 2
+        num_workers_seg: 2
         # If *not* using local, set the following 4 to null
         # If providing occ and img, then a combined will be generated
         # If providing combined, then set images and occ to null
@@ -39,6 +41,24 @@ leafmachine:
         dir_images_subset: ''
         n_images_per_species: 10
         species_list: ''
+
+        censor_archival_components: True
+        replacement_color: '#FFFFFF'
+
+        minimum_total_reproductive_counts: 0
+        accept_only_ideal_leaves: True
+
+        hide_archival_components:
+        - ruler
+        - barcode
+        - label
+        - colorcard
+        - map
+        - photo
+        - weights
+
+        use_CF_predictor: true
+        
 
 
     cropped_components:
@@ -155,6 +175,11 @@ leafmachine:
 
         keep_only_best_one_leaf_one_petiole: True
 
+        save_oriented_images: True
+        save_keypoint_overlay: True
+        save_oriented_mask: True
+        save_simple_txt: True
+
         save_segmentation_overlay_images_to_pdf: True
         save_each_segmentation_overlay_image: True
         save_individual_overlay_images: True # Not recommended, will create many files. Useful for QC or presentation
@@ -171,6 +196,7 @@ leafmachine:
         elliptic_fourier_descriptor_order: null # int |DEFAULT| 40
         
         segmentation_model: 'GroupB_Dataset_100000_Iter_1176PTS_512Batch_smooth_l1_LR00025_BGR'
+        detector_version: 'uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2'
         minimum_confidence_threshold: 0.7 #0.7
         generate_overlay: False
         overlay_dpi: 300 # int |FROM| 100 to 300

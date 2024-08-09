@@ -19,8 +19,8 @@ import asyncio, aiofiles
 currentdir = os.path.dirname(inspect.getfile(inspect.currentframe()))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(currentdir)
-from detect import run
 sys.path.append(parentdir)
+from detect import run
 from landmark_processing import LeafSkeleton
 from armature_processing import ArmatureSkeleton
 

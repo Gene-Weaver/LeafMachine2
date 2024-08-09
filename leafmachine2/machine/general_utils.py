@@ -696,8 +696,8 @@ def crop_detections_from_images_worker_VV(filename, analysis, Project, Dirs, sav
     if has_archival and (save_per_image or save_per_class):
         crop_component_from_yolo_coords_VV('ARCHIVAL', Dirs, analysis, archival, full_image, filename, save_per_image, save_per_class, save_list)
  
-"""
-Works with Project, not SQL
+
+#Works with Project, not SQL
 def crop_detections_from_images_worker(filename, analysis, Project, Dirs, save_per_image, save_per_class, save_list, binarize_labels):
     try:
         full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpg'])))
@@ -720,7 +720,9 @@ def crop_detections_from_images_worker(filename, analysis, Project, Dirs, save_p
         crop_component_from_yolo_coords('ARCHIVAL', Dirs, analysis, archival, full_image, filename, save_per_image, save_per_class, save_list)
     if has_plant and (save_per_image or save_per_class):
         crop_component_from_yolo_coords('PLANT', Dirs, analysis, plant, full_image, filename, save_per_image, save_per_class, save_list)
-"""
+
+
+'''
 def crop_detections_from_images_worker(image_name, archival_components, plant_components, Dirs, save_per_image, save_per_class, save_list, binarize_labels):
     try:
         full_image = cv2.imread(os.path.join(Dirs.dir_images_local, f"{image_name}.jpg"))
@@ -750,11 +752,11 @@ def crop_detections_from_images_worker(image_name, archival_components, plant_co
         plant_annotations = ast.literal_eval(plant_components[0][1]) 
         crop_component_from_yolo_coords('PLANT', Dirs, plant_annotations, full_image, image_name, save_per_image, save_per_class, save_list, width, height)
 
+'''
 
 
 
-"""
-works with Project, not with SQL
+# works with Project, not with SQL
 def crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dirs, batch_size=50):
     t2_start = perf_counter()
     logger.name = 'Crop Components'
@@ -801,7 +803,9 @@ def crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dir
     logger.info(t_crops)
     time_report['t_crops'] = t_crops
     return time_report
-"""
+
+
+'''
 def crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dirs, batch_size=50):
     t2_start = perf_counter()
     logger.name = 'Crop Components'
@@ -861,7 +865,7 @@ def crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dir
     logger.info(t_crops)
     time_report['t_crops'] = t_crops
     return time_report
-
+'''
 
 
 

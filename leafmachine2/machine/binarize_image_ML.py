@@ -121,7 +121,7 @@ class DocEnTR:
                 dim = ENCODERDIM,
                 depth = ENCODERLAYERS,
                 heads = ENCODERHEADS,
-                mlp_dim = 2048
+                mlp_dim = 2048,
             )
 
             hyper_params = {"base": [6, 8, 768],

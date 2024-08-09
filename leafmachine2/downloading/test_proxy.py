@@ -4,7 +4,7 @@ from PIL import Image
 from io import BytesIO
 
 # Initialize ScraperAPI client
-SCRAPERAPI_KEY = '8d4c64c348d7013d24ace10641788ad4'
+SCRAPERAPI_KEY = ''
 
 USER_AGENTS = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
