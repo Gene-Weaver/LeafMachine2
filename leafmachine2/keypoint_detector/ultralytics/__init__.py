@@ -2,11 +2,16 @@
 
 __version__ = '8.0.178'
 
-import os, inspect, sys
+import os
+import sys
+import inspect
+
 currentdir = os.path.dirname(inspect.getfile(inspect.currentframe()))
-parentdir = os.path.dirname(currentdir)
+parentdir1 = os.path.dirname(os.path.dirname(currentdir))
+parentdir2 = os.path.dirname(os.path.dirname(os.path.dirname(currentdir)))
 sys.path.append(currentdir)
-sys.path.append(parentdir)
+sys.path.append(parentdir1)
+sys.path.append(parentdir2)
 
 from ultralytics.models import RTDETR, SAM, YOLO
 from ultralytics.models.fastsam import FastSAM
