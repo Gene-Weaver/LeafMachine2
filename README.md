@@ -103,11 +103,11 @@ For more detailed instructions, see below.
 1. Still inside the LeafMachine2 directory, show that a venv is currently not active 
     <pre><code class="language-python">which python</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-2. Then create the virtual environment (venv_LM2 is the name of our new virtual environment)  
-    <pre><code class="language-python">python -m venv venv_LM2</code></pre>
+2. Then create the virtual environment (.venv_LM2 is the name of our new virtual environment)  
+    <pre><code class="language-python">python -m venv .venv_LM2</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 3. Activate the virtual environment  
-    <pre><code class="language-python">source ./venv_LM2/bin/activate</code></pre>
+    <pre><code class="language-python">source ./.venv_LM2/bin/activate</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 4. Confirm that the venv is active (should be different from step 1)  
     <pre><code class="language-python">which python</code></pre>
@@ -166,11 +166,11 @@ For more detailed instructions, see below.
 1. Still inside the LeafMachine2 directory, show that a venv is currently not active 
     <pre><code class="language-python">python --version</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-2. Then create the virtual environment (venv_LM2 is the name of our new virtual environment. You must name it "venv_LM2" if you want to use the Desktop shortcut)  
-    <pre><code class="language-python">python -m venv venv_LM2</code></pre>
+2. Then create the virtual environment (.venv_LM2 is the name of our new virtual environment. You must name it ".venv_LM2" if you want to use the Desktop shortcut)  
+    <pre><code class="language-python">python -m venv .venv_LM2</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 3. Activate the virtual environment  
-    <pre><code class="language-python">.\venv_LM2\Scripts\activate</code></pre>
+    <pre><code class="language-python">.\.venv_LM2\Scripts\activate</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 4. Confirm that the venv is active (should be different from step 1)  
     <pre><code class="language-python">python --version</code></pre>
@@ -236,7 +236,7 @@ If you plan on changing lots of settings, we recommend running LeafMachine2 in d
 3. We have included demo images and a test file to make sure that all components are functional. The demo images are in `../LeafMachine2/demo/demo_images/` and all output from the test will go to `../LeafMachine2/demo/demo_output/`. After a successful test, you can delete the contents of `demo_output/` if you want, or keep it as a reference. 
     - The demo will run all components of LeafMachine2, including some features that you may not want. For example, the demo will test skeletonization of the labels and rulers, so in the folder `../LeafMachine2/demo/demo_output/test_run/Cropped_Images/By_Class/label_binary` you will see strange looking labels, but that is intentional. 
 4. Running the installation test (from the terminal)
-    - make sure that the virtual environment is active and that the virtual environment is located inside the LM2 home directory: `LeafMachine2/venv_LM2`
+    - make sure that the virtual environment is active and that the virtual environment is located inside the LM2 home directory: `LeafMachine2/.venv_LM2`
     - cd into the LeafMachine2 directory
     <pre><code class="language-python">python test.py</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
@@ -261,7 +261,7 @@ The GUI has most of the setting described below and is a great place to start.
 
 # Creating a Desktop Shortcut
 
-For Windows installations, you can create a desktop shortcut to launch the GUI. Activate your virtual environment, then run `python create_desktop_shortcut.py`. In the terminal you will need to follow the instructions by selecting the location where you want to save the shortcut, and then selecting the virtual environment's folder `venv_LM2`. Your shortcut should appear. 
+For Windows installations, you can create a desktop shortcut to launch the GUI. Activate your virtual environment, then run `python create_desktop_shortcut.py`. In the terminal you will need to follow the instructions by selecting the location where you want to save the shortcut, and then selecting the virtual environment's folder `.venv_LM2`. Your shortcut should appear. 
 
 
 # Using LeafMachine2
