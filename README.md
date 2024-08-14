@@ -3,7 +3,7 @@
 Table of Contents
 =================
 
-* [Updates (March 25, 2024)](#updates-march-25-2024)
+* [Updates](#updates)
 * [Installing LeafMachine2](#installing-leafmachine2)
    * [Prerequisites](#prerequisites)
    * [Hardware](#hardware)
@@ -44,7 +44,12 @@ Table of Contents
 
 ---
 
-# Updates (March 25, 2024)
+# Updates
+* August 14, 2024
+    * Added newest version of keypoint detector
+    * Automatic vertical alignment (rotate leaves to have lamina tip at at top, petiole at bottom)
+    * Store segmentations in a simple txt file, normalized
+
 * March 25, 2024 :rocket:
     * Many, many changes. I recommend creating a new venv to use the updated LM2.
     * Added a Streamlit GUI
