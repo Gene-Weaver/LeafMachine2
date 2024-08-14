@@ -78,7 +78,7 @@ leafmachine2/component_detector/runs/
 leafmachine2/component_detector/architecture/
 leafmachine2/component_detector/yolov5x6.pt
 
-leafmachine2/keypoint_detector/keypoint_models/*
+leafmachine2/keypoint_detector/keypoint_models/uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2/weights/*
 leafmachine2/keypoint_detector/ultralytics/models/yolo/pose/trained_models/*
 leafmachine2/keypoint_detector/ultralytics/models/yolo/pose/datasets/*
 

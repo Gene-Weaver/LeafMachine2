@@ -25,7 +25,7 @@ def fetch_data(logger, dir_home, cfg_file_path):
                 ready_to_use = True
                 logger.warning(f"Version file --- {os.path.join(dir_home,'bin','version.yml')}")
                 logger.warning(f"Current version --- {ver['version']}")
-                logger.warning(f"Last updated --- {ver['last_update']}")
+                logger.warning(f"Date ML models were updated --- {ver['last_update']}")
             else:  # right version, no release dir yet
                 do_fetch = True
                 logger.warning(f"--------------------------------")
@@ -33,7 +33,7 @@ def fetch_data(logger, dir_home, cfg_file_path):
                 logger.warning(f"--------------------------------")
                 logger.warning(f"Version file --- {os.path.join(dir_home,'bin','version.yml')}")
                 logger.warning(f"Current version --- {ver['version']}")
-                logger.warning(f"Last updated --- {ver['last_update']}")
+                logger.warning(f"Date ML models were updated --- {ver['last_update']}")
         else:
             do_fetch = True
             logger.warning(f"--------------------------------")
@@ -42,7 +42,7 @@ def fetch_data(logger, dir_home, cfg_file_path):
             logger.warning(f"--------------------------------")
             logger.warning(f"Version file --- {os.path.join(dir_home,'bin','version.yml')}")
             logger.warning(f"Current version --- {ver['version']}")
-            logger.warning(f"Last updated --- {ver['last_update']}")
+            logger.warning(f"Date ML models were updated --- {ver['last_update']}")
 
         
     else:
@@ -73,7 +73,7 @@ def fetch_data(logger, dir_home, cfg_file_path):
         logger.warning(f"--------------------------------")
         logger.warning(f"Version file --- {os.path.join(dir_home,'bin','version.yml')}")
         logger.warning(f"Current version --- {ver['version']}")
-        logger.warning(f"Last updated --- {ver['last_update']}")
+        logger.warning(f"Date ML models were updated --- {ver['last_update']}")
 
     return ready_to_use
 
