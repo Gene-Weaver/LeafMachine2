@@ -16,13 +16,20 @@ sys.path.append(parentdir3)
 from pathlib import Path
 from typing import Union
 
-from ultralytics.cfg import TASK2DATA, get_cfg, get_save_dir
-from ultralytics.hub.utils import HUB_WEB_ROOT
-from ultralytics.nn.tasks import attempt_load_one_weight, guess_model_task, nn, yaml_model_load
-from ultralytics.utils import ASSETS, DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, RANK, callbacks, emojis, yaml_load
-from ultralytics.utils.checks import check_file, check_imgsz, check_pip_update_available, check_yaml
-from ultralytics.utils.downloads import GITHUB_ASSETS_STEMS
-from ultralytics.utils.torch_utils import smart_inference_mode
+# from ultralytics.cfg import TASK2DATA, get_cfg, get_save_dir
+# from ultralytics.hub.utils import HUB_WEB_ROOT
+# from ultralytics.nn.tasks import attempt_load_one_weight, guess_model_task, nn, yaml_model_load
+# from ultralytics.utils import ASSETS, DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, RANK, callbacks, emojis, yaml_load
+# from ultralytics.utils.checks import check_file, check_imgsz, check_pip_update_available, check_yaml
+# from ultralytics.utils.downloads import GITHUB_ASSETS_STEMS
+# from ultralytics.utils.torch_utils import smart_inference_mode
+from leafmachine2.keypoint_detector.ultralytics.cfg import TASK2DATA, get_cfg, get_save_dir
+from leafmachine2.keypoint_detector.ultralytics.hub.utils import HUB_WEB_ROOT
+from leafmachine2.keypoint_detector.ultralytics.nn.tasks import attempt_load_one_weight, guess_model_task, nn, yaml_model_load
+from leafmachine2.keypoint_detector.ultralytics.utils import ASSETS, DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, RANK, callbacks, emojis, yaml_load
+from leafmachine2.keypoint_detector.ultralytics.utils.checks import check_file, check_imgsz, check_pip_update_available, check_yaml
+from leafmachine2.keypoint_detector.ultralytics.utils.downloads import GITHUB_ASSETS_STEMS
+from leafmachine2.keypoint_detector.ultralytics.utils.torch_utils import smart_inference_mode
 
 
 class Model:
