@@ -231,7 +231,7 @@ def move_data_to_home(path_release, dir_home, logger):
 
     ### Keypoint
     source_file = os.path.join(path_release, 'keypoint', 'best.pt')
-    destination_dir = paths['keypoint']
+    destination_dir = paths['path_keypoint']
     os.makedirs(destination_dir, exist_ok=True)
     try_move(logger, source_file, destination_dir )
 
