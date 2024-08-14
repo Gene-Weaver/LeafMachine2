@@ -15,8 +15,8 @@ sys.path.append(parentdir1)
 sys.path.append(parentdir2)
 sys.path.append(parentdir3)
 
-from ultralytics.engine.model import Model
-from ultralytics.nn.tasks import RTDETRDetectionModel
+from leafmachine2.keypoint_detector.ultralytics.engine.model import Model
+from leafmachine2.keypoint_detector.ultralytics.nn.tasks import RTDETRDetectionModel
 
 from .predict import RTDETRPredictor
 from .train import RTDETRTrainer
