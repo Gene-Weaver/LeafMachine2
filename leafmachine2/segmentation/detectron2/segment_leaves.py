@@ -1180,5 +1180,5 @@ def convert_index_to_class(ind):
 if __name__ == '__main__':
     with open('D:/Dropbox/LM2_Env/Image_Datasets/TEST_LM2/TEST_2023_01_24__16-03-18/Plant_Components/json/Plant_Components.json') as json_file:
         dict_plant_components = json.load(json_file)
-    segment_leaves([], 'D:\Dropbox\LeafMachine2', 'D:\Dropbox\LM2_Env\Image_Datasets\SET_Acacia\Images_GBIF_Acacia_Prickles', [], dict_plant_components)
+    segment_leaves([], 'D:/Dropbox/LeafMachine2', 'D:/Dropbox/LM2_Env/Image_Datasets/SET_Acacia/Images_GBIF_Acacia_Prickles', [], dict_plant_components)
 ''''''
