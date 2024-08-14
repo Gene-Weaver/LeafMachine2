@@ -13,8 +13,8 @@ yolov8x-pose.pt
 yolov8n.pt
 
 # Dirs
-data/
-docs/
+/data/
+/docs/
 Herbarium_Sheet_Corners/
 demo/demo_output/*
 wandb/
