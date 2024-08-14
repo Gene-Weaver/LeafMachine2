@@ -1235,7 +1235,7 @@ def convert_to_dng(tiff_path, dng_path):
     # Check the system
     system = platform.system()
     if system == "Windows":
-        executable_path = "C:\Program Files\Adobe\Adobe DNG Converter\Adobe DNG Converter.exe"
+        executable_path = "C:/Program Files/Adobe/Adobe DNG Converter/Adobe DNG Converter.exe"
     elif system == "Darwin":
         executable_path = "/Applications/Adobe DNG Converter.app/Contents/MacOS/Adobe DNG Converter"
 
