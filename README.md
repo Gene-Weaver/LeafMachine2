@@ -65,8 +65,9 @@ Table of Contents
 ## Prerequisites
 - Validated with Python >= 3.8, <= 3.11 
 - PyTorch 1.11 (Can work with PyTorch 2.X if you are willing to mess around with dependencies/CUDA)
+- For PyTorch 2.3.1 make sure that your CUDA version is compatible
 - Git
-- CUDA version 11.3 (if utilizing a GPU)
+- CUDA version 11.3+ (if utilizing a GPU)
     * see [Troubleshooting CUDA](#Troubleshooting-CUDA)
 
 
@@ -143,8 +144,11 @@ For more detailed instructions, see below.
     - WITH GPU 
     <pre><code class="language-python">pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-    OR 
+    OR for PyTorch 2.3.0 and CUDA 12.1
     <pre><code class="language-python">pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu121</code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+    OR for PyTorch 2.3.1 and CUDA 12.1 (**RECOMMENDED**)
+    <pre><code class="language-python">pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
     
     <!-- - For a newer version of CUDA, like CUDA 12.1, you can install the most recent version:
@@ -152,7 +156,7 @@ For more detailed instructions, see below.
     </code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button> -->
 
-6. Install ViT for PyTorch. ViT is used for segmenting labels and rulers. The DocEnTr framework that we use for document image segmentation requires an older verison of ViT, the most recent version will cause an error. 
+6. We need to install a downgraded vertion of ViT for the DocEnTr ruler segmentation. Install ViT for PyTorch. ViT is used for segmenting labels and rulers. The DocEnTr framework that we use for document image segmentation requires an older verison of ViT, the most recent version will cause an error. 
     <pre><code class="language-python">pip install vit-pytorch==0.37.1</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 
@@ -199,12 +203,14 @@ For more detailed instructions, see below.
     - WITH GPU 
     <pre><code class="language-python">pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-    <!-- - For a newer version of CUDA, like CUDA 12.1, you can install the most recent version:
-    <pre><code class="language-python">pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-    </code></pre>
-    <button class="btn" data-clipboard-target="#code-snippet"></button> -->
+    OR for PyTorch 2.3.0 and CUDA 12.1
+    <pre><code class="language-python">pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu121</code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+    OR for PyTorch 2.3.1 and CUDA 12.1 (**RECOMMENDED**)
+    <pre><code class="language-python">pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121</code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
 
-5. Install ViT for PyTorch. ViT is used for segmenting labels and rulers. The DocEnTr framework that we use for document image segmentation requires an older verison of ViT, the most recent version will cause an error. 
+5. We need to install a downgraded vertion of ViT for the DocEnTr ruler segmentation. Install ViT for PyTorch. ViT is used for segmenting labels and rulers. The DocEnTr framework that we use for document image segmentation requires an older verison of ViT, the most recent version will cause an error. 
     <pre><code class="language-python">pip install vit-pytorch==0.37.1</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 
@@ -251,7 +257,10 @@ If you plan on changing lots of settings, we recommend running LeafMachine2 in d
     - You should see some blue text, and then a lot of information in the console. 
     - If the run completes (usually after ~5 minutes) and you see a :grinning: then you should be all set!
     - Otherwise, double check that you followed each step and reach out by submitting an inquiry in the form at [LeafMachine.org](https://LeafMachine.org/)
-
+5. LM2 downloads the required ML models in a zipped folder and then unpacks the models, moving them to the correct places. If this process is stopped prematurely for any reason, then you need to add the flag `--redownload`. LM2 looks to see if the `version.yml` is present. If it is, then it will not restart the unpacking process. So `--redownload` deletes everything in `LeafMachine2/bin` so that the process can start fresh. 
+    <pre><code class="language-python">python test.py --redownload</code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+> **Note:** Step 5 can also be run after major updates that may have introduced a bug, if the issue is related to missing modules or ML models. (This occured with an update on August 14, 2024)
 ---
 
 # Using LeafMachine2 GUI
