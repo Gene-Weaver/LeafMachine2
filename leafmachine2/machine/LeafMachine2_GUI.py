@@ -32,7 +32,7 @@ class ProgressReport:
         self.text_batch = text_batch
         self.text_batch_part = text_batch_part
         self.current_overall_step = 0
-        self.total_overall_steps = 12  # number of major steps in machine function
+        self.total_overall_steps = 13  # number of major steps in machine function
         self.current_batch = 0
         self.total_batches = total_batches
         self.current_batch_part = 0

@@ -37,7 +37,7 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
     # Load config file
     report_config(dir_home, cfg_file_path, system='LeafMachine2')
     if progress_report:
-        progress_report.update_overall("Loaded config file")
+        progress_report.update_overall("Loaded config file") # Step 1/13
 
     if cfg_test is None:
         cfg = load_config_file(dir_home, cfg_file_path, system='LeafMachine2')
@@ -59,7 +59,7 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
         print_main_start("Creating Directory Structure")
         Dirs = Dir_Structure(cfg)
         if progress_report:
-            progress_report.update_overall("Create Output Directory Structure")
+            progress_report.update_overall("Create Output Directory Structure") # Step 2/13
 
         # logging.info("Hi")
         logger = start_logging(Dirs, cfg)
@@ -68,7 +68,7 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
         ready_to_use = fetch_data(logger, dir_home, cfg_file_path)
         assert ready_to_use, "Required ML files are not ready to use!\nThe download may have failed,\nor\nthe directory structure of LM2 has been altered"
         if progress_report:
-            progress_report.update_overall("Validate ML Files")
+            progress_report.update_overall("Validate ML Files") # Step 3/13
 
         # Wrangle images and preprocess
         print_main_start("Gathering Images and Image Metadata")
@@ -77,14 +77,14 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
         # test_sql(get_database_path(ProjectSQL))
 
         if progress_report:
-            progress_report.update_overall("Created Project Storage Object")
+            progress_report.update_overall("Created Project Storage Object") # Step 4/13
 
         # if not Project.has_valid_images:
         # if not ProjectSQL.has_valid_images:
         #     logger.error("No valid images found. Check file extensions.")
         #     raise FileNotFoundError(f"No valid images found in the specified directory. Invalid files may have been moved to the 'INVALID_FILES' directory.\nSupported file extensions: {Project.file_ext}")
         if progress_report:
-            progress_report.update_overall("Validate Input File Names and Types")
+            progress_report.update_overall("Validate Input File Names and Types")  # Step 5/13
 
         # Subset dir_images if selected
         # Project = subset_dir_images(cfg, Project, Dirs) # Not used. Need to make a sql version 
@@ -92,12 +92,12 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
         # Save config file
         save_config_file(cfg, logger, Dirs)
         if progress_report:
-            progress_report.update_overall("Save Copy of Config File")
+            progress_report.update_overall("Save Copy of Config File") # Step 6/13
 
 
         # Detect Archival Components
         if progress_report:
-            progress_report.update_overall("Detect Archival Components")
+            progress_report.update_overall("Detect Archival Components") # Step 7/13
         print_main_start("Locating Archival Components")
         Project, time_report = detect_archival_components(cfg, time_report, logger, dir_home, Project, Dirs)
         # ProjectSQL, time_report = detect_archival_components(cfg, time_report, logger, dir_home, ProjectSQL, Dirs)
@@ -105,14 +105,14 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
         
         # Detect Plant Components
         if progress_report:
-            progress_report.update_overall("Detect Plant Components")
+            progress_report.update_overall("Detect Plant Components") # Step 8/13
         print_main_start("Locating Plant Components")
         Project, time_report = detect_plant_components(cfg, time_report, logger, dir_home, Project, Dirs)
         # ProjectSQL, time_report = detect_plant_components(cfg, time_report, logger, dir_home, ProjectSQL, Dirs)
         # test_sql(get_database_path(ProjectSQL))
 
         # Detect Armature Components
-        # progress_report.update_overall("Detect Armature Components")
+        # progress_report.update_overall("Detect Armature Components")  # Step 
         # print_main_start("Locating Armature Components")
         # Project = detect_armature_components(cfg, logger, dir_home, Project, Dirs)
         # img_crop = img_crop.resize((img_crop.width * 10, img_crop.height * 10), resample=Image.LANCZOS)
@@ -126,28 +126,28 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
 
         # Save cropped detections
         if progress_report:
-            progress_report.update_overall("Crop Individual Objects from Images")
+            progress_report.update_overall("Crop Individual Objects from Images") # Step 9/13
         time_report = crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dirs)
         # time_report = crop_detections_from_images(cfg, time_report, logger, dir_home, ProjectSQL, Dirs)
 
         # If Specimen Crop is selected
         if progress_report:
-            progress_report.update_overall("SpecimenCrop Images")
+            progress_report.update_overall("SpecimenCrop Images") # Step 10/13
         time_report = crop_detections_from_images_SpecimenCrop(cfg, time_report, logger, dir_home, Project, Dirs)
 
         if progress_report:
-            progress_report.update_overall("Detecting Phenology")
+            progress_report.update_overall("Detecting Phenology") # Step 11/13
         time_report = detect_phenology(cfg, time_report, logger, dir_home, Project, Dirs)
 
         if progress_report:
-            progress_report.update_overall("Removing Archival Components")
+            progress_report.update_overall("Censoring Archival Components") # Step 12/13
         time_report = censor_archival_components(cfg, time_report, logger, dir_home, Project, Dirs)
 
         
         # Binarize labels
         run_binarize(cfg, logger, Dirs)
         if progress_report:
-            progress_report.update_overall("Binarize Labels")
+            progress_report.update_overall("Binarize Labels") # Step 13/13
         
         # Split into batches for further processing
         Project, n_batches, m  = split_into_batches(Project, logger, cfg)
