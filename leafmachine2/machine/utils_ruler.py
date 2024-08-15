@@ -426,7 +426,7 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
 
     filenames = list(Project.project_data_list[batch].keys())
     num_files = len(filenames)
-    chunk_size = (num_files + num_workers - 1) // num_workers
+    chunk_size = max((num_files + num_workers - 1) // num_workers, 4)
 
     def worker(queue):
         while True:
