@@ -233,44 +233,86 @@ class Project_Info():
     #             img_name = os.path.splitext(img)[0]
     #             self.project_data[img_split] = {}
 
+    # def __make_project_dict(self):
+    #     self.project_data = {}
+    #     invalid_dir = None
+
+    #     for img in os.listdir(self.dir_images):
+    #         img_split, ext = os.path.splitext(img)
+    #         if ext in self.valid_extensions:
+    #             with Image.open(os.path.join(self.dir_images, img)) as im:
+    #                 _, ext = os.path.splitext(img)
+    #                 if ext not in ['.jpg']:
+    #                     im = im.convert('RGB')
+    #                     new_img_name = ''.join([img_split, '.jpg'])
+    #                     im.save(os.path.join(self.dir_images, new_img_name), quality=100)
+    #                     self.project_data[img_split] = {}
+
+    #                     # Prepare the INVALID_FILES directory
+    #                     # if invalid_dir is None:
+    #                     #     invalid_dir = os.path.join(os.path.dirname(self.dir_images), 'INVALID_FILES')
+    #                     #     os.makedirs(invalid_dir, exist_ok=True)
+
+    #                     # # Copy the original file to the INVALID_FILES directory instead of moving it
+    #                     # invalid_file_path = os.path.join(invalid_dir, img)
+    #                     # if not os.path.exists(invalid_file_path):
+    #                     #     shutil.copy2(os.path.join(self.dir_images, img), invalid_file_path)
+
+    #                     # Update the img variable to the new image name
+    #                     img = new_img_name
+    #             img_name = os.path.splitext(img)[0]
+    #             self.project_data[img_split] = {}
+    #         else:
+    #             # if the file has an invalid extension, move it to the INVALID_FILE directory
+    #             if invalid_dir is None:
+    #                 invalid_dir = os.path.join(os.path.dirname(self.dir_images), 'INVALID_FILES')
+    #                 os.makedirs(invalid_dir, exist_ok=True)
+
+    #             # skip if the file already exists in the INVALID_FILE directory
+    #             if not os.path.exists(os.path.join(invalid_dir, img)):
+    #                 shutil.move(os.path.join(self.dir_images, img), os.path.join(invalid_dir, img))
     def __make_project_dict(self):
         self.project_data = {}
-        invalid_dir = None
+        converted_dir = None
+        contains_non_jpg = False
+
+        # Check if any non-JPG files are present
+        for img in os.listdir(self.dir_images):
+            img_split, ext = os.path.splitext(img)
+            if ext.lower() not in ['.jpg',]:
+                contains_non_jpg = True
+                break
+
+        # If there are non-JPG files, create the 'converted_to_jpg' directory
+        if contains_non_jpg:
+            converted_dir = os.path.join(self.dir_images, 'converted_to_jpg')
+            os.makedirs(converted_dir, exist_ok=True)
 
         for img in os.listdir(self.dir_images):
             img_split, ext = os.path.splitext(img)
+            ext = ext.lower()
+
             if ext in self.valid_extensions:
-                with Image.open(os.path.join(self.dir_images, img)) as im:
-                    _, ext = os.path.splitext(img)
-                    if ext not in ['.jpg']:
+                img_path = os.path.join(self.dir_images, img)
+
+                if ext not in ['.jpg', '.jpeg']:
+                    # Convert the image to JPG
+                    with Image.open(img_path) as im:
                         im = im.convert('RGB')
-                        new_img_name = ''.join([img_split, '.jpg'])
-                        im.save(os.path.join(self.dir_images, new_img_name), quality=100)
-                        self.project_data[img_split] = {}
+                        new_img_name = f"{img_split}.jpg"
+                        new_img_path = os.path.join(converted_dir, new_img_name)
+                        im.save(new_img_path, quality=100)
+                    self.project_data[img_split] = {}
+                else:
+                    # Copy the JPG image to the new directory if necessary
+                    if contains_non_jpg:
+                        new_img_path = os.path.join(converted_dir, img)
+                        shutil.copy2(img_path, new_img_path)
+                    self.project_data[img_split] = {}
 
-                        # Prepare the INVALID_FILES directory
-                        # if invalid_dir is None:
-                        #     invalid_dir = os.path.join(os.path.dirname(self.dir_images), 'INVALID_FILES')
-                        #     os.makedirs(invalid_dir, exist_ok=True)
-
-                        # # Copy the original file to the INVALID_FILES directory instead of moving it
-                        # invalid_file_path = os.path.join(invalid_dir, img)
-                        # if not os.path.exists(invalid_file_path):
-                        #     shutil.copy2(os.path.join(self.dir_images, img), invalid_file_path)
-
-                        # Update the img variable to the new image name
-                        img = new_img_name
-                img_name = os.path.splitext(img)[0]
-                self.project_data[img_split] = {}
-            else:
-                # if the file has an invalid extension, move it to the INVALID_FILE directory
-                if invalid_dir is None:
-                    invalid_dir = os.path.join(os.path.dirname(self.dir_images), 'INVALID_FILES')
-                    os.makedirs(invalid_dir, exist_ok=True)
-
-                # skip if the file already exists in the INVALID_FILE directory
-                if not os.path.exists(os.path.join(invalid_dir, img)):
-                    shutil.move(os.path.join(self.dir_images, img), os.path.join(invalid_dir, img))
+        # Update self.dir_images to point to the new directory if it was created
+        if contains_non_jpg:
+            self.dir_images = converted_dir
 
     def add_records_to_project_dict(self):
         for img in os.listdir(self.dir_images):
