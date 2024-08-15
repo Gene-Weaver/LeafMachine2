@@ -49,7 +49,7 @@ def convert_rulers_testing(dir_rulers, cfg, time_report, logger, dir_home, Proje
     incorrect_pair = []
 
     # For reference images
-    dir_out = 'F:\Ruler_Reference_Processed_400px'
+    dir_out = 'F:/Ruler_Reference_Processed_400px'
     csv_out = 'D:/Dropbox/LM2_Env/LeafMachine2_Manuscript/ruler_QC/ruler_acc.csv'
     acc_out_good = {}
     acc_out_bad = {}
