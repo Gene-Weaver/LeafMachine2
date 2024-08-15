@@ -144,10 +144,10 @@ For more detailed instructions, see below.
     - WITH GPU 
     <pre><code class="language-python">pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-    OR for PyTorch 2.3.0 and CUDA 12.1
+    - OR for PyTorch 2.3.0 and CUDA 12.1
     <pre><code class="language-python">pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu121</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-    OR for PyTorch 2.3.1 and CUDA 12.1 (**RECOMMENDED**)
+    - OR for PyTorch 2.3.1 and CUDA 12.1 (**RECOMMENDED**)
     <pre><code class="language-python">pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
     
@@ -203,10 +203,10 @@ For more detailed instructions, see below.
     - WITH GPU 
     <pre><code class="language-python">pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-    OR for PyTorch 2.3.0 and CUDA 12.1
+    - OR for PyTorch 2.3.0 and CUDA 12.1
     <pre><code class="language-python">pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu121</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
-    OR for PyTorch 2.3.1 and CUDA 12.1 (**RECOMMENDED**)
+    - OR for PyTorch 2.3.1 and CUDA 12.1 (**RECOMMENDED**)
     <pre><code class="language-python">pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 
