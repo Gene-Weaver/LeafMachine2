@@ -100,10 +100,6 @@ For more information about virtual environments, please see [Creation of virtual
 
 ## Installation - Ubuntu 20.04+
 
-Quick installation: Inside of a python virtual environment, `pip install -r requirements.txt`, then `pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113`
-
-For more detailed instructions, see below. 
-
 ### Virtual Environment
 
 1. Still inside the LeafMachine2 directory, show that a venv is currently not active 
@@ -125,7 +121,7 @@ For more detailed instructions, see below.
 ### Installing Packages
 1.  First, update pip, wheel, setuptools
     With the venv active, install wheel 
-        <pre><code class="language-python">python -m pip install wheel</code></pre>
+        <pre><code class="language-python">python -m pip install "wheel"</code></pre>
         <button class="btn" data-clipboard-target="#code-snippet"></button>
     Update pip and setuptools
         <pre><code class="language-python">python -m pip install --upgrade pip setuptools</code></pre>
@@ -135,20 +131,20 @@ For more detailed instructions, see below.
     <pre><code class="language-python">pip install -r requirements.txt</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 3. Install pycococreator
-    <pre><code class="language-python">pip install git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools</code></pre>
+    <pre><code class="language-python">pip install "git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools"</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 4. Install COCO annotation tools and a special version of Open CV
-    <pre><code class="language-python">pip install pycocotools>=2.0.5 opencv-contrib-python>=4.7.0.68</code></pre>
+    <pre><code class="language-python">pip install "pycocotools>=2.0.5" "opencv-contrib-python>=4.7.0.68"</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 5. LeafMachine2 algorithms require PyTorch version 1.11 for CUDA version 11.3+. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
     - WITH GPU 
-    <pre><code class="language-python">pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
+    <pre><code class="language-python">pip install "torch==1.11.0+cu113" "torchvision==0.12.0+cu113" "torchaudio==0.11.0" --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
     - OR for PyTorch 2.3.0 and CUDA 12.1
-    <pre><code class="language-python">pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu121</code></pre>
+    <pre><code class="language-python">pip install "torch==2.3.0" "torchvision==0.18.0" "torchaudio==2.3.0" --index-url https://download.pytorch.org/whl/cu121</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
     - OR for PyTorch 2.3.1 and CUDA 12.1 (**RECOMMENDED**)
-    <pre><code class="language-python">pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121</code></pre>
+    <pre><code class="language-python">pip install "torch==2.3.1" "torchvision==0.18.1" "torchaudio==2.3.1" --index-url https://download.pytorch.org/whl/cu121</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
     
     <!-- - For a newer version of CUDA, like CUDA 12.1, you can install the most recent version:
@@ -157,7 +153,7 @@ For more detailed instructions, see below.
     <button class="btn" data-clipboard-target="#code-snippet"></button> -->
 
 6. We need to install a downgraded vertion of ViT for the DocEnTr ruler segmentation. Install ViT for PyTorch. ViT is used for segmenting labels and rulers. The DocEnTr framework that we use for document image segmentation requires an older verison of ViT, the most recent version will cause an error. 
-    <pre><code class="language-python">pip install vit-pytorch==0.37.1</code></pre>
+    <pre><code class="language-python">pip install "vit-pytorch==0.37.1"</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 
 > If you need help, please submit an inquiry in the form at [LeafMachine.org](https://LeafMachine.org/)
@@ -165,10 +161,6 @@ For more detailed instructions, see below.
 ---
 
 ## Installation - Windows 10+
-
-Quick installation: Inside of a python virtual environment, `pip install -r requirements.txt`, then `pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113`, then `pip install pywin32`.
-
-For more detailed instructions, see below. 
 
 ### Virtual Environment
 
@@ -194,24 +186,24 @@ For more detailed instructions, see below.
     <pre><code class="language-python">pip install -r requirements.txt</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 2. Install pycococreator
-    <pre><code class="language-python">pip install git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools</code></pre>
+    <pre><code class="language-python">pip install "git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools"</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 3. Install COCO annotation tools, a special version of Open CV, and pywin32 for creating the desktop shortcut
-    <pre><code class="language-python">pip install pywin32 pycocotools>=2.0.5 opencv-contrib-python>=4.7.0.68</code></pre>
+    <pre><code class="language-python">pip install "pywin32" "pycocotools>=2.0.5" "opencv-contrib-python>=4.7.0.68"</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 4. LeafMachine2 algorithms require PyTorch version 1.11 for CUDA version 11.3+. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
     - WITH GPU 
-    <pre><code class="language-python">pip install torch==1.11.0+cu113 torchvision==0.12.0+cu113 torchaudio==0.11.0 --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
+    <pre><code class="language-python">pip install "torch==1.11.0+cu113" "torchvision==0.12.0+cu113" "torchaudio==0.11.0" --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
     - OR for PyTorch 2.3.0 and CUDA 12.1
-    <pre><code class="language-python">pip install torch==2.3.0 torchvision==0.18.0 torchaudio==2.3.0 --index-url https://download.pytorch.org/whl/cu121</code></pre>
+    <pre><code class="language-python">pip install "torch==2.3.0" "torchvision==0.18.0" "torchaudio==2.3.0" --index-url https://download.pytorch.org/whl/cu121</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
     - OR for PyTorch 2.3.1 and CUDA 12.1 (**RECOMMENDED**)
-    <pre><code class="language-python">pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121</code></pre>
+    <pre><code class="language-python">pip install "torch==2.3.1" "torchvision==0.18.1" "torchaudio==2.3.1" --index-url https://download.pytorch.org/whl/cu121</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 
 5. We need to install a downgraded vertion of ViT for the DocEnTr ruler segmentation. Install ViT for PyTorch. ViT is used for segmenting labels and rulers. The DocEnTr framework that we use for document image segmentation requires an older verison of ViT, the most recent version will cause an error. 
-    <pre><code class="language-python">pip install vit-pytorch==0.37.1</code></pre>
+    <pre><code class="language-python">pip install "vit-pytorch==0.37.1"</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 
 > If you need help, please submit an inquiry in the form at [LeafMachine.org](https://LeafMachine.org/)
