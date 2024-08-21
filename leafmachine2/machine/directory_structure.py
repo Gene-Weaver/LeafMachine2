@@ -281,6 +281,7 @@ class Dir_Structure():
         self.dir_keypoint_overlay = os.path.join(self.dir_project,'Keypoints','Keypoint_Overlay')
         self.dir_oriented_masks = os.path.join(self.dir_project,'Keypoints','Oriented_Masks')
         self.dir_simple_txt = os.path.join(self.dir_project,'Keypoints','Simple_Labels')
+        self.dir_simple_raw_txt = os.path.join(self.dir_project,'Keypoints','Simple_Labels_Original')
         if cfg['leafmachine']['leaf_segmentation']['save_oriented_images'] or cfg['leafmachine']['leaf_segmentation']['save_keypoint_overlay'] or cfg['leafmachine']['leaf_segmentation']['save_oriented_mask'] or cfg['leafmachine']['leaf_segmentation']['save_simple_txt'] :
             validate_dir(self.keypoints)
         if cfg['leafmachine']['leaf_segmentation']['save_oriented_images']:
@@ -291,6 +292,9 @@ class Dir_Structure():
             validate_dir(self.dir_oriented_masks)
         if cfg['leafmachine']['leaf_segmentation']['save_simple_txt']:
             validate_dir(self.dir_simple_txt)
+            validate_dir(self.dir_simple_raw_txt)
+
+            
 
         # Censor
         self.censor_archival_components = os.path.join(self.dir_project,'Archival_Components_Censored')

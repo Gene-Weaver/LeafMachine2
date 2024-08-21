@@ -179,6 +179,51 @@ def segment_images_parallel(logger, dir_home, dict_objects, leaf_type, dict_name
 ''' SEGMENT PARALLEL'''
 
 
+def determine_conversion_factor(dict_objects, filename):
+    """
+    Determine the conversion factor (CF) for the given filename based on the conversion_mean and predicted_conversion_factor_cm.
+    
+    Parameters:
+        dict_objects (dict): The dictionary containing ruler information.
+        filename (str): The filename key to look up in the dictionary.
+        
+    Returns:
+        float: The calculated conversion factor (CF).
+    """
+    # Get the list of Ruler_Info
+    ruler_info_list = dict_objects[filename]['Ruler_Info']
+    
+    # Determine the max_index dynamically based on the length of the list
+    max_index = len(ruler_info_list) - 1
+    
+    conversion_means = []
+    predicted_conversion_factor_cm = None
+
+    # Iterate over the indices in the list
+    for i in range(max_index + 1):
+        ruler_info = ruler_info_list[i]
+        
+        conversion_mean = ruler_info.get('conversion_mean', 0)
+        predicted_conversion_factor_cm = ruler_info.get('predicted_conversion_factor_cm', 0)
+        conversion_means.append(conversion_mean)
+    
+    # Check if all conversion_mean values are 0
+    if all(cm == 0 for cm in conversion_means):
+        if predicted_conversion_factor_cm:
+            CF = predicted_conversion_factor_cm
+        else:
+            CF = 0
+    else:
+        # Calculate the average of non-zero conversion_mean values
+        non_zero_conversion_means = [cm for cm in conversion_means if cm > 0]
+        CF = sum(non_zero_conversion_means) / len(non_zero_conversion_means) if non_zero_conversion_means else 0
+
+    CF = float("{:.2f}".format(CF))
+
+    return CF
+
+
+
 
 def segment_images(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dict_from, cfg, Project, Dirs, batch, n_batches, lock):#, start, end):
     # Run the leaf instance segmentation operations
@@ -248,6 +293,8 @@ def segment_images(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dic
         except:
             # full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename,'jpeg'])))
             full_image = cv2.cvtColor(cv2.imread(os.path.join(Project.dir_images, '.'.join([filename,'jpeg']))), cv2.COLOR_BGR2RGB)
+
+        CF = determine_conversion_factor(dict_objects, filename)
 
         full_size = full_image.shape
         if save_full_image_masks_color:
@@ -320,7 +367,9 @@ def segment_images(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dic
 
                         save_individual_segmentations(save_individual_overlay_images, dict_name_seg, seg_name, cropped_overlay, Dirs)
 
-                        full_mask = save_masks_color(keypoint_data, save_oriented_images, save_ind_masks_color, save_full_image_masks_color, use_efds_for_masks, full_mask, overlay_data, cropped_overlay_size, full_size, seg_name, seg_name_short, leaf_type, Dirs)
+                        full_mask = save_masks_color(keypoint_data, save_oriented_images, save_ind_masks_color, save_full_image_masks_color, 
+                                                     use_efds_for_masks, full_mask, overlay_data, cropped_overlay_size, full_size, seg_name, 
+                                                     seg_name_short, leaf_type, Dirs, CF)
 
         save_full_masks(save_full_image_masks_color, full_mask, filename, leaf_type, Dirs)
         save_full_overlay_images(save_each_segmentation_overlay_image, full_image, filename, leaf_type, Dirs)
@@ -543,8 +592,10 @@ def create_perimeter_normalize(mask_leaf, keypoint_data, seg_name):
     max_extent = max(x_coords_raw.max() - x_coords_raw.min(), y_coords_raw.max() - y_coords_raw.min())
 
     # Normalize the coordinates
-    x_coords_raw_normalized = (x_coords_raw - x_coords_raw.min()) / max_extent
-    y_coords_raw_normalized = (y_coords_raw - y_coords_raw.min()) / max_extent
+    x_min = x_coords_raw.min()
+    y_min =  y_coords_raw.min()
+    x_coords_raw_normalized = (x_coords_raw - x_min) / max_extent
+    y_coords_raw_normalized = (y_coords_raw - y_min) / max_extent
 
     # Calculate the centroid of the normalized shape
     centroid_x = np.mean(x_coords_raw_normalized)
@@ -589,7 +640,7 @@ def create_perimeter_normalize(mask_leaf, keypoint_data, seg_name):
 
     if tip_centroid is None or base_centroid is None:
         print("Tip or base centroid not found. Check rotation and color marking.")
-        return [(999, 999)], np.array([999,999]), np.array([999,999]), np.array([999,999]), np.array([999,999])  # Or handle the error in another appropriate way for your application
+        return [(999, 999)], [(999, 999)], 999, 999, 999, np.array([999,999]), np.array([999,999]), np.array([999,999]), np.array([999,999])  # Or handle the error in another appropriate way for your application
 
     # Convert to NumPy arrays if they are not already
     tip_centroid = np.array(tip_centroid)
@@ -661,13 +712,27 @@ def create_perimeter_normalize(mask_leaf, keypoint_data, seg_name):
         plt.gca().set_aspect('equal', adjustable='box')
         plt.legend()
         plt.savefig('contour_plot.png')  # Save the figure
-    return rotated_contour, top, bottom, closest_tip_point, closest_base_point
-def save_simple_txt(dir_simple_txt, rotated_contour, top, bottom, closest_tip_point, closest_base_point, angle, filename):
+    return main_contour_raw, rotated_contour, max_extent, x_min, y_min, top, bottom, closest_tip_point, closest_base_point
+
+def save_simple_txt(dir_simple_txt, rotated_contour, top, bottom, closest_tip_point, closest_base_point, angle, filename, 
+                    full_size, CF, max_extent, x_min, y_min):
     # Construct the full path for the txt file
     file_path = os.path.join(dir_simple_txt, '.'.join([filename, 'txt']))
     
     # Open the file in write mode
     with open(file_path, 'w') as file:
+        # Write the height and width of the original image
+        file.write(f"{full_size[0]}\n") # height
+        file.write(f"{full_size[1]}\n") # width
+
+        # Write the conversion factor
+        file.write(f"{CF}\n") # CF
+
+        # Scaling factor
+        file.write(f"{max_extent}\n") # scaling factor
+        file.write(f"{x_min}\n") # scaling factor
+        file.write(f"{y_min}\n") # scaling factor
+
         # Write the angle to the first line
         file.write(f"{angle}\n")
         # Write the topmost point to the second line
@@ -681,9 +746,39 @@ def save_simple_txt(dir_simple_txt, rotated_contour, top, bottom, closest_tip_po
         # Write each coordinate pair from the rotated contour
         for x, y in rotated_contour:
             file.write(f"{x},{y}\n")
+
+def save_raw_contour_txt(dir_raw_txt, raw_contour, seg_name, full_size, CF, angle):
+    # Construct the full path for the raw txt file
+    file_path = os.path.join(dir_raw_txt, f'{seg_name}.txt')
+    bbox_str = seg_name.split('__L__')[-1].split('.')[0]
+    bbox = tuple(map(int, bbox_str.split('-')))
+    
+    # Open the file in write mode
+    with open(file_path, 'w') as file:
+        # Write the height and width of the original image
+        file.write(f"{full_size[0]}\n") # height
+        file.write(f"{full_size[1]}\n") # width
+
+        # Write the conversion factor
+        file.write(f"{CF}\n") # CF
+
+        # Write the box location from the original image
+        file.write(f"{bbox[0]}\n")
+        file.write(f"{bbox[1]}\n")
+        file.write(f"{bbox[2]}\n")
+        file.write(f"{bbox[3]}\n")
+
+        # Write the angle to the first line
+        file.write(f"{angle}\n")
+
+        # Write each coordinate pair from the raw contour
+        for x, y in raw_contour:
+            file.write(f"{x},{y}\n")
 #######
 
-def save_masks_color(keypoint_data, save_oriented_images, save_individual_masks_color, save_full_image_masks_color, use_efds_for_masks, full_mask, overlay_data, cropped_overlay_size, full_size, seg_name, seg_name_short, leaf_type, Dirs):
+def save_masks_color(keypoint_data, save_oriented_images, save_individual_masks_color, save_full_image_masks_color, 
+                     use_efds_for_masks, full_mask, overlay_data, cropped_overlay_size, full_size, seg_name, seg_name_short, 
+                     leaf_type, Dirs, CF):
     if len(overlay_data) > 0:
         # unpack
         overlay_poly, overlay_poly_oriented, overlay_efd, overlay_rect, overlay_color = overlay_data
@@ -736,8 +831,10 @@ def save_masks_color(keypoint_data, save_oriented_images, save_individual_masks_
                     unique_colors = find_unique_colors(oriented_mask)
                     mask_leaf, masks, has_leaf_color = segment_masks(unique_colors, oriented_mask)
                     if has_leaf_color:
-                        rotated_contour, top, bottom, closest_tip_point, closest_base_point = create_perimeter_normalize(mask_leaf, keypoint_data, seg_name) 
-                        save_simple_txt(Dirs.dir_simple_txt, rotated_contour, top, bottom, closest_tip_point, closest_base_point, angle, seg_name)
+                        # TODO ********* add original image's height/width & conversion factor to both txts as the first 2 lines
+                        raw_contour, rotated_contour, max_extent, x_min, y_min, top, bottom, closest_tip_point, closest_base_point = create_perimeter_normalize(mask_leaf, keypoint_data, seg_name) 
+                        save_simple_txt(Dirs.dir_simple_txt, rotated_contour, top, bottom, closest_tip_point, closest_base_point, angle, seg_name, full_size, CF, max_extent, x_min, y_min)
+                        save_raw_contour_txt(Dirs.dir_simple_raw_txt, raw_contour, seg_name, full_size, CF, angle)
 
 
             elif leaf_type == 1:
@@ -751,9 +848,9 @@ def save_masks_color(keypoint_data, save_oriented_images, save_individual_masks_
                     unique_colors = find_unique_colors(oriented_mask)
                     mask_leaf, masks, has_leaf_color = segment_masks(unique_colors, oriented_mask)
                     if has_leaf_color:
-                        rotated_contour, top, bottom = create_perimeter_normalize(mask_leaf, keypoint_data, seg_name)
-                        save_simple_txt(Dirs.dir_simple_txt, rotated_contour, top, bottom, angle, seg_name)
-
+                        raw_contour, rotated_contour, max_extent, x_min, y_min, top, bottom = create_perimeter_normalize(mask_leaf, keypoint_data, seg_name)
+                        save_simple_txt(Dirs.dir_simple_txt, rotated_contour, top, bottom, closest_tip_point, closest_base_point, angle, seg_name, full_size, CF, max_extent, x_min, y_min)
+                        save_raw_contour_txt(Dirs.dir_simple_raw_txt, raw_contour, seg_name, full_size, CF, angle)
 
         if save_full_image_masks_color:
             if '-' in seg_name_short:
