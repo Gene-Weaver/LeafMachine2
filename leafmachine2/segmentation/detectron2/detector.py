@@ -26,7 +26,6 @@ def get_dict(dir,json_name):
 class Detector_LM2: 
     def __init__(self,logger,DIR_MODEL,THRESH, LEAF_TYPE) -> None:
         # MODEL_ROOT = os.path.dirname(DIR_MODEL)
-
         self.cfg = get_cfg()
         try:
             self.cfg.merge_from_file(os.path.join(DIR_MODEL,'cfg_output.yaml'))

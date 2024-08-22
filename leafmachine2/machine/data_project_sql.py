@@ -57,9 +57,112 @@ class Project_Info_SQL():
         make_images_in_dir_vertical(self.dir_images, cfg)
 
         self.create_tables()
-        self.create_archival_components_table()  # Add this line to create the archival_components table
-        self.create_plant_components_table()  # Add this line to create the archival_components table
+        # self.create_archival_components_table()  # Add this line to create the archival_components table
+        # self.create_plant_components_table()  # Add this line to create the archival_components table
         self.__make_project_dict()
+        self.populate_image_dimensions()  # Populate dimensions after creating the tables
+        self.create_tables_if_not_exist()
+
+    def create_tables_if_not_exist(self):
+        try:
+            cur = self.conn.cursor()
+
+            # Table for Whole_Leaf_BBoxes
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS Whole_Leaf_BBoxes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_name TEXT NOT NULL,
+                    class INTEGER,
+                    x_min INTEGER,
+                    y_min INTEGER,
+                    x_max INTEGER,
+                    y_max INTEGER
+                )
+            """)
+
+            # Table for Partial_Leaf_BBoxes
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS Partial_Leaf_BBoxes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_name TEXT NOT NULL,
+                    class INTEGER,
+                    x_min INTEGER,
+                    y_min INTEGER,
+                    x_max INTEGER,
+                    y_max INTEGER
+                )
+            """)
+
+            # Create the 'Whole_Leaf_Cropped' and 'Partial_Leaf_Cropped' tables
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS Whole_Leaf_Cropped (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_name TEXT NOT NULL,
+                    crop_name TEXT NOT NULL,
+                    cropped_image BLOB NOT NULL
+                )
+            """)
+        
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS Partial_Leaf_Cropped (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_name TEXT NOT NULL,
+                    crop_name TEXT NOT NULL,
+                    cropped_image BLOB NOT NULL
+                )
+            """)
+
+            # Create the 'Segmentation_Whole_Leaf' and 'Segmentation_Partial_Leaf' tables
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS Segmentation_Whole_Leaf (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_name TEXT NOT NULL,
+                    crop_name TEXT NOT NULL,
+                    segmentation_data TEXT NOT NULL,
+                    polygons TEXT NOT NULL,
+                    bboxes TEXT NOT NULL,
+                    labels TEXT NOT NULL,
+                    colors TEXT NOT NULL,
+                    overlay_data TEXT NOT NULL
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS Segmentation_Partial_Leaf (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_name TEXT NOT NULL,
+                    crop_name TEXT NOT NULL,
+                    segmentation_data TEXT NOT NULL,
+                    polygons TEXT NOT NULL,
+                    bboxes TEXT NOT NULL,
+                    labels TEXT NOT NULL,
+                    colors TEXT NOT NULL,
+                    overlay_data TEXT NOT NULL
+                )
+            """)
+
+
+            # Commit changes
+            self.conn.commit()
+        except sqlite3.Error as e:
+            print(f"An error occurred while creating tables: {e}")
+
+
+    def populate_image_dimensions(self):
+        cur = self.conn.cursor()
+
+        # Fetch all images that don't have width and height set
+        cur.execute("SELECT id, path FROM images WHERE width IS NULL OR height IS NULL")
+        images = cur.fetchall()
+
+        for img_id, img_path in images:
+            try:
+                with Image.open(img_path) as img:
+                    width, height = img.size
+                    cur.execute("UPDATE images SET width = ?, height = ? WHERE id = ?", (width, height, img_id))
+                    self.conn.commit()
+            except Exception as e:
+                print(f"Error processing image {img_path}: {e}")
 
     def create_connection(self, db_file):
         conn = None
@@ -283,38 +386,92 @@ class Project_Stats():
         logger.name = 'Project Info'
         logger.info("Gathering Images and Image Metadata")
 
-def test_sql(database):
+# def test_sql(database):
+#     try:
+#         conn = sqlite3.connect(database)
+#         cur = conn.cursor()
+
+#         # Print first two entries from images table
+#         cur.execute("SELECT * FROM images LIMIT 2")
+#         image_rows = cur.fetchall()
+        
+#         print("\nImages Table:\n")
+#         for row in image_rows:
+#             print(row)
+#             image_name = row[1]
+            
+#             # Print associated archival components
+#             cur.execute("SELECT * FROM archival_components WHERE image_name = ?", (image_name,))
+#             archival_rows = cur.fetchall()
+#             print(f"Archival Components for {image_name}:")
+#             for archival_row in archival_rows:
+#                 print(archival_row)
+
+#             # Print associated plant components
+#             cur.execute("SELECT * FROM plant_components WHERE image_name = ?", (image_name,))
+#             plant_rows = cur.fetchall()
+#             print(f"Plant Components for {image_name}:")
+#             for plant_row in plant_rows:
+#                 print(plant_row)
+            
+#             print(f"\n")
+        
+#         conn.close()
+#     except Error as e:
+#         print(e)
+def test_sql(database, n_rows=1):
     try:
         conn = sqlite3.connect(database)
         cur = conn.cursor()
 
-        # Print first two entries from images table
-        cur.execute("SELECT * FROM images LIMIT 2")
-        image_rows = cur.fetchall()
-        
-        print("\nImages Table:\n")
-        for row in image_rows:
-            print(row)
-            image_name = row[1]
-            
-            # Print associated archival components
-            cur.execute("SELECT * FROM archival_components WHERE image_name = ?", (image_name,))
-            archival_rows = cur.fetchall()
-            print(f"Archival Components for {image_name}:")
-            for archival_row in archival_rows:
-                print(archival_row)
+        # List all tables in the database
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = cur.fetchall()
 
-            # Print associated plant components
-            cur.execute("SELECT * FROM plant_components WHERE image_name = ?", (image_name,))
-            plant_rows = cur.fetchall()
-            print(f"Plant Components for {image_name}:")
-            for plant_row in plant_rows:
-                print(plant_row)
-            
-            print(f"\n")
-        
+        print("\nDatabase Diagnostics\n" + "="*50)
+
+        # Loop through all tables and print their contents
+        for table_name in tables:
+            table_name = table_name[0]
+            print(f"\nTable: {table_name}\n" + "-"*50)
+
+            # Get the table's column names and types
+            cur.execute(f"PRAGMA table_info({table_name})")
+            columns_info = cur.fetchall()
+            columns = [column[1] for column in columns_info]
+            column_types = {column[1]: column[2] for column in columns_info}  # Map column name to type
+            print(f"Columns: {columns}")
+
+            # Fetch and print the specified number of rows from the table
+            cur.execute(f"SELECT * FROM {table_name} LIMIT ?", (n_rows,))
+            rows = cur.fetchall()
+
+            if rows:
+                # Determine the width of each column for pretty printing
+                col_widths = []
+                for i, col in enumerate(columns):
+                    if column_types[col] == 'BLOB':
+                        col_widths.append(5)  # Fixed small width for BLOB columns
+                    else:
+                        max_width = max(len(str(item)) for item in [col] + [row[i] for row in rows])
+                        col_widths.append(max_width)
+
+                # Print column headers
+                header = " | ".join(f"{col_name:<{col_width}}" for col_name, col_width in zip(columns, col_widths))
+                print(header)
+                print("-" * len(header))
+
+                # Print each row with aligned columns
+                for row in rows:
+                    row_str = " | ".join(
+                        f"{'TRUE' if column_types[columns[i]] == 'BLOB' and item else 'FALSE' if column_types[columns[i]] == 'BLOB' else str(item):<{col_width}}"
+                        for i, (item, col_width) in enumerate(zip(row, col_widths))
+                    )
+                    print(row_str)
+            else:
+                print("No data found in this table.")
+
         conn.close()
-    except Error as e:
-        print(e)
 
-
+    except sqlite3.Error as e:
+        print(f"Error testing SQL database: {e}")

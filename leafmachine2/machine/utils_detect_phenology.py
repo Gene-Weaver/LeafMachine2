@@ -65,7 +65,7 @@ class PhenologyDetector:
                 row.update(counts)
                 writer.writerow(row)
 
-def detect_phenology(cfg, time_report, logger, dir_home, Project, Dirs):
+def detect_phenology(cfg, time_report, logger, Dirs):
     t2_start = perf_counter()
     logger.name = f'Detecting Phenology --- {Dirs.path_plant_components}'
     

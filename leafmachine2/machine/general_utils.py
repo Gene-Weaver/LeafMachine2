@@ -182,6 +182,34 @@ def split_into_batches_spoof(Project, logger, cfg):
     logger.info(m)
     return Project, 1, m 
 
+def split_into_batches_sql(cfg, ProjectSQL, logger):
+    logger.name = 'Creating Batches'
+    batch_size = cfg['leafmachine']['project']['batch_size']
+    
+    conn = ProjectSQL.conn
+    cur = conn.cursor()
+    
+    # Get the total number of images
+    cur.execute("SELECT COUNT(*) FROM images")
+    n_images = cur.fetchone()[0]
+    
+    # Calculate the number of batches
+    num_batches = n_images // batch_size + (1 if n_images % batch_size > 0 else 0)
+    
+    project_data_list = []
+    
+    for i in range(num_batches):
+        offset = i * batch_size
+        cur.execute("SELECT name FROM images LIMIT ? OFFSET ?", (batch_size, offset))
+        batch = cur.fetchall()
+        project_data_list.append([name[0] for name in batch])
+    
+    m = f'Created {num_batches} Batches to Process {n_images} Images'
+    logger.info(m)
+    
+    return project_data_list, num_batches, m
+
+
 # Define shared variables and their locks
 import threading
 import concurrent.futures
@@ -652,28 +680,29 @@ def crop_detections_from_images(cfg, dir_home, Project, Dirs):
     # Wait for all worker processes to finish
     for p in processes:
         p.join()'''
-def crop_detections_from_images_worker_SpecimenCrop(filename, analysis, Project, Dirs, cfg, save_list, original_img_dir):
+def crop_detections_from_images_worker_SpecimenCrop(filename, analysis, ProjectSQL, Dirs, cfg, save_list, original_img_dir):
     try:
-        full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpg'])))
+        image_path = glob.glob(os.path.join(ProjectSQL.dir_images, filename + '.*'))[0]
+        full_image = cv2.imread(image_path)
     except:
-        full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpeg'])))
+        raise FileNotFoundError(f"Could not load image for {filename}")
 
-    try:
-        archival = analysis['Detections_Archival_Components']
-        has_archival = True
-    except: 
-        archival = None
-        has_archival = False
+    # Separate plant and archival annotations
+    plant_detections = [ann for _, component, ann in analysis if component == 'Detections_Plant_Components']
+    archival_detections = [ann for _, component, ann in analysis if component == 'Detections_Archival_Components']
 
-    try:
-        plant = analysis['Detections_Plant_Components']
-        has_plant = True
-    except: 
-        plant = None
-        has_plant = False
+    # Set flags for whether plant or archival detections exist
+    has_archival = bool(archival_detections)
+    has_plant = bool(plant_detections)
+
+    # Prepare the analysis dictionary for height and width
+    cur = ProjectSQL.conn.cursor()
+    cur.execute("SELECT width, height FROM images WHERE name = ?", (filename,))
+    width, height = cur.fetchone()
+    analysis_dict = {'width': width, 'height': height}
 
     if has_archival or has_plant:
-        crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archival, has_plant, archival, plant, full_image, filename, save_list, original_img_dir)
+        crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis_dict, has_archival, has_plant, archival_detections, plant_detections, full_image, filename, save_list, original_img_dir)
 
 def crop_detections_from_images_worker_VV(filename, analysis, Project, Dirs, save_per_image, save_per_class, save_list, binarize_labels):
     try:
@@ -698,29 +727,30 @@ def crop_detections_from_images_worker_VV(filename, analysis, Project, Dirs, sav
  
 
 #Works with Project, not SQL
-def crop_detections_from_images_worker(filename, analysis, Project, Dirs, save_per_image, save_per_class, save_list, binarize_labels):
+def crop_detections_from_images_worker(filename, analysis, ProjectSQL, Dirs, save_per_image, save_per_class, save_list, cur):
     try:
-        full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpg'])))
+        image_path = glob.glob(os.path.join(ProjectSQL.dir_images, filename + '.*'))[0]
+        full_image = cv2.imread(image_path)
     except:
-        full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpeg'])))
+        # full_image = cv2.imread(os.path.join(ProjectSQL.dir_images, filename + '.jpeg'))
+        raise FileNotFoundError(f"Could not load image for {filename}")
 
-    try:
-        archival = analysis['Detections_Archival_Components']
-        has_archival = True
-    except: 
-        has_archival = False
+    # if not full_image:
+        # raise FileNotFoundError(f"Could not load image for {filename}")
 
-    try:
-        plant = analysis['Detections_Plant_Components']
-        has_plant = True
-    except: 
-        has_plant = False
+    # Check if there are any archival or plant components in the analysis
+    has_archival = any(component == 'Detections_Archival_Components' for _, component, _ in analysis)
+    has_plant = any(component == 'Detections_Plant_Components' for _, component, _ in analysis)
 
     if has_archival and (save_per_image or save_per_class):
-        crop_component_from_yolo_coords('ARCHIVAL', Dirs, analysis, archival, full_image, filename, save_per_image, save_per_class, save_list)
-    if has_plant and (save_per_image or save_per_class):
-        crop_component_from_yolo_coords('PLANT', Dirs, analysis, plant, full_image, filename, save_per_image, save_per_class, save_list)
+        # Filter and extract archival annotations
+        archival_annotations = [ann for _, component, ann in analysis if component == 'Detections_Archival_Components']
+        crop_component_from_yolo_coords('ARCHIVAL', Dirs, archival_annotations, full_image, filename, save_per_image, save_per_class, save_list)
 
+    if has_plant and (save_per_image or save_per_class):
+        # Filter and extract plant annotations
+        plant_annotations = [ann for _, component, ann in analysis if component == 'Detections_Plant_Components']
+        crop_component_from_yolo_coords('PLANT', Dirs, plant_annotations, full_image, filename, save_per_image, save_per_class, save_list)
 
 '''
 def crop_detections_from_images_worker(image_name, archival_components, plant_components, Dirs, save_per_image, save_per_class, save_list, binarize_labels):
@@ -783,26 +813,57 @@ def crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dir
 
         if binarize_labels:
             save_per_class = True
-
+        
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
             futures = []
-            for i in range(0, len(Project.project_data), batch_size):
-                batch = list(Project.project_data.items())[i:i+batch_size]
-                # print(f'Cropping Detections from Images {i} to {i+batch_size}')
-                logger.info(f'Cropping {detections} from images {i} to {i+batch_size} [{len(Project.project_data)}]')
-                for filename, analysis in batch:
-                    if len(analysis) != 0:
-                        futures.append(executor.submit(crop_detections_from_images_worker, filename, analysis, Project, Dirs, save_per_image, save_per_class, save_list, binarize_labels))
+            conn = Project.conn
+            cur = conn.cursor()
+
+            cur.execute("SELECT COUNT(*) FROM images")
+            total_images = cur.fetchone()[0]
+
+            for i in range(0, total_images, batch_size):
+                cur.execute("SELECT name FROM images LIMIT ? OFFSET ?", (batch_size, i))
+                batch = cur.fetchall()
+
+                logger.info(f'Cropping {detections} from images {i} to {i + batch_size} [{total_images}]')
+                for (filename,) in batch:
+                    # Retrieve annotations from both tables
+                    cur.execute("SELECT 'PLANT' as component_type, component, annotation FROM annotations_plant WHERE file_name = ?", (filename,))
+                    plant_annotations = cur.fetchall()
+
+                    cur.execute("SELECT 'ARCHIVAL' as component_type, component, annotation FROM annotations_archival WHERE file_name = ?", (filename,))
+                    archival_annotations = cur.fetchall()
+
+                    # Combine both sets of annotations
+                    combined_annotations = plant_annotations + archival_annotations
+
+                    futures.append(executor.submit(crop_detections_from_images_worker, filename, combined_annotations, Project, Dirs, save_per_image, save_per_class, save_list, cur))
 
                 for future in concurrent.futures.as_completed(futures):
                     pass
                 futures.clear()
+
+    #     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+    #         futures = []
+    #         for i in range(0, len(Project.project_data), batch_size):
+    #             batch = list(Project.project_data.items())[i:i+batch_size]
+    #             # print(f'Cropping Detections from Images {i} to {i+batch_size}')
+    #             logger.info(f'Cropping {detections} from images {i} to {i+batch_size} [{len(Project.project_data)}]')
+    #             for filename, analysis in batch:
+    #                 if len(analysis) != 0:
+    #                     futures.append(executor.submit(crop_detections_from_images_worker, filename, analysis, Project, Dirs, save_per_image, save_per_class, save_list, binarize_labels))
+
+    #             for future in concurrent.futures.as_completed(futures):
+    #                 pass
+    #             futures.clear()
 
     t2_stop = perf_counter()
     t_crops = f"[Cropping elapsed time] {round(t2_stop - t2_start)} seconds ({round((t2_stop - t2_start)/60)} minutes)"
     logger.info(t_crops)
     time_report['t_crops'] = t_crops
     return time_report
+
 
 
 '''
@@ -942,21 +1003,43 @@ def crop_detections_from_images_VV(cfg, logger, dir_home, Project, Dirs, batch_s
 
 
 
-def crop_detections_from_images_SpecimenCrop(cfg, time_report, logger, dir_home, Project, Dirs, original_img_dir=None):
+def crop_detections_from_images_SpecimenCrop(cfg, time_report, logger, dir_home, ProjectSQL, Dirs, original_img_dir=None):
+    from leafmachine2.machine.handle_images import check_image_compliance
+
     t2_start = perf_counter()
     logger.name = 'Crop Components --- Specimen Crop'
 
+    cfg, original_img_dir = check_image_compliance(cfg, Dirs)
+
     if cfg['leafmachine']['modules']['specimen_crop']:
-        # save_list = ['ruler', 'barcode', 'colorcard', 'label', 'map', 'envelope', 'photo', 'attached_item', 'weights',
-        #               'leaf_whole', 'leaf_partial', 'leaflet', 'seed_fruit_one', 'seed_fruit_many', 'flower_one', 'flower_many', 'bud', 'specimen', 'roots', 'wood']
         save_list = cfg['leafmachine']['cropped_components']['include_these_objects_in_specimen_crop']
 
         logger.info(f"Cropping to include {save_list} components from images")
 
-        for i, (filename, analysis) in enumerate(Project.project_data.items()):
-            if len(analysis) != 0:
-                logger.info(f'Cropping {save_list} from image {i} of {len(Project.project_data)}: {filename}')
-                crop_detections_from_images_worker_SpecimenCrop(filename, analysis, Project, Dirs, cfg, save_list, original_img_dir)
+        conn = ProjectSQL.conn
+        cur = conn.cursor()
+
+        cur.execute("SELECT COUNT(*) FROM images")
+        total_images = cur.fetchone()[0]
+
+        for i in range(total_images):
+            cur.execute("SELECT name FROM images LIMIT 1 OFFSET ?", (i,))
+            filename = cur.fetchone()[0]
+
+            logger.info(f'Cropping {save_list} from image {i + 1} of {total_images}: {filename}')
+
+            # Retrieve annotations from both tables
+            cur.execute("SELECT 'PLANT' as component_type, component, annotation FROM annotations_plant WHERE file_name = ?", (filename,))
+            plant_annotations = cur.fetchall()
+
+            cur.execute("SELECT 'ARCHIVAL' as component_type, component, annotation FROM annotations_archival WHERE file_name = ?", (filename,))
+            archival_annotations = cur.fetchall()
+
+            # Combine both sets of annotations
+            combined_annotations = plant_annotations + archival_annotations
+
+            if combined_annotations:
+                crop_detections_from_images_worker_SpecimenCrop(filename, combined_annotations, ProjectSQL, Dirs, cfg, save_list, original_img_dir)
 
     t2_stop = perf_counter()
     t_speccrops = f"[SpecimenCrop elapsed time] {round(t2_stop - t2_start)} seconds ({round((t2_stop - t2_start)/60)} minutes)"
@@ -1282,8 +1365,9 @@ def get_colorspace(colorspace_choice):
         raise ValueError("Invalid colorspace choice")
 
 def process_detections(success, save_list, detections, detection_type, height, width, min_x, min_y, max_x, max_y):
-    for detection in detections:
-        detection_class = detection[0]
+    for detection_str in detections:
+        detection = list(map(float, detection_str.split(',')))
+        detection_class = int(detection[0])
         detection_class = set_index_for_annotation(detection_class, detection_type)
 
         if (detection_class in save_list) or ('save_all' in save_list):
@@ -1446,7 +1530,7 @@ def crop_component_from_yolo_coords_VV(anno_type, Dirs, analysis, all_detections
         print('     MAKE THIS HAVE AN EMPTY PLACEHOLDER') # TODO ###################################################################################
     else:
         for detection in all_detections:
-            detection_class = detection[0]
+            detection_class = int(detection[0])
             detection_class = set_index_for_annotation(detection_class, anno_type)
 
             if (detection_class in save_list) or ('save_all' in save_list):
@@ -1584,16 +1668,17 @@ def crop_component_from_yolo_coords_VV(anno_type, Dirs, analysis, all_detections
         
 
 
-def crop_component_from_yolo_coords(anno_type, Dirs, all_detections, full_image, filename, save_per_image, save_per_class, save_list, width, height):
+def crop_component_from_yolo_coords(anno_type, Dirs, all_detections, full_image, filename, save_per_image, save_per_class, save_list):
     if len(all_detections) < 1:
-        print('     MAKE THIS HAVE AN EMPTY PLACEHOLDER') # TODO ###################################################################################
+        print('     MAKE THIS HAVE AN EMPTY PLACEHOLDER')  # TODO ###################################################################################
     else:
-        for detection in all_detections:
-            detection_class = detection[0]
+        for detection_str in all_detections:
+            detection = list(map(float, detection_str.split(',')))
+            detection_class = int(detection[0])
             detection_class = set_index_for_annotation(detection_class, anno_type)
 
             if (detection_class in save_list) or ('save_all' in save_list):
-
+                height, width = full_image.shape[:2]
                 location = yolo_to_position_ruler(detection, height, width)
                 ruler_polygon = [(location[1], location[2]), (location[3], location[2]), (location[3], location[4]), (location[1], location[4])]
 
@@ -1605,24 +1690,21 @@ def crop_component_from_yolo_coords(anno_type, Dirs, all_detections, full_image,
 
                 detection_cropped = full_image[min_y:max_y, min_x:max_x]
                 loc = '-'.join([str(min_x), str(min_y), str(max_x), str(max_y)])
-                detection_cropped_name = '.'.join(['__'.join([filename, detection_class, loc]), 'jpg'])
+                detection_cropped_name = '.'.join(['__'.join([filename, str(detection_class), loc]), 'jpg'])
 
-                # save_per_image
+                # Save per image
                 if (detection_class in save_list) and save_per_image:
-                    dir_destination = os.path.join(Dirs.save_per_image, filename, detection_class)
-                    # print(os.path.join(dir_destination,detection_cropped_name))
+                    dir_destination = os.path.join(Dirs.save_per_image, filename, str(detection_class))
                     validate_dir(dir_destination)
-                    cv2.imwrite(os.path.join(dir_destination,detection_cropped_name), detection_cropped)
-                    
-                # save_per_class
+                    cv2.imwrite(os.path.join(dir_destination, detection_cropped_name), detection_cropped)
+
+                # Save per class
                 if (detection_class in save_list) and save_per_class:
-                    dir_destination = os.path.join(Dirs.save_per_annotation_class, detection_class)
-                    # print(os.path.join(dir_destination,detection_cropped_name))
+                    dir_destination = os.path.join(Dirs.save_per_annotation_class, str(detection_class))
                     validate_dir(dir_destination)
-                    cv2.imwrite(os.path.join(dir_destination,detection_cropped_name), detection_cropped)
-            else:
-                # print(f'detection_class: {detection_class} not in save_list: {save_list}')
-                pass
+                    cv2.imwrite(os.path.join(dir_destination, detection_cropped_name), detection_cropped)
+
+
 
 def yolo_to_position_ruler(annotation, height, width):
     return ['ruler', 

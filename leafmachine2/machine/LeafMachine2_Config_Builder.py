@@ -64,7 +64,13 @@ def build_LM2_config():
         'dir_images_subset': '',
         'n_images_per_species': 10,
         'species_list': '',
-
+        'padding_for_crop': 150,
+        'orientation': '6',
+        'colorspace': 'raw',
+        'save_TIFF_to_original_dir': False, 
+        'save_TIFF_to_dir_output': False,
+        'save_JPG_to_dir_output': True,
+        'save_XMP_to_original_dir': True,
         # Thresholds for counting and reporting
         'accept_only_ideal_leaves': True, # For the 'has_leaves' variable, this restricts the counts to only whole/ideal leaves
         'minimum_total_reproductive_counts': 0, # If you get false positives, increase this to set a minimum threshold for the is_fertile designation 
@@ -77,6 +83,7 @@ def build_LM2_config():
     }
 
     cropped_components_section = {
+        'include_these_objects_in_specimen_crop': ['ruler','barcode','colorcard', 'label', 'map', 'envelope', 'photo', 'attached_item', 'leaf_whole', 'leaf_partial', 'leaflet', 'seed_fruit_one', 'seed_fruit_many', 'flower_one', 'flower_many', 'bud', 'specimen', 'roots', 'wood'],
         'do_save_cropped_annotations': False,
         'save_cropped_annotations': ['label'],
         'save_per_image': False,

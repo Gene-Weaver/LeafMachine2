@@ -1,4 +1,4 @@
-import os, cv2, yaml, math, sys, inspect, imutils, random, copy
+import os, cv2, yaml, math, sys, inspect, imutils, random, copy, sqlite3, glob
 import numpy as np
 from numpy import NAN, ndarray
 import pandas as pd
@@ -406,9 +406,13 @@ def calc_MP(full_image):
 #     t1_stop = perf_counter()
 #     logger.info(f"Converting Rulers in batch {batch+1} --- elapsed time: {round(t1_stop - t1_start)} seconds")
 #     return Project
-def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num_workers=16):
+
+def convert_rulers(cfg, time_report, logger, dir_home, ProjectSQL, batch, batch_filenames, Dirs, num_workers=16):
+
     t1_start = perf_counter()
     logger.info(f"Converting Rulers in batch {batch+1}")
+
+    create_ruler_data_table(ProjectSQL.conn)
 
     show_all_logs = False
 
@@ -424,7 +428,7 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
     
     logger.info(f"use_CF_predictor: {use_CF_predictor}")
 
-    filenames = list(Project.project_data_list[batch].keys())
+    filenames = batch_filenames  # Using the list of filenames passed as argument
     num_files = len(filenames)
     chunk_size = max((num_files + num_workers - 1) // num_workers, 4)
 
@@ -435,7 +439,7 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
                 break
 
             for filename in filenames_chunk:
-                process_filename(filename, cfg, logger, show_all_logs, dir_home, Project, batch, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor)
+                process_filename(filename, cfg, logger, show_all_logs, dir_home, ProjectSQL, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor)
 
             queue.task_done()
 
@@ -464,20 +468,77 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
     t_rulers = f"[Converting Rulers elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
     logger.info(t_rulers)
     time_report['t_rulers'] = t_rulers
-    return Project, time_report
+    return ProjectSQL, time_report
 
-def process_filename(filename, cfg, logger, show_all_logs, dir_home, Project, batch, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor):
-    analysis = Project.project_data_list[batch][filename]
+
+def create_ruler_data_table(conn):
+    try:
+        cur = conn.cursor()
+        sql_create_ruler_data_table = """
+        CREATE TABLE IF NOT EXISTS ruler_data (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            file_name TEXT NOT NULL,
+            ruler_image_name TEXT,
+            success BOOLEAN,
+            conversion_mean REAL,
+            predicted_conversion_factor_cm REAL,
+            pooled_sd REAL,
+            ruler_class TEXT,
+            ruler_class_confidence REAL,
+            units TEXT,
+            cross_validation_count INTEGER,
+            n_scanlines INTEGER,
+            n_data_points_in_avg INTEGER,
+            avg_tick_width REAL,
+            plot_points BLOB,
+            summary_img BLOB
+        );"""
+        cur.execute(sql_create_ruler_data_table)
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"Error creating ruler_data table: {e}")
+
+
+def process_filename(filename, cfg, logger, show_all_logs, dir_home, ProjectSQL, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor):
+    # Create a new connection in this thread
+    conn = sqlite3.connect(ProjectSQL.database)
+    cur = conn.cursor()
+
+    # Retrieve image dimensions from the images table
+    cur.execute("SELECT width, height FROM images WHERE name = ?", (filename,))
+    dimensions = cur.fetchone()
+    if not dimensions:
+        logger.error(f"No dimensions found for {filename}")
+        conn.close()
+        return
+    width, height = dimensions
+
+    # Retrieve archival components from annotations_archival table
+    cur.execute("SELECT annotation FROM annotations_archival WHERE file_name = ?", (filename,))
+    archival_components = cur.fetchall()
+
+    # Process and structure the archival components
+    archival_data = []
+    for component in archival_components:
+        component_data = list(map(float, component[0].split(',')))
+        archival_data.append(component_data)
+
+    # Mimic the structure of the previous `analysis` dictionary
+    analysis = {
+        'Detections_Archival_Components': archival_data,
+        'height': height,
+        'width': width
+    }
+
     if len(analysis) != 0:
-        Project.project_data_list[batch][filename]['Ruler_Info'] = []
-        Project.project_data_list[batch][filename]['Ruler_Data'] = []
         logger.debug(filename)
 
-        # Attempt to load the image
+        # Try to load the image
         try:
-            full_image = cv2.imread(os.path.join(Project.dir_images, f"{filename}.jpg"))
-        except FileNotFoundError:
-            full_image = cv2.imread(os.path.join(Project.dir_images, f"{filename}.jpeg"))
+            image_path = glob.glob(os.path.join(ProjectSQL.dir_images, filename + '.*'))[0]
+            full_image = cv2.imread(image_path)
+        except:
+            raise FileNotFoundError(f"Could not load image for {filename}")
 
         # Calculate MP value and predict conversion factor
         MP_value = calc_MP(full_image)
@@ -513,49 +574,26 @@ def process_filename(filename, cfg, logger, show_all_logs, dir_home, Project, ba
                     Ruler = setup_ruler(Labels, model, device, cfg, Dirs, logger, show_all_logs, RulerCFG, ruler_cropped, ruler_crop_name)
                     Ruler_Info = convert_pixels_to_metric(logger, show_all_logs, RulerCFG, Ruler, ruler_crop_name, predicted_conversion_factor_cm, use_CF_predictor, Dirs)
 
-                    # Collect and log ruler data
-                    if any(unit in Ruler_Info.conversion_data_all for unit in ['smallCM', 'halfCM', 'mm']):
-                        units_save = Ruler_Info.conversion_data_all if Ruler_Info.conversion_data_all else 0
-                        plot_points = Ruler_Info.data_list
-                    else:
-                        units_save = Ruler_Info.unit_list
-                        plot_points = 0
-
+                    # Collect ruler data
                     try:
-                        Project.project_data_list[batch][filename]['Ruler_Info'].append({
-                            'ruler_image_name': ruler_crop_name,
-                            'success': Ruler_Info.conversion_successful,
-                            'conversion_mean': Ruler_Info.conversion_mean,
-                            'predicted_conversion_factor_cm': predicted_conversion_factor_cm,
-                            'pooled_sd': Ruler_Info.pooled_sd,
-                            'ruler_class': Ruler_Info.ruler_class,
-                            'ruler_class_confidence': Ruler_Info.ruler_class_percentage,
-                            'units': units_save,
-                            'cross_validation_count': Ruler_Info.cross_validation_count,
-                            'n_scanlines': Ruler_Info.conversion_mean_n,
-                            'n_data_points_in_avg': Ruler_Info.conversion_mean_n_vals,
-                            'avg_tick_width': Ruler_Info.avg_width,
-                            'plot_points': plot_points,
-                            'summary_img': Ruler_Info.summary_image
-                        })
+                        units_save = Ruler_Info.conversion_data_all if Ruler_Info.conversion_data_all else 0
+                        plot_points = Ruler_Info.data_list if any(unit in Ruler_Info.conversion_data_all for unit in ['smallCM', 'halfCM', 'mm']) else 0
+
+                        summary_img = cv2.imencode('.jpg', Ruler_Info.summary_image)[1].tobytes() if Ruler_Info.summary_image is not None else None
+                        plot_points_blob = np.array(plot_points).tobytes() if plot_points else None
+
+                        # Insert into SQL table
+                        cur.execute("""
+                        INSERT INTO ruler_data (file_name, ruler_image_name, success, conversion_mean, predicted_conversion_factor_cm, pooled_sd, ruler_class, 
+                                                ruler_class_confidence, units, cross_validation_count, n_scanlines, n_data_points_in_avg, avg_tick_width, plot_points, summary_img)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                    (filename, ruler_crop_name, Ruler_Info.conversion_successful, Ruler_Info.conversion_mean, predicted_conversion_factor_cm,
+                                     Ruler_Info.pooled_sd, Ruler_Info.ruler_class, Ruler_Info.ruler_class_percentage, str(units_save), Ruler_Info.cross_validation_count,
+                                     Ruler_Info.conversion_mean_n, Ruler_Info.conversion_mean_n_vals, Ruler_Info.avg_width, plot_points_blob, summary_img))
+
+                        conn.commit()
+
                     except Exception as e:
-                        logger.error(f"Error while saving ruler info: {e}")
-                        Project.project_data_list[batch][filename]['Ruler_Info'].append({
-                            'ruler_image_name': ruler_crop_name,
-                            'success': False,
-                            'conversion_mean': 0,
-                            'predicted_conversion_factor_cm': predicted_conversion_factor_cm,
-                            'pooled_sd': 0,
-                            'ruler_class': 'fail',
-                            'ruler_class_confidence': 0,
-                            'units': 0,
-                            'cross_validation_count': 0,
-                            'n_scanlines': 0,
-                            'n_data_points_in_avg': 0,
-                            'avg_tick_width': 0,
-                            'plot_points': 0,
-                            'summary_img': ruler_cropped  # storing the cropped image in case of failure
-                        })
                         logger.error(f"Failed to process ruler data for {filename}: {str(e)}")
 
 
@@ -829,6 +867,19 @@ class RulerInfo:
         self.show_all_logs = show_all_logs
         self.Ruler = Ruler            
         self.ruler_class = self.Ruler.ruler_class
+
+        self.conversion_successful = False 
+        self.pooled_sd = 0 
+        self.summary_image = None
+        self.at_least_one_correct_conversion = False
+        self.avg_width = 0
+        self.best_value = 0 #conversion mean
+        self.conversion_data_all = [] # diff from scanlines
+        self.conversion_mean = 0 #conversion mean
+        self.conversion_mean_n = 0
+        self.conversion_mean_n_vals = 0 
+        self.cross_validation_count = 0 
+        self.data_list = [] # # scanline rows..... # diff from scanlines /->/ for block it will only be the plot points
 
         ### FIXES
         if self.ruler_class == 'tick_black_4thcm':

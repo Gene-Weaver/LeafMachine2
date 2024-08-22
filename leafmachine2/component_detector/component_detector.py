@@ -59,7 +59,12 @@ def detect_plant_components(cfg, time_report, logger, dir_home, Project, Dirs):
         fetch_labels(dir_exisiting_labels, os.path.join(Dirs.path_plant_components, 'labels'))
         # if n_images <= 4000:
             # logger.debug("Single-threaded create_dictionary_from_txt() n_images <= 4000")
-        A = create_dictionary_from_txt(logger, dir_exisiting_labels, 'Detections_Plant_Components', Project)
+        
+        ### CLASSIC
+        # A = create_dictionary_from_txt(logger, dir_exisiting_labels, 'Detections_Plant_Components', Project)
+        ### SQL
+        A = create_dictionary_from_txt_sql(logger, os.path.join(Dirs.path_plant_components, 'labels'), 'Detections_Plant_Components', Project, 'annotations_plant', 'dimensions_plant')
+
         # else:
             # logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() n_images > 4000")
             # A = create_dictionary_from_txt_parallel(logger, cfg, dir_exisiting_labels, 'Detections_Plant_Components', Project)
@@ -107,7 +112,13 @@ def detect_plant_components(cfg, time_report, logger, dir_home, Project, Dirs):
 
         # if len(Project.dir_images) <= 4000:
             # A = create_dictionary_from_txt_parallel(logger, cfg, os.path.join(Dirs.path_plant_components, 'labels'), 'Detections_Plant_Components', Project)
-        A = create_dictionary_from_txt(logger, os.path.join(Dirs.path_plant_components, 'labels'), 'Detections_Plant_Components', Project)
+        
+        ### CLASSIC
+        # A = create_dictionary_from_txt(logger, os.path.join(Dirs.path_plant_components, 'labels'), 'Detections_Plant_Components', Project)
+        
+        ### SQL
+        A = create_dictionary_from_txt_sql(logger, os.path.join(Dirs.path_plant_components, 'labels'), 'Detections_Plant_Components', Project, 'annotations_plant', 'dimensions_plant')
+
         # else:
             # logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() len(Project.dir_images) > 4000")
             # A = create_dictionary_from_txt_parallel(logger, cfg, os.path.join(Dirs.path_plant_components, 'labels'), 'Detections_Plant_Components', Project)
@@ -160,7 +171,12 @@ def detect_archival_components(cfg, time_report, logger, dir_home, Project, Dirs
         # if n_images <= 4000:
             # logger.debug("Single-threaded create_dictionary_from_txt() n_images <= 4000")
             # A = create_dictionary_from_txt_parallel(logger, cfg, dir_exisiting_labels, 'Detections_Archival_Components', Project)
-        A = create_dictionary_from_txt(logger, dir_exisiting_labels, 'Detections_Archival_Components', Project)
+        ### CLASSIC
+        # A = create_dictionary_from_txt(logger, dir_exisiting_labels, 'Detections_Archival_Components', Project)
+        
+        ### SQL
+        A = create_dictionary_from_txt_sql(logger, os.path.join(Dirs.path_archival_components, 'labels'), 'Detections_Archival_Components', Project, 'annotations_archival', 'dimensions_archival')
+
         # else:
             # logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() n_images > 4000")
             # A = create_dictionary_from_txt_parallel(logger, cfg, dir_exisiting_labels, 'Detections_Archival_Components', Project)
@@ -209,7 +225,12 @@ def detect_archival_components(cfg, time_report, logger, dir_home, Project, Dirs
 
         # if n_images <= 4000:
             # logger.debug("Single-threaded create_dictionary_from_txt() n_images <= 4000")
-        A = create_dictionary_from_txt(logger, os.path.join(Dirs.path_archival_components, 'labels'), 'Detections_Archival_Components', Project)
+        
+        ### CLASSIC
+        # A = create_dictionary_from_txt(logger, os.path.join(Dirs.path_archival_components, 'labels'), 'Detections_Archival_Components', Project)
+        
+        ### SQL
+        A = create_dictionary_from_txt_sql(logger, os.path.join(Dirs.path_archival_components, 'labels'), 'Detections_Archival_Components', Project, 'annotations_archival', 'dimensions_archival')
         # else:
             # logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() n_images > 4000")
             # A = create_dictionary_from_txt_parallel(logger, cfg, os.path.join(Dirs.path_archival_components, 'labels'), 'Detections_Archival_Components', Project)
@@ -529,6 +550,99 @@ def create_dictionary_from_txt_parallel(logger, cfg, dir_components, component, 
 
     return Project.project_data
 ######
+
+
+
+
+
+
+
+
+
+
+
+
+def create_annotations_table(conn, table_name):
+    try:
+        sql_create_annotations_table = f"""CREATE TABLE IF NOT EXISTS {table_name} (
+                                            id INTEGER PRIMARY KEY,
+                                            file_name TEXT NOT NULL,
+                                            component TEXT NOT NULL,
+                                            annotation TEXT NOT NULL
+                                         );"""
+        cur = conn.cursor()
+        cur.execute(sql_create_annotations_table)
+        conn.commit()
+    except Error as e:
+        print(e)
+
+def create_image_dimensions_table(conn, table_name):
+    try:
+        sql_create_dimensions_table = f"""CREATE TABLE IF NOT EXISTS {table_name} (
+                                            id INTEGER PRIMARY KEY,
+                                            file_name TEXT NOT NULL,
+                                            width INTEGER,
+                                            height INTEGER
+                                         );"""
+        cur = conn.cursor()
+        cur.execute(sql_create_dimensions_table)
+        conn.commit()
+    except Error as e:
+        print(e)
+
+def create_dictionary_from_txt_sql(logger, dir_components, component, ProjectSQL, annotations_table, dimensions_table):
+    conn = ProjectSQL.conn
+
+    # Ensure tables exist
+    create_annotations_table(conn, annotations_table)
+    create_image_dimensions_table(conn, dimensions_table)
+
+    for file in tqdm(os.listdir(dir_components), desc="Loading Annotations", colour='green'):
+        if file.endswith(".txt"):
+            file_name = str(file.split('.')[0])
+            annotations = []
+            with open(os.path.join(dir_components, file), "r") as f:
+                annotations = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
+
+            # Insert annotations into the database
+            for annotation in annotations:
+                annotation_str = ','.join(map(str, annotation))
+                sql = f'''INSERT INTO {annotations_table}(file_name, component, annotation)
+                         VALUES(?, ?, ?)'''
+                cur = conn.cursor()
+                cur.execute(sql, (file_name, component, annotation_str))
+            conn.commit()
+
+            try:
+                image_path = glob.glob(os.path.join(ProjectSQL.dir_images, file_name + '.*'))[0]
+                name_ext = os.path.basename(image_path)
+                with Image.open(image_path) as im:
+                    _, ext = os.path.splitext(name_ext)
+                    if ext not in ['.jpg']:
+                        im = im.convert('RGB')
+                        im.save(os.path.join(ProjectSQL.dir_images, file_name) + '.jpg', quality=100)
+                    width, height = im.size
+            except Exception as e:
+                logger.info(f"Unable to get image dimensions. Error: {e}")
+                width, height = None, None
+
+            if width and height:
+                # Insert image dimensions into the database
+                sql = f'''INSERT INTO {dimensions_table}(file_name, width, height)
+                         VALUES(?, ?, ?)'''
+                cur.execute(sql, (file_name, width, height))
+                conn.commit()
+
+    return None  # No longer returning Project.project_data since data is in SQL now
+
+
+
+
+
+
+
+
+
 
 
 

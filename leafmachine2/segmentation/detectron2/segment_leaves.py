@@ -1,9 +1,8 @@
-import os, json, random, glob, inspect, sys, cv2, itertools, torch
+import os, json, random, glob, inspect, sys, cv2, itertools, torch, sqlite3, logging, warnings
 from timeit import default_timer as timer
 from PIL import Image, ImageDraw
 import matplotlib
 from matplotlib.backends.backend_pdf import PdfPages
-from tqdm import tqdm
 from dataclasses import dataclass, field
 import matplotlib.patches as mpl_patches
 import matplotlib.colors as mpl_colors
@@ -16,22 +15,21 @@ from io import BytesIO
 import concurrent.futures
 import threading
 from scipy.ndimage import binary_erosion, rotate
-
+from tqdm import tqdm
+import multiprocessing
 currentdir = os.path.dirname(inspect.getfile(inspect.currentframe()))
 parentdir1 = os.path.dirname(os.path.dirname(currentdir))
 parentdir2 = os.path.dirname(os.path.dirname(os.path.dirname(currentdir)))
 sys.path.append(currentdir)
-# from detect import run
 sys.path.append(parentdir1)
 sys.path.append(parentdir2)
-# from machine.general_utils import Print_Verbose
 from measure_leaf_segmentation import polygon_properties
 from detector import Detector_LM2
 from leafmachine2.keypoint_detector.ultralytics.models.yolo.pose.predict_direct import PosePredictor
-from leafmachine2.component_detector.component_detector import unpack_class_from_components#, crop_images_to_bbox
 from leafmachine2.segmentation.detectron2.segment_utils import get_largest_polygon, keep_rows, get_string_indices
 
-def segment_leaves(cfg, time_report, logger, dir_home, Project, batch, n_batches, Dirs): 
+def segment_leaves(cfg, time_report, logger, dir_home, ProjectSQL, batch, n_batches, batch_filenames, Dirs): 
+
     start_t = perf_counter()
     logger.name = f'[BATCH {batch+1} Segment Leaves]'
     logger.info(f'Segmenting leaves for batch {batch+1} of {n_batches}')
@@ -42,18 +40,24 @@ def segment_leaves(cfg, time_report, logger, dir_home, Project, batch, n_batches
     else:
         num_workers = int(cfg['leafmachine']['project']['num_workers_seg'])
 
-    # See convert_index_to_class(ind) for list of ind -> cls
-    Project.project_data_list[batch] = unpack_class_from_components(Project.project_data_list[batch], 0, 'Whole_Leaf_BBoxes_YOLO', 'Whole_Leaf_BBoxes', Project)
-    Project.project_data_list[batch] = unpack_class_from_components(Project.project_data_list[batch], 1, 'Partial_Leaf_BBoxes_YOLO', 'Partial_Leaf_BBoxes', Project)
+    for filename in batch_filenames:
+        # Unpack classes from components and store them in the SQL database
+        unpack_class_from_components(ProjectSQL, filename, 0, 'Whole_Leaf_BBoxes_YOLO', 'Whole_Leaf_BBoxes')
+        unpack_class_from_components(ProjectSQL, filename, 1, 'Partial_Leaf_BBoxes_YOLO', 'Partial_Leaf_BBoxes')
 
-    # Crop the images to bboxes
-    Project.project_data_list[batch] = crop_images_to_bbox(Project.project_data_list[batch], 0, 'Whole_Leaf_Cropped', "Whole_Leaf_BBoxes", Project)
-    Project.project_data_list[batch] = crop_images_to_bbox(Project.project_data_list[batch], 1, 'Partial_Leaf_Cropped', "Partial_Leaf_BBoxes", Project)
+        # Crop the images to bounding boxes and store the results in the SQL database
+        crop_images_to_bbox(ProjectSQL, filename, 0, 'Whole_Leaf_Cropped', 'Whole_Leaf_BBoxes')
+        crop_images_to_bbox(ProjectSQL, filename, 1, 'Partial_Leaf_Cropped', 'Partial_Leaf_BBoxes')
+
+
+
+
+
 
     # Run the leaf instance segmentation operations
-    dir_seg_model = os.path.join(dir_home, 'leafmachine2', 'segmentation', 'models',cfg['leafmachine']['leaf_segmentation']['segmentation_model'])
-    Instance_Detector_Whole = Detector_LM2(logger, dir_seg_model, cfg['leafmachine']['leaf_segmentation']['minimum_confidence_threshold'], 0)
-    Instance_Detector_Partial = Detector_LM2(logger, dir_seg_model, cfg['leafmachine']['leaf_segmentation']['minimum_confidence_threshold'], 1)
+    # dir_seg_model = os.path.join(dir_home, 'leafmachine2', 'segmentation', 'models',cfg['leafmachine']['leaf_segmentation']['segmentation_model'])
+    # Instance_Detector_Whole = Detector_LM2(logger, dir_seg_model, cfg['leafmachine']['leaf_segmentation']['minimum_confidence_threshold'], 0)
+    # Instance_Detector_Partial = Detector_LM2(logger, dir_seg_model, cfg['leafmachine']['leaf_segmentation']['minimum_confidence_threshold'], 1)
 
 
     save_oriented_images = cfg['leafmachine']['leaf_segmentation']['save_oriented_images']
@@ -77,72 +81,374 @@ def segment_leaves(cfg, time_report, logger, dir_home, Project, batch, n_batches
         # 'show':True
     }
 
-    # Initialize PosePredictor
-    # Pose_Predictor = PosePredictor(weights, Dirs.dir_oriented_images, Dirs.dir_keypoint_overlay, 
-    #                                save_oriented_images=save_oriented_images, save_keypoint_overlay=save_keypoint_overlay, 
-    #                                overrides=overrides)
 
-    # Old batch method ...
-    # segment_whole_leaves_props = {}
-    # segment_whole_leaves_overlay = {}
-    # segment_partial_leaves_props = {}
-    # segment_partial_leaves_overlay = {}
-    # if batch_size is None:
-    #     batch_size = len(Project.project_data_list[batch])
-    # for i in range(0, len(Project.project_data_list[batch]), batch_size):
-    #     start = i
-    #     end = i+batch_size
-    #     dict_plant_components_batch = dict(itertools.islice(Project.project_data.items(), i, i+batch_size))
-    #     end = len(Project.project_data) if len(dict_plant_components_batch) != (end - start) else end
-    segment_whole_leaves_props = {}
-    segment_whole_leaves_overlay = {}
-    segment_partial_leaves_props = {}
-    segment_partial_leaves_overlay = {}
     if cfg['leafmachine']['leaf_segmentation']['segment_whole_leaves']:
         logger.info(f'Segmenting whole leaves')
-        segment_whole_leaves_props_batch, segment_whole_leaves_overlay_batch = segment_images_parallel(logger, 
-                                                                                                dir_home,
-                                                                                                Project.project_data_list[batch], 
-                                                                                                0, 
-                                                                                                "Segmentation_Whole_Leaf", 
-                                                                                                "Whole_Leaf_Cropped", 
-                                                                                                cfg, 
-                                                                                                Project, 
-                                                                                                Dirs, 
-                                                                                                batch, n_batches, num_workers)#, start+1, end)
-        segment_whole_leaves_props.update(segment_whole_leaves_props_batch)
-        segment_whole_leaves_overlay.update(segment_whole_leaves_overlay_batch)
+        segment_whole_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers)
 
     if cfg['leafmachine']['leaf_segmentation']['segment_partial_leaves']:
         logger.info(f'Segmenting partial leaves')
-        segment_partial_leaves_props_batch, segment_partial_leaves_overlay_batch = segment_images_parallel(logger, dir_home, Project.project_data_list[batch], 1, "Segmentation_Partial_Leaf", "Partial_Leaf_Cropped", cfg, Project, Dirs, batch, n_batches, num_workers)#, start+1, end)
-        segment_partial_leaves_props.update(segment_partial_leaves_props_batch)
-        segment_partial_leaves_overlay.update(segment_partial_leaves_overlay_batch)
-    
-    # dict_part_names = ['Segmentation_Whole_Leaf_Props', 'Segmentation_Whole_Leaf_Overlay', 'Segmentation_Partial_Leaf_Props', 'Segmentation_Partial_Leaf_Overlay']
-    # for img in Project.project_data:
-    #     for i, dict_part in enumerate([segment_whole_leaves_props, segment_whole_leaves_overlay, segment_partial_leaves_props, segment_partial_leaves_overlay]):
-    #         Project.project_data[img].update({dict_part_names[i]: dict_part[img]})
+        segment_partial_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers)
 
-    # size_of_dict = sys.getsizeof(segment_whole_leaves_props)
-    # print(size_of_dict)
-    # size_of_dict = sys.getsizeof(segment_whole_leaves_overlay)
-    # print(size_of_dict)
-    # size_of_dict = sys.getsizeof(segment_partial_leaves_props)
-    # print(size_of_dict)
-    # size_of_dict = sys.getsizeof(segment_partial_leaves_overlay)
-    # print(size_of_dict)
-    # logger.debug()
+
+
     
     end_t = perf_counter()
     # print(f'Batch {batch+1}/{n_batches}: Leaf Segmentation Duration --> {round((end_t - start_t)/60)} minutes')
     t_seg = f"[Batch {batch+1}/{n_batches}: Leaf Segmentation elapsed time] {round(end_t - start_t)} seconds ({round((end_t - start_t)/60)} minutes)"
     logger.info(t_seg)
     time_report['t_seg'] = t_seg
-    return Project, time_report
+    return time_report
 
 
-''' SEGMENT PARALLEL'''
+
+def segment_whole_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers):
+    logger.info(f'Segmenting whole leaves')
+
+    # Split filenames into chunks for each worker
+    chunks = [batch_filenames[i::num_workers] for i in range(num_workers)]
+    
+    total_files = len(batch_filenames)
+    
+    # Create a progress queue to handle progress updates
+    progress_queue = multiprocessing.Queue()
+
+    # Create a tqdm progress bar in the main process
+    with tqdm(total=total_files, desc="Segmenting Whole Leaves", unit="image") as pbar:
+        processes = []
+        for chunk in chunks:
+            p = multiprocessing.Process(
+                target=segment_images_batch,
+                args=(cfg, dir_home, ProjectSQL.database, ProjectSQL.dir_images, chunk, 0,
+                      'Whole_Leaf_Cropped', 'Whole_Leaf_BBoxes', 'Segmentation_Whole_Leaf', Dirs, progress_queue)
+            )
+            processes.append(p)
+            p.start()
+
+        # Continuously update the progress bar
+        completed = 0
+        while completed < total_files:
+            progress_update = progress_queue.get()
+            pbar.update(progress_update)
+            completed += progress_update
+
+        # Ensure all processes have finished
+        for p in processes:
+            p.join()
+
+    torch.cuda.empty_cache()
+
+def segment_partial_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers):
+    logger.info(f'Segmenting partial leaves')
+
+    # Split filenames into chunks for each worker
+    chunks = [batch_filenames[i::num_workers] for i in range(num_workers)]
+    
+    total_files = len(batch_filenames)
+    
+    # Create a progress queue to handle progress updates
+    progress_queue = multiprocessing.Queue()
+
+    # Create a tqdm progress bar in the main process
+    with tqdm(total=total_files, desc="Segmenting Partial Leaves", unit="image") as pbar:
+        processes = []
+        for chunk in chunks:
+            p = multiprocessing.Process(
+                target=segment_images_batch,
+                args=(cfg, dir_home, ProjectSQL.database, ProjectSQL.dir_images, chunk, 1,
+                      'Partial_Leaf_Cropped', 'Partial_Leaf_BBoxes', 'Segmentation_Partial_Leaf', Dirs, progress_queue)
+            )
+            processes.append(p)
+            p.start()
+
+        # Continuously update the progress bar
+        completed = 0
+        while completed < total_files:
+            progress_update = progress_queue.get()
+            pbar.update(progress_update)
+            completed += progress_update
+
+        # Ensure all processes have finished
+        for p in processes:
+            p.join()
+
+    torch.cuda.empty_cache()
+    
+
+# def segment_images(cfg, logger, dir_home, ProjectSQL, filename, leaf_type, dict_name_cropped, dict_from, dict_name_seg, Dirs):
+#     conn = sqlite3.connect(ProjectSQL.database)
+#     cur = conn.cursor()
+
+#     # Initialize the instance detector
+#     dir_seg_model = os.path.join(dir_home, 'leafmachine2', 'segmentation', 'models', cfg['leafmachine']['leaf_segmentation']['segmentation_model'])
+#     Instance_Detector = Detector_LM2(logger, dir_seg_model, cfg['leafmachine']['leaf_segmentation']['minimum_confidence_threshold'], leaf_type)
+
+#     save_oriented_images = cfg['leafmachine']['leaf_segmentation']['save_oriented_images']
+#     save_keypoint_overlay = cfg['leafmachine']['leaf_segmentation']['save_keypoint_overlay']
+#     save_oriented_mask = cfg['leafmachine']['leaf_segmentation']['save_oriented_mask']
+#     save_simple_txt = cfg['leafmachine']['leaf_segmentation']['save_simple_txt']
+    
+#     # Weights folder base
+#     dir_weights = os.path.join(dir_home, 'leafmachine2', 'keypoint_detector','keypoint_models')
+#     detector_version = cfg['leafmachine']['leaf_segmentation']['detector_version']
+#     weights = os.path.join(dir_weights, detector_version, 'weights', 'best.pt')
+
+#     # Create dictionary for overrides
+#     overrides = {
+#         'model': weights,
+#         'name': detector_version,
+#         'boxes': False,
+#         'max_det': 1,
+#     }
+
+#     # Initialize PosePredictor
+#     Pose_Predictor = PosePredictor(weights, Dirs.dir_oriented_images, Dirs.dir_keypoint_overlay, 
+#                                    save_oriented_images=save_oriented_images, save_keypoint_overlay=save_keypoint_overlay, 
+#                                    overrides=overrides)
+   
+def initialize_logger(logger_name, log_to_file=None, suppress_warnings=None, suppress_loggers=None):
+    """
+    Initialize and return a logger with the given name.
+
+    Parameters:
+        logger_name (str): Name of the logger.
+        log_to_file (str or None): Path to a file to log to. If None, logs will only appear in the console.
+        suppress_warnings (str or list of str or None): Messages or warning types to suppress.
+        suppress_loggers (list of str or None): Specific loggers to suppress by name.
+
+    Returns:
+        logging.Logger: Configured logger instance.
+    """
+    # Initialize the logger
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.ERROR)
+    
+    # Set up log format
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    # Configure stream handler (console output)
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    
+    # If log_to_file is provided, add a file handler
+    if log_to_file:
+        file_handler = logging.FileHandler(log_to_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    
+    # Suppress specific warnings if provided
+    if suppress_warnings:
+        if isinstance(suppress_warnings, str):
+            warnings.filterwarnings("ignore", message=suppress_warnings)
+        elif isinstance(suppress_warnings, list):
+            for warning in suppress_warnings:
+                warnings.filterwarnings("ignore", message=warning)
+    
+    # Suppress specific loggers if provided
+    if suppress_loggers:
+        for suppressed_logger_name in suppress_loggers:
+            suppressed_logger = logging.getLogger(suppressed_logger_name)
+            suppressed_logger.setLevel(logging.ERROR)
+            # Optionally, you can also disable propagation if needed
+            suppressed_logger.propagate = False
+
+    return logger
+
+def segment_images_batch(cfg, dir_home, ProjectSQL, dir_images, filenames, leaf_type, dict_name_cropped, dict_from, dict_name_seg, Dirs, progress_queue):
+    conn = sqlite3.connect(ProjectSQL)
+    cur = conn.cursor()
+
+    # Reinitialize the logger inside the process if necessary
+    logger = initialize_logger('SEGMENT', 
+                           suppress_warnings=["torch.meshgrid"],
+                           suppress_loggers=['Checkpointer', 'ultralytics', 'detectron2', 'yolo'])
+
+
+    # Initialize the instance detector (model is loaded once per process)
+    dir_seg_model = os.path.join(dir_home, 'leafmachine2', 'segmentation', 'models', cfg['leafmachine']['leaf_segmentation']['segmentation_model'])
+    Instance_Detector = Detector_LM2(logger, dir_seg_model, cfg['leafmachine']['leaf_segmentation']['minimum_confidence_threshold'], leaf_type)
+
+    save_oriented_images = cfg['leafmachine']['leaf_segmentation']['save_oriented_images']
+    save_keypoint_overlay = cfg['leafmachine']['leaf_segmentation']['save_keypoint_overlay']
+    save_oriented_mask = cfg['leafmachine']['leaf_segmentation']['save_oriented_mask']
+    save_simple_txt = cfg['leafmachine']['leaf_segmentation']['save_simple_txt']
+    
+    # Weights folder base
+    dir_weights = os.path.join(dir_home, 'leafmachine2', 'keypoint_detector','keypoint_models')
+    detector_version = cfg['leafmachine']['leaf_segmentation']['detector_version']
+    weights = os.path.join(dir_weights, detector_version, 'weights', 'best.pt')
+
+    # Create dictionary for overrides
+    overrides = {
+        'model': weights,
+        'name': detector_version,
+        'boxes': False,
+        'max_det': 1,
+    }
+
+    # Initialize PosePredictor (also loaded once per process)
+    Pose_Predictor = PosePredictor(weights, Dirs.dir_oriented_images, Dirs.dir_keypoint_overlay, 
+                                   save_oriented_images=save_oriented_images, save_keypoint_overlay=save_keypoint_overlay, 
+                                   overrides=overrides)
+
+    generate_overlay = cfg['leafmachine']['leaf_segmentation']['generate_overlay']
+    overlay_dpi = cfg['leafmachine']['leaf_segmentation']['overlay_dpi']
+    bg_color = cfg['leafmachine']['leaf_segmentation']['overlay_background_color']
+    keep_best = cfg['leafmachine']['leaf_segmentation']['keep_only_best_one_leaf_one_petiole']
+    save_overlay_pdf = cfg['leafmachine']['leaf_segmentation']['save_segmentation_overlay_images_to_pdf']
+    save_each_segmentation_overlay_image = cfg['leafmachine']['leaf_segmentation']['save_segmentation_overlay_images_to_pdf']
+    save_individual_overlay_images = cfg['leafmachine']['leaf_segmentation']['save_individual_overlay_images']
+    save_rgb_cropped_images = cfg['leafmachine']['leaf_segmentation']['save_rgb_cropped_images']
+
+    save_ind_masks_color = cfg['leafmachine']['leaf_segmentation']['save_masks_color']
+    save_full_image_masks_color = cfg['leafmachine']['leaf_segmentation']['save_full_image_masks_color']
+    use_efds_for_masks = cfg['leafmachine']['leaf_segmentation']['use_efds_for_png_masks']
+
+    # Process each filename in the batch
+    for filename in filenames:
+        # Safely increment the shared counter
+        progress_queue.put(1)
+        # Load image
+        try:
+            img_path = glob.glob(os.path.join(dir_images, f"{filename}.*"))[0]
+            full_image = cv2.cvtColor(cv2.imread(img_path), cv2.COLOR_BGR2RGB)
+        except:
+            logger.error(f"Could not load image for {filename}")
+            return
+
+        # Determine conversion factor (CF)
+        CF = determine_conversion_factor(filename, cur)
+
+        # Retrieve the cropped images from SQL
+        cur.execute(f"SELECT crop_name, cropped_image FROM {dict_name_cropped} WHERE file_name = ?", (filename,))
+        crops = cur.fetchall()
+
+        for crop_name, img_cropped_blob in crops:
+            img_cropped = cv2.imdecode(np.frombuffer(img_cropped_blob, np.uint8), cv2.IMREAD_COLOR)
+
+            # Segment the image
+            out_polygons, out_bboxes, out_labels, out_color = Instance_Detector.segment(img_cropped, 
+                                                                                        generate_overlay,
+                                                                                        overlay_dpi,
+                                                                                        bg_color)
+
+            # Further processing (e.g., keypoint detection, cropping, saving results)
+            keypoint_data = Pose_Predictor.process_images(img_cropped, filename=crop_name)
+
+            if len(out_polygons) > 0:
+                if keep_best:
+                    out_polygons, out_bboxes, out_labels, out_color = keep_rows(out_polygons, out_bboxes, out_labels, out_color, get_string_indices(out_labels))
+
+                detected_components, cropped_overlay, overlay_data = create_overlay_and_calculate_props(keypoint_data, crop_name, img_cropped, out_polygons, out_labels, out_color, cfg)
+                full_image = create_insert(full_image, overlay_data, crop_name.split("__")[2], cfg)
+
+                cropped_overlay_size = cropped_overlay.shape
+            else:
+                detected_components = []
+                cropped_overlay = []
+                overlay_data = []
+                cropped_overlay_size = []
+
+            # Save results to SQL
+            save_segmentation_results_to_sql(cur, filename, crop_name, detected_components, out_polygons, out_bboxes, out_labels, out_color, cropped_overlay, overlay_data, dict_name_seg)
+
+
+            conn.commit()
+
+            # Save RGB cropped images
+            save_rgb_cropped(save_rgb_cropped_images, crop_name, img_cropped, leaf_type, Dirs)
+
+            # Save individual segmentations
+            save_individual_segmentations(save_individual_overlay_images, dict_name_seg, crop_name, cropped_overlay, Dirs)
+
+            # Handle full image masks
+            try:
+                full_size = full_image.shape
+                if save_full_image_masks_color:
+                    full_mask = Image.new('RGB', (full_size[1], full_size[0]), color=(0, 0, 0))
+            except:
+                full_size = full_image.size
+                if save_full_image_masks_color:
+                    full_mask = Image.new('RGB', (full_size[0], full_size[1]), color=(0, 0, 0))
+
+            if save_full_image_masks_color:
+                full_mask = save_masks_color(keypoint_data, save_oriented_images, save_ind_masks_color, save_full_image_masks_color, 
+                                            use_efds_for_masks, full_mask, overlay_data, cropped_overlay_size, full_size, crop_name, 
+                                            crop_name.split("__")[2], leaf_type, Dirs, CF)
+
+            # Save full masks
+            save_full_masks(save_full_image_masks_color, full_mask, filename, leaf_type, Dirs)
+
+            # Save full overlay images
+            save_full_overlay_images(save_each_segmentation_overlay_image, full_image, filename, leaf_type, Dirs)
+
+    # Save full image segmentations to PDF if configured
+    # if save_overlay_pdf:
+        # save_full_image_segmentations(save_overlay_pdf, dict_name_seg, [full_image], [filename], Dirs, cfg)
+        #  save_full_image_segmentations(save_overlay_pdf, dict_name_seg, full_images, filenames, Dirs, cfg, batch, n_batches, lock)#, start, end)
+
+    
+    conn.close()
+    torch.cuda.empty_cache()
+
+def convert_ndarray_to_list(d):
+    """Recursively convert numpy data types to Python native types in a nested dictionary or list."""
+    if isinstance(d, dict):
+        return {k: convert_ndarray_to_list(v) for k, v in d.items()}
+    elif isinstance(d, list):
+        return [convert_ndarray_to_list(v) for v in d]
+    elif isinstance(d, np.ndarray):
+        return d.tolist()
+    elif isinstance(d, (np.integer, np.int32, np.int64)):
+        return int(d)
+    elif isinstance(d, (np.floating, np.float32, np.float64)):
+        return float(d)
+    elif isinstance(d, np.bool_):
+        return bool(d)
+    else:
+        return d
+    
+def save_segmentation_results_to_sql(cur, filename, crop_name, detected_components, out_polygons, out_bboxes, out_labels, out_color, cropped_overlay, overlay_data, dict_name_seg):
+    # Convert detected components to a JSON serializable format
+    detected_components_serializable = convert_ndarray_to_list(detected_components)
+
+    # Convert the other data structures if needed
+    out_polygons_serializable = convert_ndarray_to_list(out_polygons)
+    out_bboxes_serializable = convert_ndarray_to_list(out_bboxes)
+    out_labels_serializable = convert_ndarray_to_list(out_labels)
+    out_color_serializable = convert_ndarray_to_list(out_color)
+    overlay_data_serializable = convert_ndarray_to_list(overlay_data)
+
+    # Serialize the data to JSON
+    detected_components_json = json.dumps(detected_components_serializable)
+    out_polygons_json = json.dumps(out_polygons_serializable)
+    out_bboxes_json = json.dumps(out_bboxes_serializable)
+    out_labels_json = json.dumps(out_labels_serializable)
+    out_color_json = json.dumps(out_color_serializable)
+
+    # Convert overlay data to JSON
+    overlay_data_serializable = []
+    for overlay in overlay_data:
+        if isinstance(overlay, np.ndarray):
+            overlay_data_serializable.append(overlay.tolist())
+        else:
+            overlay_data_serializable.append(overlay)
+    overlay_data_json = json.dumps(overlay_data_serializable, default=lambda o: o.item() if isinstance(o, np.generic) else o)
+
+    # Convert cropped overlay to binary (Blob) to store in SQLite if needed
+    # _, cropped_overlay_blob = cv2.imencode('.png', cropped_overlay)
+
+    # Save the results back to the SQL database
+    cur.execute(f"""
+        INSERT INTO {dict_name_seg} 
+        (file_name, crop_name, segmentation_data, polygons, bboxes, labels, colors, overlay_data) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+        (filename, crop_name, detected_components_json, out_polygons_json, out_bboxes_json, out_labels_json, out_color_json, overlay_data_json)
+    )   
+
+
+''' #SEGMENT PARALLEL
 def segment_images_parallel(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dict_from, cfg, Project, Dirs, batch, n_batches, num_workers):
     
     
@@ -176,37 +482,33 @@ def segment_images_parallel(logger, dir_home, dict_objects, leaf_type, dict_name
     # save_full_image_segmentations(save_overlay_pdf, dict_name_seg, full_images, filenames, Dirs, cfg, batch, n_batches)#, start, end)
     torch.cuda.empty_cache()
     return dict_objects, seg_overlay#, seg_overlay_data
-''' SEGMENT PARALLEL'''
+#SEGMENT PARALLEL'''
 
 
-def determine_conversion_factor(dict_objects, filename):
+def determine_conversion_factor(filename, cur):
     """
     Determine the conversion factor (CF) for the given filename based on the conversion_mean and predicted_conversion_factor_cm.
     
     Parameters:
-        dict_objects (dict): The dictionary containing ruler information.
-        filename (str): The filename key to look up in the dictionary.
+        filename (str): The filename key to look up in the database.
+        cur (sqlite3.Cursor): The SQLite cursor object to execute queries.
         
     Returns:
         float: The calculated conversion factor (CF).
     """
-    # Get the list of Ruler_Info
-    ruler_info_list = dict_objects[filename]['Ruler_Info']
-    
-    # Determine the max_index dynamically based on the length of the list
-    max_index = len(ruler_info_list) - 1
-    
+    # Query to get the ruler information from the SQL database
+    cur.execute("SELECT conversion_mean, predicted_conversion_factor_cm FROM ruler_data WHERE file_name = ?", (filename,))
+    ruler_info_list = cur.fetchall()
+
     conversion_means = []
     predicted_conversion_factor_cm = None
 
-    # Iterate over the indices in the list
-    for i in range(max_index + 1):
-        ruler_info = ruler_info_list[i]
-        
-        conversion_mean = ruler_info.get('conversion_mean', 0)
-        predicted_conversion_factor_cm = ruler_info.get('predicted_conversion_factor_cm', 0)
+    # Iterate over the fetched data
+    for ruler_info in ruler_info_list:
+        conversion_mean = ruler_info[0] if ruler_info[0] is not None else 0
+        predicted_conversion_factor_cm = ruler_info[1] if ruler_info[1] is not None else 0
         conversion_means.append(conversion_mean)
-    
+
     # Check if all conversion_mean values are 0
     if all(cm == 0 for cm in conversion_means):
         if predicted_conversion_factor_cm:
@@ -225,6 +527,7 @@ def determine_conversion_factor(dict_objects, filename):
 
 
 
+'''
 def segment_images(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dict_from, cfg, Project, Dirs, batch, n_batches, lock):#, start, end):
     # Run the leaf instance segmentation operations
     dir_seg_model = os.path.join(dir_home, 'leafmachine2', 'segmentation', 'models',cfg['leafmachine']['leaf_segmentation']['segmentation_model'])
@@ -384,6 +687,7 @@ def segment_images(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dic
         
     save_full_image_segmentations(save_overlay_pdf, dict_name_seg, full_images, filenames, Dirs, cfg, batch, n_batches, lock)#, start, end)
     return dict_objects, None #seg_overlay
+'''
 
 def save_rgb_cropped(save_rgb_cropped_images, seg_name, img_cropped, leaf_type, Dirs):
     if save_rgb_cropped_images:
@@ -1186,61 +1490,121 @@ def create_overlay_and_calculate_props(keypoint_data, seg_name, img_cropped, out
 
 
 
-def crop_images_to_bbox(dict, cls, dict_name_cropped, dict_from, Project):
-    # For each image, iterate through the whole leaves, segment, report data back to dict_plant_components
-    for filename, value in dict.items():
-        value[dict_name_cropped] = []
-        if dict_from in value:
-            bboxes_whole_leaves = [val for val in value[dict_from] if val[0] == convert_index_to_class(cls)]
-            if len(bboxes_whole_leaves) == 0:
-                m = str(''.join(['No objects for class ', convert_index_to_class(0), ' were found']))
-                # Print_Verbose(cfg, 3, m).plain()
-            else:
-                try:
-                    img = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename,'jpg'])))
-                    # img = cv2.imread(os.path.join(Project, '.'.join([filename,'jpg']))) # Testing
-                except:
-                    img = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename,'jpeg'])))
-                    # img = cv2.imread(os.path.join(Project, '.'.join([filename,'jpeg']))) # Testing
+# def crop_images_to_bbox(dict, cls, dict_name_cropped, dict_from, Project):
+#     # For each image, iterate through the whole leaves, segment, report data back to dict_plant_components
+#     for filename, value in dict.items():
+#         value[dict_name_cropped] = []
+#         if dict_from in value:
+#             bboxes_whole_leaves = [val for val in value[dict_from] if val[0] == convert_index_to_class(cls)]
+#             if len(bboxes_whole_leaves) == 0:
+#                 m = str(''.join(['No objects for class ', convert_index_to_class(0), ' were found']))
+#                 # Print_Verbose(cfg, 3, m).plain()
+#             else:
+#                 try:
+#                     img = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename,'jpg'])))
+#                     # img = cv2.imread(os.path.join(Project, '.'.join([filename,'jpg']))) # Testing
+#                 except:
+#                     img = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename,'jpeg'])))
+#                     # img = cv2.imread(os.path.join(Project, '.'.join([filename,'jpeg']))) # Testing
                 
-                for d in bboxes_whole_leaves:
-                    # img_crop = img.crop((d[1], d[2], d[3], d[4])) # PIL
-                    img_crop = img[d[2]:d[4], d[1]:d[3]]
-                    loc = '-'.join([str(d[1]), str(d[2]), str(d[3]), str(d[4])])
-                    if cls == 0:
-                        crop_name = '__'.join([filename,'L',loc])
-                    elif cls == 1:
-                        crop_name = '__'.join([filename,'PL',loc])
-                    value[dict_name_cropped].append({crop_name: img_crop})
-                    # cv2.imshow('img_crop', img_crop)
-                    # cv2.waitKey(0)
-                    # img_crop.show() # PIL
-    return dict
+#                 for d in bboxes_whole_leaves:
+#                     # img_crop = img.crop((d[1], d[2], d[3], d[4])) # PIL
+#                     img_crop = img[d[2]:d[4], d[1]:d[3]]
+#                     loc = '-'.join([str(d[1]), str(d[2]), str(d[3]), str(d[4])])
+#                     if cls == 0:
+#                         crop_name = '__'.join([filename,'L',loc])
+#                     elif cls == 1:
+#                         crop_name = '__'.join([filename,'PL',loc])
+#                     value[dict_name_cropped].append({crop_name: img_crop})
+#                     # cv2.imshow('img_crop', img_crop)
+#                     # cv2.waitKey(0)
+#                     # img_crop.show() # PIL
+#     return dict
+def crop_images_to_bbox(ProjectSQL, filename, cls, dict_name_cropped, dict_from):
+    conn = ProjectSQL.conn
+    cur = conn.cursor()
 
-def unpack_class_from_components(dict, cls, dict_name_yolo, dict_name_location, Project):
-    # Get the dict that contains plant parts, find the whole leaves
-    for filename, value in dict.items():
-        if "Detections_Plant_Components" in value:
-            filtered_components = [val for val in value["Detections_Plant_Components"] if val[0] == cls]
-            value[dict_name_yolo] = filtered_components
+    # Retrieve bounding boxes from the SQL database
+    cur.execute(f"SELECT x_min, y_min, x_max, y_max FROM {dict_from} WHERE file_name = ? AND class = ?", (filename, cls))
+    bboxes = cur.fetchall()
 
-    for filename, value in dict.items():
-        if "Detections_Plant_Components" in value:
-            filtered_components = [val for val in value["Detections_Plant_Components"] if val[0] == cls]
-            height = value['height']
-            width = value['width']
-            converted_list = [[convert_index_to_class(val[0]), int((val[1] * width) - ((val[3] * width) / 2)), 
-                                                                int((val[2] * height) - ((val[4] * height) / 2)), 
-                                                                int(val[3] * width) + int((val[1] * width) - ((val[3] * width) / 2)), 
-                                                                int(val[4] * height) + int((val[2] * height) - ((val[4] * height) / 2))] for val in filtered_components]
-            # Verify that the crops are correct
-            # img = Image.open(os.path.join(Project., '.'.join([filename,'jpg'])))
-            # for d in converted_list:
-            #     img_crop = img.crop((d[1], d[2], d[3], d[4]))
-            #     img_crop.show() 
-            value[dict_name_location] = converted_list
-    # print(dict)
-    return dict
+    # Try to load the image
+    try:
+        img_path = glob.glob(os.path.join(ProjectSQL.dir_images, f"{filename}.*"))[0]
+        img = cv2.imread(img_path)
+    except:
+        img = None
+
+    if img is None:
+        return
+
+    for bbox in bboxes:
+        x_min, y_min, x_max, y_max = bbox
+        img_crop = img[y_min:y_max, x_min:x_max]
+        loc = '-'.join(map(str, [x_min, y_min, x_max, y_max]))
+        crop_name = f"{filename}__{'L' if cls == 0 else 'PL'}__{loc}"
+
+        # Store the cropped image in the SQL database (as a BLOB)
+        _, img_encoded = cv2.imencode('.jpg', img_crop)
+        cur.execute(f"INSERT INTO {dict_name_cropped} (file_name, crop_name, cropped_image) VALUES (?, ?, ?)", 
+                    (filename, crop_name, img_encoded.tobytes()))
+    conn.commit()
+
+
+# def unpack_class_from_components(dict, cls, dict_name_yolo, dict_name_location, Project):
+#     # Get the dict that contains plant parts, find the whole leaves
+#     for filename, value in dict.items():
+#         if "Detections_Plant_Components" in value:
+#             filtered_components = [val for val in value["Detections_Plant_Components"] if val[0] == cls]
+#             value[dict_name_yolo] = filtered_components
+
+#     for filename, value in dict.items():
+#         if "Detections_Plant_Components" in value:
+#             filtered_components = [val for val in value["Detections_Plant_Components"] if val[0] == cls]
+#             height = value['height']
+#             width = value['width']
+#             converted_list = [[convert_index_to_class(val[0]), int((val[1] * width) - ((val[3] * width) / 2)), 
+#                                                                 int((val[2] * height) - ((val[4] * height) / 2)), 
+#                                                                 int(val[3] * width) + int((val[1] * width) - ((val[3] * width) / 2)), 
+#                                                                 int(val[4] * height) + int((val[2] * height) - ((val[4] * height) / 2))] for val in filtered_components]
+#             # Verify that the crops are correct
+#             # img = Image.open(os.path.join(Project., '.'.join([filename,'jpg'])))
+#             # for d in converted_list:
+#             #     img_crop = img.crop((d[1], d[2], d[3], d[4]))
+#             #     img_crop.show() 
+#             value[dict_name_location] = converted_list
+#     # print(dict)
+#     return dict
+def unpack_class_from_components(ProjectSQL, filename, cls, dict_name_yolo, dict_name_location):
+    conn = ProjectSQL.conn
+    cur = conn.cursor()
+
+    # Get the width and height from the images table
+    cur.execute("SELECT width, height FROM images WHERE name = ?", (filename,))
+    width, height = cur.fetchone()
+
+    # Retrieve plant annotations for the given filename and class
+    cur.execute("SELECT annotation FROM annotations_plant WHERE file_name = ? AND component = 'Detections_Plant_Components'", (filename,))
+    plant_annotations = cur.fetchall()
+
+    for annotation in plant_annotations:
+        # Process the annotation data to extract bounding box coordinates
+        class_index, x_center, y_center, bbox_width, bbox_height = map(float, annotation[0].split(','))
+
+        if int(class_index) == cls:
+            x_min = int(x_center * width - (bbox_width * width / 2))
+            y_min = int(y_center * height - (bbox_height * height / 2))
+            x_max = int(x_center * width + (bbox_width * width / 2))
+            y_max = int(y_center * height + (bbox_height * height / 2))
+
+            # Insert the processed bounding box into the correct table (Whole_Leaf_BBoxes or Partial_Leaf_BBoxes)
+            cur.execute(f"INSERT INTO {dict_name_location} (file_name, class, x_min, y_min, x_max, y_max) VALUES (?, ?, ?, ?, ?, ?)",
+                        (filename, cls, x_min, y_min, x_max, y_max))
+
+    conn.commit()
+
+
+
 
 def plot_polygons_on_image(polygons, img, color):
     for polygon in polygons:

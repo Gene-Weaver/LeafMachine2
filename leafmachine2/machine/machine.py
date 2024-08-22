@@ -13,7 +13,7 @@ from leafmachine2.component_detector.component_detector import detect_plant_comp
 from leafmachine2.segmentation.detectron2.segment_leaves import segment_leaves
 # from import  # ruler classifier?
 # from import  # landmarks
-from leafmachine2.machine.general_utils import check_for_subdirs, get_datetime, load_config_file, load_config_file_testing, report_config, split_into_batches, save_config_file, subset_dir_images, crop_detections_from_images, crop_detections_from_images_SpecimenCrop
+from leafmachine2.machine.general_utils import check_for_subdirs, get_datetime, load_config_file, load_config_file_testing, report_config, split_into_batches_sql, save_config_file, subset_dir_images, crop_detections_from_images, crop_detections_from_images_SpecimenCrop
 from leafmachine2.machine.general_utils import print_main_start, print_main_success, print_main_fail, print_main_info, make_file_names_valid, make_images_in_dir_vertical
 from leafmachine2.machine.directory_structure import Dir_Structure
 from leafmachine2.machine.data_project import Project_Info
@@ -73,8 +73,8 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
         # Wrangle images and preprocess
         print_main_start("Gathering Images and Image Metadata")
         Project = Project_Info(cfg, logger, dir_home)
-        # ProjectSQL = Project_Info_SQL(cfg, logger, dir_home, Dirs)
-        # test_sql(get_database_path(ProjectSQL))
+        ProjectSQL = Project_Info_SQL(cfg, logger, dir_home, Dirs)
+        test_sql(get_database_path(ProjectSQL))
 
         if progress_report:
             progress_report.update_overall("Created Project Storage Object") # Step 4/13
@@ -99,16 +99,16 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
         if progress_report:
             progress_report.update_overall("Detect Archival Components") # Step 7/13
         print_main_start("Locating Archival Components")
-        Project, time_report = detect_archival_components(cfg, time_report, logger, dir_home, Project, Dirs)
-        # ProjectSQL, time_report = detect_archival_components(cfg, time_report, logger, dir_home, ProjectSQL, Dirs)
+        # Project, time_report = detect_archival_components(cfg, time_report, logger, dir_home, Project, Dirs)
+        ProjectSQL, time_report = detect_archival_components(cfg, time_report, logger, dir_home, ProjectSQL, Dirs)
         # test_sql(get_database_path(ProjectSQL))
         
         # Detect Plant Components
         if progress_report:
             progress_report.update_overall("Detect Plant Components") # Step 8/13
         print_main_start("Locating Plant Components")
-        Project, time_report = detect_plant_components(cfg, time_report, logger, dir_home, Project, Dirs)
-        # ProjectSQL, time_report = detect_plant_components(cfg, time_report, logger, dir_home, ProjectSQL, Dirs)
+        # Project, time_report = detect_plant_components(cfg, time_report, logger, dir_home, Project, Dirs)
+        ProjectSQL, time_report = detect_plant_components(cfg, time_report, logger, dir_home, ProjectSQL, Dirs)
         # test_sql(get_database_path(ProjectSQL))
 
         # Detect Armature Components
@@ -124,39 +124,50 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
         # logger.info("Adding record data (from GBIF) to the dictionary")
         # Project.add_records_to_project_dict()
 
+
+
         # Save cropped detections
         if progress_report:
             progress_report.update_overall("Crop Individual Objects from Images") # Step 9/13
-        time_report = crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dirs)
         # time_report = crop_detections_from_images(cfg, time_report, logger, dir_home, ProjectSQL, Dirs)
+
+
 
         # If Specimen Crop is selected
         if progress_report:
             progress_report.update_overall("SpecimenCrop Images") # Step 10/13
-        time_report = crop_detections_from_images_SpecimenCrop(cfg, time_report, logger, dir_home, Project, Dirs)
+        # time_report = crop_detections_from_images_SpecimenCrop(cfg, time_report, logger, dir_home, ProjectSQL, Dirs)
+
+
 
         if progress_report:
             progress_report.update_overall("Detecting Phenology") # Step 11/13
-        time_report = detect_phenology(cfg, time_report, logger, dir_home, Project, Dirs)
+        # time_report = detect_phenology(cfg, time_report, logger, Dirs)
+
+
 
         if progress_report:
             progress_report.update_overall("Censoring Archival Components") # Step 12/13
-        time_report = censor_archival_components(cfg, time_report, logger, dir_home, Project, Dirs)
+        # time_report = censor_archival_components(cfg, time_report, logger, dir_home, ProjectSQL, Dirs)
 
         
+
         # Binarize labels
-        run_binarize(cfg, logger, Dirs)
         if progress_report:
             progress_report.update_overall("Binarize Labels") # Step 13/13
+        # run_binarize(cfg, logger, Dirs)
         
+
+
         # Split into batches for further processing
-        Project, n_batches, m  = split_into_batches(Project, logger, cfg)
+        Batch_Data, n_batches, m  = split_into_batches_sql(cfg, ProjectSQL, logger)
         if progress_report:
             progress_report.set_n_batches(n_batches)
         print_main_start(m)
+        test_sql(get_database_path(ProjectSQL))
         
 
-        for batch in range(n_batches):
+        for batch, Batch_Names in enumerate(Batch_Data): #range(n_batches):
             if progress_report:
                 progress_report.update_batch(f"Starting Batch {batch+1} of {n_batches}")
 
@@ -172,21 +183,23 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
                 do_test_ruler_conversion = False
                 if do_test_ruler_conversion:
                     dir_rulers = 'F:/Rulers_ByType_V2_target'
-                    Project, time_report = convert_rulers_testing(dir_rulers, cfg, time_report, logger, dir_home, Project, batch, Dirs)
+                    ProjectSQL, time_report = convert_rulers_testing(dir_rulers, cfg, time_report, logger, dir_home, ProjectSQL, batch, Dirs)
                 else:
-                    Project, time_report = convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs)
+                    ProjectSQL, time_report = convert_rulers(cfg, time_report, logger, dir_home, ProjectSQL, batch, Batch_Names, Dirs, num_workers=12)
                     # Project = parallel_convert_rulers(cfg, logger, dir_home, Project, batch, Dirs)
                 
+                test_sql(get_database_path(ProjectSQL), n_rows=1)
 
                 # Segment Whole Leaves
                 if progress_report:
                     progress_report.update_batch_part(f"Segmenting Leaves")
                 do_seg = True # Need to know if segmentation has been added to Project[batch] for landmarks
                 if do_seg:
-                    Project, time_report = segment_leaves(cfg, time_report, logger, dir_home, Project, batch, n_batches, Dirs)
+                    # ProjectSQL, time_report = segment_leaves(cfg, time_report, logger, dir_home, ProjectSQL, batch, n_batches, Dirs)
+                    time_report = segment_leaves(cfg, time_report, logger, dir_home, ProjectSQL, batch, n_batches, Batch_Names, Dirs)
                     
 
-                # Landmarks Whole Leaves
+                # Landmarks Whole Leaves 
                 if progress_report:
                     progress_report.update_batch_part(f"Detecting Landmarks")
                 Project, time_report = detect_landmarks(cfg, time_report, logger, dir_home, Project, batch, n_batches, Dirs, do_seg)

@@ -1,4 +1,4 @@
-import os
+import os, sqlite3
 import glob
 from time import perf_counter
 import cv2
@@ -6,12 +6,11 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 
 class HideComponents:
-    def __init__(self, cfg, Dirs, Project, base_dir, label_files):
+    def __init__(self, cfg, Dirs, base_dir, database_path):
         self.cfg = cfg
         self.Dirs = Dirs
-        self.Project = Project
         self.base_dir = base_dir
-        self.label_files = label_files
+        self.database_path = database_path
         self.class_names = {
             0: 'ruler',
             1: 'barcode',
@@ -23,9 +22,8 @@ class HideComponents:
             7: 'attached_item',
             8: 'weights',
         }
-        # Initialize counts as a dict of dicts
         self.file_counts = {}
-    
+
     def hex_to_bgr(self, hex_color):
         """Convert hex color to BGR format."""
         hex_color = hex_color.lstrip('#')
@@ -36,71 +34,76 @@ class HideComponents:
         HIDE_indices = {index for index, name in self.class_names.items() if name in HIDE}
         COLOR = self.hex_to_bgr(self.cfg['leafmachine']['project']['replacement_color'])  # hex to BGR
 
-        for file_path in self.label_files:
-            file_name = os.path.basename(file_path).replace('.txt', '')
+        # Create a new database connection in the worker process
+        conn = sqlite3.connect(self.database_path)
+        cur = conn.cursor()
+
+        cur.execute("SELECT name, width, height FROM images")
+        image_data = cur.fetchall()
+
+        for file_name, width, height in image_data:
             # Initialize count for each class for this file
             self.file_counts[file_name] = {name: 0 for name in self.class_names.values()}
 
             # Try to load the image
             try:
-                full_image = cv2.imread(os.path.join(self.Project.dir_images, f"{file_name}.jpg"))
+                image_path = glob.glob(os.path.join(self.base_dir, file_name + '.*'))[0]
+                full_image = cv2.imread(image_path)
             except:
-                full_image = cv2.imread(os.path.join(self.Project.dir_images, f"{file_name}.jpeg"))
-            
-            if full_image is None:
-                continue
+                raise FileNotFoundError(f"Could not load image for {file_name}")
 
-            height, width, _ = full_image.shape
+            # Fetch annotations from the SQL database
+            cur.execute("SELECT annotation FROM annotations_archival WHERE file_name = ?", (file_name,))
+            annotations = cur.fetchall()
 
-            with open(file_path, 'r') as file:
-                for line in file:
-                    parts = line.split()
-                    class_index = int(parts[0])
-                    if class_index in HIDE_indices:
-                        x_center, y_center, bbox_width, bbox_height = map(float, parts[1:])
-                        x_center *= width
-                        y_center *= height
-                        bbox_width *= width
-                        bbox_height *= height
+            for annotation in annotations:
+                # Split the annotation string to extract the values
+                class_index, x_center, y_center, bbox_width, bbox_height = map(float, annotation[0].split(','))
 
-                        x_min = int(x_center - bbox_width / 2)
-                        y_min = int(y_center - bbox_height / 2)
-                        x_max = int(x_center + bbox_width / 2)
-                        y_max = int(y_center + bbox_height / 2)
+                class_index = int(class_index)
+                if class_index in HIDE_indices:
+                    x_center *= width
+                    y_center *= height
+                    bbox_width *= width
+                    bbox_height *= height
 
-                        # Replace with the selected color
-                        full_image[y_min:y_max, x_min:x_max] = COLOR
+                    x_min = int(x_center - bbox_width / 2)
+                    y_min = int(y_center - bbox_height / 2)
+                    x_max = int(x_center + bbox_width / 2)
+                    y_max = int(y_center + bbox_height / 2)
 
-                    class_name = self.class_names.get(class_index)
-                    if class_name:
-                        self.file_counts[file_name][class_name] += 1
+                    # Replace with the selected color
+                    full_image[y_min:y_max, x_min:x_max] = COLOR
+
+                class_name = self.class_names.get(class_index)
+                if class_name:
+                    self.file_counts[file_name][class_name] += 1
 
             save_path = os.path.join(self.Dirs.censor_archival_components, f"{file_name}.jpg")
             cv2.imwrite(save_path, full_image)
 
-def process_files(cfg, Dirs, Project, base_dir, label_files):
-    detector = HideComponents(cfg, Dirs, Project, base_dir, label_files)
+        conn.close()  # Close the connection when done
+
+def process_files(cfg, Dirs, base_dir, database_path):
+    detector = HideComponents(cfg, Dirs, base_dir, database_path)
     detector.remove()
 
-def censor_archival_components(cfg, time_report, logger, dir_home, Project, Dirs):
+def censor_archival_components(cfg, time_report, logger, dir_home, ProjectSQL, Dirs):
     t2_start = perf_counter()
-    logger.name = f'Removing Archival Components --- {Dirs.path_archival_components}'
-    
-    path_archival_labels = os.path.join(Dirs.path_archival_components, 'labels')
-    label_files = glob.glob(os.path.join(path_archival_labels, '*.txt'))
+    logger.name = f'Censoring Archival Components --- {ProjectSQL.dir_images}'
 
-    # Split the list of label files into chunks for each worker
+    # Get the database path from ProjectSQL
+    database_path = ProjectSQL.database
+
+    # Parallel processing
     num_workers = os.cpu_count()  # Number of available CPU cores
-    chunks = [label_files[i::num_workers] for i in range(num_workers)]
-
     with ProcessPoolExecutor(max_workers=num_workers) as executor:
-        futures = [executor.submit(process_files, cfg, Dirs, Project, path_archival_labels, chunk) for chunk in chunks]
+        futures = [executor.submit(process_files, cfg, Dirs, ProjectSQL.dir_images, database_path) for _ in range(num_workers)]
         for future in futures:
             future.result()  # Wait for all futures to complete
 
-    # return counts
     t2_stop = perf_counter()
-    t_remove = f"[Removing Archival Components elapsed time] {round(t2_stop - t2_start)} seconds ({round((t2_stop - t2_start)/60)} minutes)"
+    t_remove = f"[Censoring Archival Components elapsed time] {round(t2_stop - t2_start)} seconds ({round((t2_stop - t2_start)/60)} minutes)"
     logger.info(t_remove)
     time_report['t_remove'] = t_remove
     return time_report

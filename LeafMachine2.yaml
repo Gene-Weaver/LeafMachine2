@@ -6,7 +6,7 @@ leafmachine:
     detector_weights: best.pt
     do_save_prediction_overlay_images: true
     ignore_objects_for_overlay: []
-    minimum_confidence_threshold: 0.7
+    minimum_confidence_threshold: 0.5
     ruler_binary_detector: model_scripted_resnet_720_withCompression.pt
     ruler_detector: ruler_classifier_38classes_v-1.pt
   armature_component_detector:
@@ -18,12 +18,13 @@ leafmachine:
     ignore_objects_for_overlay: []
     minimum_confidence_threshold: 0.5
   cropped_components:
+    include_these_objects_in_specimen_crop: ['ruler','barcode','colorcard', 'label', 'map', 'envelope', 'photo', 'attached_item', 'leaf_whole', 'leaf_partial', 'leaflet', 'seed_fruit_one', 'seed_fruit_many', 'flower_one', 'flower_many', 'bud', 'specimen', 'roots', 'wood']
     binarize_labels: false
     binarize_labels_skeletonize: false
-    do_save_cropped_annotations: false
+    do_save_cropped_annotations: true
     save_cropped_annotations:
     - label
-    save_per_annotation_class: false
+    save_per_annotation_class: true
     save_per_image: false
   data:
     do_apply_conversion_factor: true
@@ -35,17 +36,17 @@ leafmachine:
     save_json_measurements: false
     save_json_rulers: false
   do:
-    check_for_corrupt_images_make_vertical: false #true #########################################
-    check_for_illegal_filenames: false #true #########################################
-    run_leaf_processing: true 
+    check_for_corrupt_images_make_vertical: true
+    check_for_illegal_filenames: true
+    run_leaf_processing: true
   landmark_detector:
     detector_iteration: Landmarks
     detector_type: Landmark_Detector_YOLO
     detector_version: Landmarks
     detector_weights: best.pt
-    do_save_QC_images: false
-    do_save_final_images: false
-    do_save_prediction_overlay_images: false
+    do_save_QC_images: true
+    do_save_final_images: true
+    do_save_prediction_overlay_images: true
     do_show_QC_images: false
     do_show_final_images: false
     ignore_objects_for_overlay: []
@@ -68,25 +69,25 @@ leafmachine:
     upscale_factor: 10
     use_existing_landmark_detections: null
   leaf_segmentation:
-    calculate_elliptic_fourier_descriptors: false
+    calculate_elliptic_fourier_descriptors: true
     detector_version: uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2
     elliptic_fourier_descriptor_order: 40
     find_minimum_bounding_box: true
-    generate_overlay: false
+    generate_overlay: true
     keep_only_best_one_leaf_one_petiole: true
     minimum_confidence_threshold: 0.7
     overlay_background_color: black
     overlay_dpi: 300
     overlay_line_width: 1
-    save_each_segmentation_overlay_image: false
+    save_each_segmentation_overlay_image: true
     save_full_image_masks_color: true
-    save_individual_overlay_images: false
+    save_individual_overlay_images: true
     save_keypoint_overlay: true
     save_masks_color: true
     save_oriented_images: true
     save_oriented_mask: true
     save_rgb_cropped_images: true
-    save_segmentation_overlay_images_to_pdf: false
+    save_segmentation_overlay_images_to_pdf: true
     save_simple_txt: true
     segment_partial_leaves: false
     segment_whole_leaves: true
@@ -96,7 +97,7 @@ leafmachine:
     log_level: null
   modules:
     armature: false
-    specimen_crop: false
+    specimen_crop: true
   overlay:
     alpha_transparency_archival: 0.3
     alpha_transparency_plant: 0.0
@@ -125,18 +126,18 @@ leafmachine:
     detector_weights: LeafPriority.pt
     do_save_prediction_overlay_images: true
     ignore_objects_for_overlay: []
-    minimum_confidence_threshold: 0.7
+    minimum_confidence_threshold: 0.5
   print:
     optional_warnings: true
     verbose: true
   project:
     GBIF_mode: all
     accept_only_ideal_leaves: true
-    batch_size: 200
-    censor_archival_components: false
-    dir_images_local: /media/nas/GBIF_Downloads/Cornales/Nyssaceae/img
+    batch_size: 100
+    censor_archival_components: true
+    dir_images_local: G:\LM2_git_test\LeafMachine2\demo\demo_images
     dir_images_subset: ''
-    dir_output: /media/nas/GBIF_Downloads/Cornales/Nyssaceae/LM2
+    dir_output: C:\Users\Will\Downloads
     hide_archival_components:
     - ruler
     - barcode
@@ -147,10 +148,10 @@ leafmachine:
     - weights
     image_location: local
     minimum_total_reproductive_counts: 0
-    n_images_per_species: 1000000
-    num_workers: 12
-    num_workers_ruler: 12
-    num_workers_seg: 12
+    n_images_per_species: 10
+    num_workers: 4
+    num_workers_ruler: 4
+    num_workers_seg: 4
     overlay_background_color: black
     overlay_dpi: 300
     path_combined_csv_local: null
@@ -158,7 +159,14 @@ leafmachine:
     path_occurrence_csv_local: null
     process_subset_of_images: false
     replacement_color: '#FFFFFF'
-    run_name: Cornales_Nyssaceae
+    run_name: test
+    padding_for_crop: 150
+    orientation: '6'
+    colorspace: 'raw'
+    save_TIFF_to_original_dir: false 
+    save_TIFF_to_dir_output: false   
+    save_JPG_to_dir_output: true
+    save_XMP_to_original_dir: true
     species_list: ''
     use_CF_predictor: true
     use_existing_archival_component_detections: null
