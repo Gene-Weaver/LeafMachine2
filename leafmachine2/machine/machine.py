@@ -202,7 +202,8 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
                 # Landmarks Whole Leaves 
                 if progress_report:
                     progress_report.update_batch_part(f"Detecting Landmarks")
-                Project, time_report = detect_landmarks(cfg, time_report, logger, dir_home, Project, batch, n_batches, Dirs, do_seg)
+                time_report = detect_landmarks(cfg, time_report, logger, dir_home, ProjectSQL, batch, n_batches, Batch_Names, Dirs, do_seg)
+                test_sql(get_database_path(ProjectSQL), n_rows=1)
 
 
 
@@ -221,7 +222,7 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
             # Custom Overlay 
             if progress_report:
                 progress_report.update_batch_part(f"Saving Overlay Images")
-            time_report = build_custom_overlay_parallel(cfg, time_report, logger, dir_home, Project, batch, Dirs)
+            time_report = build_custom_overlay_parallel(cfg, time_report, logger, dir_home, ProjectSQL, batch, Dirs)
 
 
             # Export data to csv and json

@@ -142,6 +142,90 @@ class Project_Info_SQL():
             """)
 
 
+            # Create tables for storing landmarks data
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS Landmarks_Whole_Leaves (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_name TEXT NOT NULL,
+                    all_points TEXT NOT NULL,
+                    height INTEGER,
+                    width INTEGER,
+                    apex_center TEXT,
+                    apex_angle_degrees REAL,
+                    base_center TEXT,
+                    base_angle_degrees REAL,
+                    lamina_tip TEXT,
+                    lamina_base TEXT,
+                    lamina_length REAL,
+                    lamina_fit TEXT,
+                    lamina_width REAL,
+                    width_left TEXT,
+                    width_right TEXT,
+                    lobe_count INTEGER,
+                    lobes TEXT,
+                    midvein_fit TEXT,
+                    midvein_fit_points TEXT,
+                    ordered_midvein TEXT,
+                    ordered_midvein_length REAL,
+                    has_midvein INTEGER,
+                    ordered_petiole TEXT,
+                    ordered_petiole_length REAL,
+                    has_ordered_petiole INTEGER,
+                    is_split INTEGER,
+                    has_apex INTEGER,
+                    has_base INTEGER,
+                    has_lamina_tip INTEGER,
+                    has_lamina_base INTEGER,
+                    has_lamina_length INTEGER,
+                    has_width INTEGER,
+                    has_lobes INTEGER,
+                    is_complete_leaf INTEGER,
+                    is_leaf_no_width INTEGER
+                )
+            """)
+
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS Landmarks_Partial_Leaves (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_name TEXT NOT NULL,
+                    all_points TEXT NOT NULL,
+                    height INTEGER,
+                    width INTEGER,
+                    apex_center TEXT,
+                    apex_angle_degrees REAL,
+                    base_center TEXT,
+                    base_angle_degrees REAL,
+                    lamina_tip TEXT,
+                    lamina_base TEXT,
+                    lamina_length REAL,
+                    lamina_fit TEXT,
+                    lamina_width REAL,
+                    width_left TEXT,
+                    width_right TEXT,
+                    lobe_count INTEGER,
+                    lobes TEXT,
+                    midvein_fit TEXT,
+                    midvein_fit_points TEXT,
+                    ordered_midvein TEXT,
+                    ordered_midvein_length REAL,
+                    has_midvein INTEGER,
+                    ordered_petiole TEXT,
+                    ordered_petiole_length REAL,
+                    has_ordered_petiole INTEGER,
+                    is_split INTEGER,
+                    has_apex INTEGER,
+                    has_base INTEGER,
+                    has_lamina_tip INTEGER,
+                    has_lamina_base INTEGER,
+                    has_lamina_length INTEGER,
+                    has_width INTEGER,
+                    has_lobes INTEGER,
+                    is_complete_leaf INTEGER,
+                    is_leaf_no_width INTEGER  
+                )
+            """)
+
+
             # Commit changes
             self.conn.commit()
         except sqlite3.Error as e:

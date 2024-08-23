@@ -1,4 +1,4 @@
-import os, sys, inspect, json, shutil, cv2, time, glob #imagesize
+import os, sys, inspect, json, shutil, cv2, time, glob, sqlite3 #imagesize
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -14,7 +14,7 @@ import torch
 from sqlite3 import Error
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import asyncio, aiofiles
-
+import numpy as np
 
 currentdir = os.path.dirname(inspect.getfile(inspect.currentframe()))
 parentdir = os.path.dirname(currentdir)
@@ -756,7 +756,7 @@ def fetch_labels(dir_exisiting_labels, new_dir):
 
 
 '''Landmarks - uses YOLO, but works differently than above. A hybrid between segmentation and component detector'''
-def detect_landmarks(cfg, time_report, logger, dir_home, Project, batch, n_batches, Dirs, segmentation_complete):
+def detect_landmarks(cfg, time_report, logger, dir_home, ProjectSQL, batch, n_batches, Batch_Names, Dirs, segmentation_complete):
     start_t = perf_counter()
     logger.name = f'[BATCH {batch+1} Detect Landmarks]'
     logger.info(f'Detecting landmarks for batch {batch+1} of {n_batches}')
@@ -772,9 +772,9 @@ def detect_landmarks(cfg, time_report, logger, dir_home, Project, batch, n_batch
     landmarks_partial_leaves_overlay = {}
 
     if landmark_whole_leaves:
-        run_landmarks(cfg, logger, show_all_logs, dir_home, Project, batch, n_batches, Dirs, 'Landmarks_Whole_Leaves', segmentation_complete)
+        run_landmarks(cfg, logger, show_all_logs, dir_home, ProjectSQL, batch, n_batches, Batch_Names, Dirs, 'Landmarks_Whole_Leaves', segmentation_complete)
     if landmark_partial_leaves:
-        run_landmarks(cfg, logger, show_all_logs, dir_home, Project, batch, n_batches, Dirs, 'Landmarks_Partial_Leaves', segmentation_complete)
+        run_landmarks(cfg, logger, show_all_logs, dir_home, ProjectSQL, batch, n_batches, Batch_Names, Dirs, 'Landmarks_Partial_Leaves', segmentation_complete)
 
     # if cfg['leafmachine']['leaf_segmentation']['segment_whole_leaves']:
     #     landmarks_whole_leaves_props_batch, landmarks_whole_leaves_overlay_batch = run_landmarks(Instance_Detector_Whole, Project.project_data_list[batch], 0, 
@@ -791,7 +791,7 @@ def detect_landmarks(cfg, time_report, logger, dir_home, Project, batch, n_batch
     t_land = f"[Batch {batch+1}/{n_batches}: Landmark Detection elapsed time] {round(end_t - start_t)} seconds ({round((end_t - start_t)/60)} minutes)"
     logger.info(t_land)
     time_report['t_land'] = t_land
-    return Project, time_report
+    return time_report
 
 
 def detect_armature(cfg, logger, dir_home, Project, batch, n_batches, Dirs, segmentation_complete):
@@ -898,64 +898,49 @@ def run_armature(cfg, logger, dir_home, Project, batch, n_batches, Dirs, leaf_ty
     return Project
 
 
-def run_landmarks(cfg, logger, show_all_logs, dir_home, Project, batch, n_batches, Dirs, leaf_type, segmentation_complete):
+def run_landmarks(cfg, logger, show_all_logs, dir_home, ProjectSQL, batch, n_batches, Batch_Names, Dirs, leaf_type, segmentation_complete):
     use_existing_landmark_detections = cfg['leafmachine']['landmark_detector']['use_existing_landmark_detections']
-    
+    conn = sqlite3.connect(ProjectSQL.database)
+    cur = conn.cursor()
+
+
     if use_existing_landmark_detections is None:
         logger.info('Detecting landmarks from scratch')
+
         if leaf_type == 'Landmarks_Whole_Leaves':
-            dir_overlay = os.path.join(Dirs.landmarks_whole_leaves_overlay, ''.join(['batch_',str(batch+1)]))
+            dir_overlay = os.path.join(Dirs.landmarks_whole_leaves_overlay, f'batch_{batch+1}')
+            dict_from = 'Whole_Leaf_Cropped'
+            dir_leaves = Dirs.whole_leaves
         elif leaf_type == 'Landmarks_Partial_Leaves':
-            dir_overlay = os.path.join(Dirs.landmarks_partial_leaves_overlay, ''.join(['batch_',str(batch+1)]))
+            dir_overlay = os.path.join(Dirs.landmarks_partial_leaves_overlay, f'batch_{batch+1}')
+            dict_from = 'Partial_Leaf_Cropped'
+            dir_leaves = Dirs.partial_leaves
 
-        # if not segmentation_complete: # If segmentation was run, then don't redo the unpack, just do the crop into the temp folder
-        if leaf_type == 'Landmarks_Whole_Leaves':
-            Project.project_data_list[batch] = unpack_class_from_components(Project.project_data_list[batch], 0, 'Whole_Leaf_BBoxes_YOLO', 'Whole_Leaf_BBoxes', Project)
-            Project.project_data_list[batch], dir_temp = crop_images_to_bbox(Project.project_data_list[batch], 0, 'Whole_Leaf_Cropped', "Whole_Leaf_BBoxes", Project, Dirs)
+        # Retrieve cropped images from the SQL database
+        placeholders = ','.join(['?'] * len(Batch_Names))
+        cur.execute(f"SELECT crop_name, cropped_image FROM {dict_from} WHERE file_name IN (SELECT name FROM images WHERE name IN ({placeholders}))", Batch_Names)
+        crops = cur.fetchall()
 
-        elif leaf_type == 'Landmarks_Partial_Leaves':
-            Project.project_data_list[batch] = unpack_class_from_components(Project.project_data_list[batch], 1, 'Partial_Leaf_BBoxes_YOLO', 'Partial_Leaf_BBoxes', Project)
-            Project.project_data_list[batch], dir_temp = crop_images_to_bbox(Project.project_data_list[batch], 1, 'Partial_Leaf_Cropped', "Partial_Leaf_BBoxes", Project, Dirs)
-        # else:
-        #     if leaf_type == 'Landmarks_Whole_Leaves':
-        #         Project.project_data_list[batch], dir_temp = crop_images_to_bbox(Project.project_data_list[batch], 0, 'Whole_Leaf_Cropped', "Whole_Leaf_BBoxes", Project, Dirs)
-        #     elif leaf_type == 'Landmarks_Partial_Leaves':
-        #         Project.project_data_list[batch], dir_temp = crop_images_to_bbox(Project.project_data_list[batch], 1, 'Partial_Leaf_Cropped', "Partial_Leaf_BBoxes", Project, Dirs)
-
-        # Weights folder base
-        dir_weights = os.path.join(dir_home, 'leafmachine2', 'component_detector','runs','train')
-        
-        # Detection threshold
-        threshold = cfg['leafmachine']['landmark_detector']['minimum_confidence_threshold']
-
-        detector_version = cfg['leafmachine']['landmark_detector']['detector_version']
-        detector_iteration = cfg['leafmachine']['landmark_detector']['detector_iteration']
-        detector_weights = cfg['leafmachine']['landmark_detector']['detector_weights']
-        weights =  os.path.join(dir_weights,'Landmark_Detector_YOLO',detector_version,detector_iteration,'weights',detector_weights)
-
-        do_save_prediction_overlay_images = not cfg['leafmachine']['landmark_detector']['do_save_prediction_overlay_images']
-        ignore_objects = cfg['leafmachine']['landmark_detector']['ignore_objects_for_overlay']
-        ignore_objects = ignore_objects or []
-        if cfg['leafmachine']['project']['num_workers'] is None:
-            num_workers = 1
-        else:
-            num_workers = int(cfg['leafmachine']['project']['num_workers'])
-
-        has_images = False
-        if len(os.listdir(dir_temp)) > 0:
+        if len(crops) > 0:
             has_images = True
-            # run(weights = weights,
-            #     source = dir_temp,
-            #     project = dir_overlay,
-            #     name = Dirs.run_name,
-            #     imgsz = (1280, 1280),
-            #     nosave = do_save_prediction_overlay_images,
-            #     anno_type = 'Landmark_Detector_YOLO',
-            #     conf_thres = threshold, 
-            #     line_thickness = 2,
-            #     ignore_objects_for_overlay = ignore_objects,
-            #     mode = 'Landmark')
-            source = dir_temp
+
+            # Continue with the landmark detection as before
+
+            # Weights folder base
+            dir_weights = os.path.join(dir_home, 'leafmachine2', 'component_detector', 'runs', 'train')
+            
+            # Detection threshold
+            threshold = cfg['leafmachine']['landmark_detector']['minimum_confidence_threshold']
+            detector_version = cfg['leafmachine']['landmark_detector']['detector_version']
+            detector_iteration = cfg['leafmachine']['landmark_detector']['detector_iteration']
+            detector_weights = cfg['leafmachine']['landmark_detector']['detector_weights']
+            weights = os.path.join(dir_weights, 'Landmark_Detector_YOLO', detector_version, detector_iteration, 'weights', detector_weights)
+
+            do_save_prediction_overlay_images = not cfg['leafmachine']['landmark_detector']['do_save_prediction_overlay_images']
+            ignore_objects = cfg['leafmachine']['landmark_detector']['ignore_objects_for_overlay'] or []
+            num_workers = int(cfg['leafmachine']['project']['num_workers'] or 1)
+
+            source = dir_leaves
             project = dir_overlay
             name = Dirs.run_name
             imgsz = (1280, 1280)
@@ -963,75 +948,185 @@ def run_landmarks(cfg, logger, show_all_logs, dir_home, Project, batch, n_batche
             anno_type = 'Landmark_Detector'
             conf_thres = threshold
             line_thickness = 2
-            ignore_objects_for_overlay = ignore_objects
             mode = 'Landmark'
             LOGGER = logger
 
-            # Initialize a Lock object to ensure thread safety
             lock = Lock()
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-                futures = [executor.submit(run_in_parallel, weights, source, project, name, imgsz, nosave, anno_type,
-                                        conf_thres, line_thickness, ignore_objects_for_overlay, mode, LOGGER, show_all_logs, i, num_workers) for i in
-                        range(num_workers)]
-                for future in concurrent.futures.as_completed(futures):
+            with ThreadPoolExecutor(max_workers=num_workers) as executor:
+                futures = [
+                    executor.submit(
+                        run_in_parallel, weights, source, project, name, imgsz, nosave, anno_type,
+                        conf_thres, line_thickness, ignore_objects, mode, LOGGER, show_all_logs, i, num_workers
+                    ) for i in range(num_workers)
+                ]
+                for future in futures:
                     try:
-                        _ = future.result()
+                        future.result()
                     except Exception as e:
                         logger.error(f'Error in thread: {e}')
                         continue
 
             with lock:
                 if has_images:
-                    dimensions_dict = get_cropped_dimensions(dir_temp)
-                    A = add_to_dictionary_from_txt(cfg, logger, show_all_logs, Dirs, leaf_type, os.path.join(dir_overlay, 'labels'), leaf_type, Project, dimensions_dict, dir_temp, batch, n_batches)
+                    dimensions_dict = get_cropped_dimensions(dir_leaves)
+                    add_landmarks_to_sql(cur, cfg, logger, show_all_logs, Dirs, leaf_type, os.path.join(dir_overlay, 'labels'), dimensions_dict, dir_leaves, batch, n_batches)
                 else:
-                    # TODO add empty placeholder to the image data
+                    # TODO: Handle case with no images
                     pass
     else:
-        logger.info('Loading existing landmark annotations')
-        dir_temp = os.path.join(use_existing_landmark_detections, f'batch_{str(batch+1)}', 'labels')
-        dimensions_dict = get_cropped_dimensions(dir_temp)
-        A = add_to_dictionary_from_txt(cfg, logger, Dirs, leaf_type, use_existing_landmark_detections, leaf_type, Project, dimensions_dict, dir_temp, batch, n_batches)
+        logger.error('LOADING existing ANNOTATIONS IS NOT SUPPORTED YET')
+        # logger.info('Loading existing landmark annotations')
+        # dir_temp = os.path.join(use_existing_landmark_detections, f'batch_{batch+1}', 'labels')
+        # dimensions_dict = get_cropped_dimensions(dir_temp)
+        # add_landmarks_to_sql(cur, cfg, logger, show_all_logs, Dirs, leaf_type, use_existing_landmark_detections, dimensions_dict, dir_temp, batch, n_batches)
 
-    
-    # delete the temp dir
-    try:
-        shutil.rmtree(dir_temp)
-    except:
-        try:
-            time.sleep(5)
-            shutil.rmtree(dir_temp)
-        except:
-            try:
-                time.sleep(5)
-                shutil.rmtree(dir_temp)
-            except:
-                pass
+    '''in the non-sql version this cropped the leaves to a temp folder that we then delete'''
+    # # delete the temp dir
+    # try:
+    #     shutil.rmtree(dir_temp)
+    # except:
+    #     try:
+    #         time.sleep(5)
+    #         shutil.rmtree(dir_temp)
+    #     except:
+    #         try:
+    #             time.sleep(5)
+    #             shutil.rmtree(dir_temp)
+    #         except:
+    #             pass
 
     torch.cuda.empty_cache()
+    conn.close()
 
-    return Project
-    '''def add_to_dictionary_from_txt(cfg, Dirs, leaf_type, dir_components, component, Project, dimensions_dict, dir_temp):
-    # dict_labels = {}
-    for file in os.listdir(dir_components):
+
+def convert_ndarray_to_list(d):
+    """Recursively convert numpy data types to Python native types in a nested dictionary or list."""
+    if isinstance(d, dict):
+        return {k: convert_ndarray_to_list(v) for k, v in d.items()}
+    elif isinstance(d, list):
+        return [convert_ndarray_to_list(v) for v in d]
+    elif isinstance(d, np.ndarray):
+        return d.tolist()
+    elif isinstance(d, (np.integer, np.int32, np.int64)):
+        return int(d)
+    elif isinstance(d, (np.floating, np.float32, np.float64)):
+        return float(d)
+    elif isinstance(d, np.bool_):
+        return bool(d)
+    else:
+        return d
+
+def add_landmarks_to_sql(cur, cfg, logger, show_all_logs, Dirs, leaf_type, dir_labels, dimensions_dict, dir_temp, batch, n_batches):
+    dpi = cfg['leafmachine']['overlay']['overlay_dpi']
+    conn = cur.connection  # Ensure you have the connection object
+    fig = plt.figure(figsize=(8.27, 11.69), dpi=dpi)  # A4 size, 300 dpi
+    row, col = 0, 0
+
+    for file in os.listdir(dir_labels):
         file_name = str(file.split('.')[0])
         file_name_parent = file_name.split('__')[0]
-        Project.project_data[file_name_parent][component] = {}
+
+        # Fetch image dimensions from the provided dictionary
+        if file_name in dimensions_dict:
+            height, width = dimensions_dict[file_name]
+        else:
+            height, width = None, None  # Handle missing dimensions gracefully
 
         if file.endswith(".txt"):
-            with open(os.path.join(dir_components, file), "r") as f:
+            with open(os.path.join(dir_labels, file), "r") as f:
                 all_points = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
-                Project.project_data[file_name_parent][component][file_name] = all_points
-                
-                height = dimensions_dict[file_name][0]
-                width = dimensions_dict[file_name][1]
 
-                Leaf_Skeleton = LeafSkeleton(cfg, Dirs, leaf_type, all_points, height, width, dir_temp, file_name)
-                QC_add = Leaf_Skeleton.get_QC()'''
+                # Create LeafSkeleton object
+                Leaf_Skeleton = LeafSkeleton(cfg, logger, show_all_logs, Dirs, leaf_type, all_points, height, width, dir_temp, file_name)
+
+                # Convert numpy objects to JSON serializable formats
+                apex_center_serializable = convert_ndarray_to_list(Leaf_Skeleton.apex_center)
+                base_center_serializable = convert_ndarray_to_list(Leaf_Skeleton.base_center)
+                lamina_tip_serializable = convert_ndarray_to_list(Leaf_Skeleton.lamina_tip)
+                lamina_base_serializable = convert_ndarray_to_list(Leaf_Skeleton.lamina_base)
+                lamina_fit_serializable = convert_ndarray_to_list(Leaf_Skeleton.lamina_fit)
+                width_left_serializable = convert_ndarray_to_list(Leaf_Skeleton.width_left)
+                width_right_serializable = convert_ndarray_to_list(Leaf_Skeleton.width_right)
+                lobes_serializable = convert_ndarray_to_list(Leaf_Skeleton.lobes)
+                midvein_fit_serializable = convert_ndarray_to_list(Leaf_Skeleton.midvein_fit)
+                midvein_fit_points_serializable = convert_ndarray_to_list(Leaf_Skeleton.midvein_fit_points)
+                ordered_midvein_serializable = convert_ndarray_to_list(Leaf_Skeleton.ordered_midvein)
+                ordered_petiole_serializable = convert_ndarray_to_list(Leaf_Skeleton.ordered_petiole)
+
+                # Ensure that `None` values are replaced with a default value
+                values = [
+                    file_name_parent, 
+                    json.dumps(convert_ndarray_to_list(Leaf_Skeleton.all_points)) or '[]',
+                    height if height is not None else None,
+                    width if width is not None else None,
+                    json.dumps(apex_center_serializable) if apex_center_serializable is not None else None,
+                    Leaf_Skeleton.apex_angle_degrees if Leaf_Skeleton.apex_angle_degrees is not None else None,
+                    json.dumps(base_center_serializable) if base_center_serializable is not None else None,
+                    Leaf_Skeleton.base_angle_degrees if Leaf_Skeleton.base_angle_degrees is not None else None,
+                    json.dumps(lamina_tip_serializable) if lamina_tip_serializable is not None else None,
+                    json.dumps(lamina_base_serializable) if lamina_base_serializable is not None else None,
+                    Leaf_Skeleton.lamina_length if Leaf_Skeleton.lamina_length is not None else None,
+                    json.dumps(lamina_fit_serializable) if lamina_fit_serializable is not None else None,
+                    Leaf_Skeleton.lamina_width if Leaf_Skeleton.lamina_width is not None else None,
+                    json.dumps(width_left_serializable) if width_left_serializable is not None else None,
+                    json.dumps(width_right_serializable) if width_right_serializable is not None else None,
+                    Leaf_Skeleton.lobe_count if Leaf_Skeleton.lobe_count is not None else None,
+                    json.dumps(lobes_serializable) if lobes_serializable is not None else None,
+                    json.dumps(midvein_fit_serializable) if midvein_fit_serializable is not None else None,
+                    json.dumps(midvein_fit_points_serializable) if midvein_fit_points_serializable is not None else None,
+                    json.dumps(ordered_midvein_serializable) if ordered_midvein_serializable is not None else None,
+                    Leaf_Skeleton.ordered_midvein_length if Leaf_Skeleton.ordered_midvein_length is not None else None,
+                    Leaf_Skeleton.has_midvein if Leaf_Skeleton.has_midvein is not None else None,
+                    json.dumps(ordered_petiole_serializable) if ordered_petiole_serializable is not None else None,
+                    Leaf_Skeleton.ordered_petiole_length if Leaf_Skeleton.ordered_petiole_length is not None else None,
+                    Leaf_Skeleton.has_ordered_petiole if Leaf_Skeleton.has_ordered_petiole is not None else None,
+                    Leaf_Skeleton.is_split if Leaf_Skeleton.is_split is not None else None,
+                    Leaf_Skeleton.has_apex if Leaf_Skeleton.has_apex is not None else None,
+                    Leaf_Skeleton.has_base if Leaf_Skeleton.has_base is not None else None,
+                    Leaf_Skeleton.has_lamina_tip if Leaf_Skeleton.has_lamina_tip is not None else None,
+                    Leaf_Skeleton.has_lamina_base if Leaf_Skeleton.has_lamina_base is not None else None,
+                    Leaf_Skeleton.has_lamina_length if Leaf_Skeleton.has_lamina_length is not None else None,
+                    Leaf_Skeleton.has_width if Leaf_Skeleton.has_width is not None else None,
+                    Leaf_Skeleton.has_lobes if Leaf_Skeleton.has_lobes is not None else None,
+                    Leaf_Skeleton.is_complete_leaf if Leaf_Skeleton.is_complete_leaf is not None else None,
+                    Leaf_Skeleton.is_leaf_no_width if Leaf_Skeleton.is_leaf_no_width is not None else None
+                ]
+
+                # Insert data into the database
+                cur.execute(f"""
+                    INSERT INTO {leaf_type} 
+                    (file_name, all_points, height, width, 
+                    apex_center, apex_angle_degrees, 
+                    base_center, base_angle_degrees, 
+                    lamina_tip, lamina_base, lamina_length, 
+                    lamina_fit, lamina_width, width_left, width_right, 
+                    lobe_count, lobes, 
+                    midvein_fit, midvein_fit_points, ordered_midvein, ordered_midvein_length, has_midvein,
+                    ordered_petiole, ordered_petiole_length, has_ordered_petiole, 
+                    is_split, has_apex, has_base, 
+                    has_lamina_tip, has_lamina_base, has_lamina_length, 
+                    has_width, has_lobes, is_complete_leaf, is_leaf_no_width)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, values)
+
+                # Visualize the results (optional)
+                # final_add = cv2.cvtColor(Leaf_Skeleton.get_final(), cv2.COLOR_BGR2RGB)
+                # ax = fig.add_subplot(5, 3, row * 3 + col + 1)
+                # ax.imshow(final_add)
+                # ax.axis('off')
+
+                # col += 1
+                # if col == 3:
+                #     col = 0
+                #     row += 1
+                # if row == 5:
+                #     row = 0
+                #     fig = plt.figure(figsize=(8.27, 11.69), dpi=300)  # Create a new page
+
+    conn.commit()
 
 
-    return Project.project_data
 
 def add_to_dictionary_from_txt_armature(cfg, logger, Dirs, leaf_type, dir_components, component, Project, dimensions_dict, dir_temp, batch, n_batches):
     dpi = cfg['leafmachine']['overlay']['overlay_dpi']
@@ -1089,7 +1184,70 @@ def add_to_dictionary_from_txt_armature(cfg, logger, Dirs, leaf_type, dir_compon
         if row != 0 or col != 0:
             pdf.savefig(fig)  # Save the remaining images on the last page
 
-def add_to_dictionary_from_txt(cfg, logger, show_all_logs, Dirs, leaf_type, dir_components, component, Project, dimensions_dict, dir_temp, batch, n_batches):
+
+def save_leaf_skeleton_to_sql(cur, leaf_skeleton, file_name, crop_name):
+    """
+    Save the data from a LeafSkeleton object to the SQL database.
+    """
+    data_to_save = {
+        'ordered_midvein': json.dumps(leaf_skeleton.ordered_midvein),
+        'ordered_midvein_length': leaf_skeleton.ordered_midvein_length,
+        'ordered_petiole': json.dumps(leaf_skeleton.ordered_petiole),
+        'ordered_petiole_length': leaf_skeleton.ordered_petiole_length,
+        'apex_center': json.dumps(leaf_skeleton.apex_center),
+        'apex_angle_degrees': leaf_skeleton.apex_angle_degrees,
+        'base_center': json.dumps(leaf_skeleton.base_center),
+        'base_angle_degrees': leaf_skeleton.base_angle_degrees,
+        'lamina_tip': json.dumps(leaf_skeleton.lamina_tip),
+        'lamina_base': json.dumps(leaf_skeleton.lamina_base),
+        'lamina_length': leaf_skeleton.lamina_length,
+        'lamina_width': leaf_skeleton.lamina_width,
+        'width_left': json.dumps(leaf_skeleton.width_left),
+        'width_right': json.dumps(leaf_skeleton.width_right),
+        'lobe_count': leaf_skeleton.lobe_count,
+        'lobes': json.dumps(leaf_skeleton.lobes),
+        'is_split': leaf_skeleton.is_split,
+        'is_complete_leaf': leaf_skeleton.is_complete_leaf,
+        'is_leaf_no_width': leaf_skeleton.is_leaf_no_width
+    }
+
+    cur.execute("""
+        INSERT INTO LeafSkeleton (
+            file_name, crop_name, leaf_type, ordered_midvein, ordered_midvein_length,
+            ordered_petiole, ordered_petiole_length, apex_center, apex_angle_degrees,
+            base_center, base_angle_degrees, lamina_tip, lamina_base, lamina_length,
+            lamina_width, width_left, width_right, lobe_count, lobes,
+            is_split, is_complete_leaf, is_leaf_no_width
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        file_name,
+        crop_name,
+        leaf_skeleton.leaf_type,
+        data_to_save['ordered_midvein'],
+        data_to_save['ordered_midvein_length'],
+        data_to_save['ordered_petiole'],
+        data_to_save['ordered_petiole_length'],
+        data_to_save['apex_center'],
+        data_to_save['apex_angle_degrees'],
+        data_to_save['base_center'],
+        data_to_save['base_angle_degrees'],
+        data_to_save['lamina_tip'],
+        data_to_save['lamina_base'],
+        data_to_save['lamina_length'],
+        data_to_save['lamina_width'],
+        data_to_save['width_left'],
+        data_to_save['width_right'],
+        data_to_save['lobe_count'],
+        data_to_save['lobes'],
+        data_to_save['is_split'],
+        data_to_save['is_complete_leaf'],
+        data_to_save['is_leaf_no_width']
+    ))
+
+    # Commit the transaction
+    cur.connection.commit()
+    '''
+def add_to_dictionary_from_txt(cfg, logger, show_all_logs, Dirs, leaf_type, dir_components, component, ProjectSQL, dimensions_dict, dir_temp, batch, n_batches):
     dpi = cfg['leafmachine']['overlay']['overlay_dpi']
     if leaf_type == 'Landmarks_Whole_Leaves':
         logger.info(f'Detecting landmarks whole leaves')
@@ -1131,7 +1289,9 @@ def add_to_dictionary_from_txt(cfg, logger, show_all_logs, Dirs, leaf_type, dir_
                     width = dimensions_dict[file_name][1]
 
                     Leaf_Skeleton = LeafSkeleton(cfg, logger, show_all_logs, Dirs, leaf_type, all_points, height, width, dir_temp, file_name)
-                    Project = add_leaf_skeleton_to_project(cfg, logger, Project, batch, file_name_parent, component, Dirs, leaf_type, all_points, height, width, dir_temp, file_name, Leaf_Skeleton)
+                    # Project = add_leaf_skeleton_to_project(cfg, logger, Project, batch, file_name_parent, component, Dirs, leaf_type, all_points, height, width, dir_temp, file_name, Leaf_Skeleton)
+                    save_leaf_skeleton_to_sql(ProjectSQL.conn.cursor(), Leaf_Skeleton, file_name_parent, file_name)
+
                     final_add = cv2.cvtColor(Leaf_Skeleton.get_final(), cv2.COLOR_BGR2RGB)
 
                     # Add image to the current subplot
@@ -1154,6 +1314,7 @@ def add_to_dictionary_from_txt(cfg, logger, show_all_logs, Dirs, leaf_type, dir_
         #     pdf.savefig(fig)  # Save the remaining images on the last page
 
     ### QC
+    '''
     '''do_save_QC_pdf = False # TODO refine this
     if do_save_QC_pdf:
         # dict_labels = {}
