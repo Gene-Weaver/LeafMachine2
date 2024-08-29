@@ -20,6 +20,7 @@ def build_model(cfg):
     """
     meta_arch = cfg.MODEL.META_ARCHITECTURE
     model = META_ARCH_REGISTRY.get(meta_arch)(cfg)
-    model.to(torch.device(cfg.MODEL.DEVICE))
+    model.to(torch.device(cfg.MODEL.DEVICE))  # or model.to(torch.device('cpu’)) for CPU only.
+                                              # This is not recommended and can reduce functionality.
     _log_api_usage("modeling.meta_arch." + meta_arch)
     return model
