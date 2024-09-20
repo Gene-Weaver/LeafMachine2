@@ -22,8 +22,8 @@ from ultralytics.utils import DEFAULT_CFG, LOGGER, MACOS, WINDOWS, callbacks, co
 from ultralytics.utils.checks import check_imgsz, check_imshow
 from ultralytics.utils.files import increment_path
 from ultralytics.utils.torch_utils import select_device, smart_inference_mode
-from gtda.homology import VietorisRipsPersistence
-from gtda.plotting import plot_diagram
+# from gtda.homology import VietorisRipsPersistence
+# from gtda.plotting import plot_diagram
 
 currentdir = os.path.dirname(inspect.getfile(inspect.currentframe()))
 parentdir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(currentdir))))))
@@ -394,6 +394,8 @@ class PosePredictor(DetectionPredictor):
 
 
     def process_images_run(self, batch, filename, img_rgb):
+        self.metadata = {}
+        
         self.run_callbacks('on_predict_batch_start')
 
         # Preprocess
@@ -511,6 +513,28 @@ class PosePredictor(DetectionPredictor):
         return (255, 255, 255), 5, 0
             
     def calc_angle(self, keypoints, img_rgb):
+        def calculate_distance(point1, point2):
+            return np.linalg.norm(np.array(point1) - np.array(point2))
+        
+        def is_valid_point(point):
+            """Check if a point is valid (not hidden)."""
+            return isinstance(point, (list, np.ndarray)) and not np.all(np.isclose(point, [0.0, 0.0]))
+
+        def calculate_valid_distance(point1, point2):
+            if is_valid_point(point1) and is_valid_point(point2):
+                return calculate_distance(point1, point2)
+            else:
+                return None
+
+        def find_lowest_highest_points(points):
+            """Find the lowest and highest valid points in a list based on their y-coordinate."""
+            valid_points = [(i, p) for i, p in enumerate(points) if is_valid_point(p)]
+            if not valid_points:
+                return None, None  # If no valid points, return None
+            # Sort by y-coordinate (index 1)
+            sorted_by_y = sorted(valid_points, key=lambda x: x[1][1])
+            return sorted_by_y[0], sorted_by_y[-1]  # Return (lowest, highest)
+    
         do_width = False
         
         keypoint_measurements = {
@@ -532,13 +556,28 @@ class PosePredictor(DetectionPredictor):
         apex_center = keypoints[2]
         apex_right = keypoints[3]
         midvein_0 = keypoints[4]
+        midvein_1 = keypoints[5]
+        midvein_2 = keypoints[6]
+        midvein_3 = keypoints[7]
+        midvein_4 = keypoints[8]
+        midvein_5 = keypoints[9]
+        midvein_6 = keypoints[10]
         midvein_7 = keypoints[11]
+        midvein_8 = keypoints[12]
+        midvein_9 = keypoints[13]
+        midvein_10 = keypoints[14]
+        midvein_11 = keypoints[15]
+        midvein_12 = keypoints[16]
+        midvein_13 = keypoints[17]
         midvein_14 = keypoints[18]
         base_left = keypoints[19]
         base_center = keypoints[20]
         base_right = keypoints[21]
         lamina_base = keypoints[22]
         petiole_0 = keypoints[23]
+        petiole_1 = keypoints[24]
+        petiole_2 = keypoints[25]
+        petiole_3 = keypoints[26]
         petiole_4 =keypoints[27]
         petiole_tip = keypoints[28]
         width_left = keypoints[29]
@@ -547,22 +586,62 @@ class PosePredictor(DetectionPredictor):
         midvein_points = [keypoints[i] for i in range(4, 19)]  # midvein_0 to midvein_14
         petiole_points = [keypoints[i] for i in range(23, 28)]  # petiole_0 to petiole_4
 
-        def calculate_distance(point1, point2):
-            return np.linalg.norm(np.array(point1) - np.array(point2))
+        ### Make sure that the orientation algorithm still gets points
+        # Find the valid lowest and highest midvein points
+        midvein_lowest, midvein_highest = find_lowest_highest_points(midvein_points)
+        if midvein_lowest and midvein_highest:
+            midvein_0_index, midvein_0 = midvein_lowest  # New midvein_0
+            midvein_14_index, midvein_14 = midvein_highest  # New midvein_14
+            # Reassign the keypoints based on the new found lowest and highest
+            midvein_0 = midvein_points[midvein_0_index]
+            midvein_14 = midvein_points[midvein_14_index]
+        else:
+            pass #raise ValueError("No valid midvein points found")
+
+        # Find the valid lowest and highest petiole points
+        petiole_lowest, petiole_highest = find_lowest_highest_points(petiole_points)
+        if petiole_lowest and petiole_highest:
+            petiole_0_index, petiole_0 = petiole_lowest  # New petiole_0
+            petiole_4_index, petiole_4 = petiole_highest  # New petiole_4
+            petiole_0 = petiole_points[petiole_0_index]
+            petiole_4 = petiole_points[petiole_4_index]
+        else:
+            pass #raise ValueError("No valid petiole points found")
+
         
+
+
+        # Check if lamina_tip, lamina_base, or petiole_tip are missing and reassign them
+        if not is_valid_point(keypoints[0]):  # lamina_tip
+            keypoints[0] = midvein_0
+            lamina_tip = midvein_0
+        if not is_valid_point(keypoints[22]):  # lamina_base
+            keypoints[22] = midvein_14
+            lamina_base = midvein_14
+        if not is_valid_point(keypoints[28]):  # petiole_tip
+            keypoints[28] = petiole_4
+            petiole_tip = petiole_4
+
+
+
         # Calculate distances for specified points
-        distance_lamina = calculate_distance(lamina_tip, lamina_base)
-        distance_width = calculate_distance(width_left, width_right)
-        distance_petiole = calculate_distance(lamina_base, petiole_tip)
-        distance_midvein_span = calculate_distance(midvein_0, midvein_14)
-        distance_petiole_span = calculate_distance(petiole_0, petiole_4)
+        distance_lamina = calculate_valid_distance(lamina_tip, lamina_base)
+        distance_width = calculate_valid_distance(width_left, width_right)
+        distance_petiole = calculate_valid_distance(lamina_base, petiole_tip)
+        distance_midvein_span = calculate_valid_distance(midvein_0, midvein_14)
+        distance_petiole_span = calculate_valid_distance(petiole_0, petiole_4)
+
 
         # Calculate sequential distances for midvein points
-        midvein_distances = [calculate_distance(midvein_points[i], midvein_points[i + 1]) for i in range(len(midvein_points) - 1)]
+        # Remove invalid points from midvein_points
+        valid_midvein_points = [pt for pt in midvein_points if is_valid_point(pt)]
+        midvein_distances = [calculate_distance(valid_midvein_points[i], valid_midvein_points[i + 1]) for i in range(len(valid_midvein_points) - 1)]
         trace_midvein_distance = sum(midvein_distances)
 
         # Calculate sequential distances for petiole points
-        petiole_distances = [calculate_distance(petiole_points[i], petiole_points[i + 1]) for i in range(len(petiole_points) - 1)]
+        # Remove invalid points from petiole_points
+        valid_petiole_points = [pt for pt in petiole_points if is_valid_point(pt)]
+        petiole_distances = [calculate_distance(valid_petiole_points[i], valid_petiole_points[i + 1]) for i in range(len(valid_petiole_points) - 1)]
         trace_petiole_distance = sum(petiole_distances)
 
         def determine_angles(point1, center_point, point2, reference_point):
@@ -581,8 +660,15 @@ class PosePredictor(DetectionPredictor):
             mag1 = np.linalg.norm(vector1)
             mag2 = np.linalg.norm(vector2)
 
+            # Safely clamp the value to the range [-1, 1] before calculating arccos
+            # Check if either magnitude is zero before the division
+            if mag1 == 0 or mag2 == 0:
+                cos_theta = 0.0  # You can decide on the appropriate fallback value
+            else:
+                cos_theta = np.clip(dot_prod / (mag1 * mag2), -1.0, 1.0)
+                
             # Calculate angle in radians and then convert to degrees
-            angle_rad = np.arccos(dot_prod / (mag1 * mag2))
+            angle_rad = np.arccos(cos_theta)
             angle_deg = np.degrees(angle_rad)
 
             # Determine if it is a reflex angle

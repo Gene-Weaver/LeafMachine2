@@ -17,6 +17,8 @@ import threading
 from scipy.ndimage import binary_erosion, rotate
 from tqdm import tqdm
 import multiprocessing
+from queue import Empty
+
 currentdir = os.path.dirname(inspect.getfile(inspect.currentframe()))
 parentdir1 = os.path.dirname(os.path.dirname(currentdir))
 parentdir2 = os.path.dirname(os.path.dirname(os.path.dirname(currentdir)))
@@ -27,32 +29,87 @@ from measure_leaf_segmentation import polygon_properties
 from detector import Detector_LM2
 from leafmachine2.keypoint_detector.ultralytics.models.yolo.pose.predict_direct import PosePredictor
 from leafmachine2.segmentation.detectron2.segment_utils import get_largest_polygon, keep_rows, get_string_indices
+from leafmachine2.machine.LM2_logger import initialize_logger_for_parallel_processes
+from leafmachine2.machine.data_project_sql import get_database_path, test_sql
 
 def segment_leaves(cfg, time_report, logger, dir_home, ProjectSQL, batch, n_batches, batch_filenames, Dirs): 
-
     start_t = perf_counter()
     logger.name = f'[BATCH {batch+1} Segment Leaves]'
     logger.info(f'Segmenting leaves for batch {batch+1} of {n_batches}')
 
-    # batch_size = cfg['leafmachine']['project']['batch_size']
-    if cfg['leafmachine']['project']['num_workers_seg'] is None:
-        num_workers = 1
+    loop_start_t = perf_counter()  # Start timing the for loop
+
+    # Number of worker processes for reading and processing data
+    num_workers = int(cfg['leafmachine']['project'].get('num_workers_seg', 1))
+    if cfg['leafmachine']['project']['device'] == 'cuda':
+        num_gpus = int(cfg['leafmachine']['project'].get('num_gpus', 1))  # Default to 1 GPU if not specified
+        device_list = [f'cuda:{i}' for i in range(num_gpus)]
     else:
-        num_workers = int(cfg['leafmachine']['project']['num_workers_seg'])
+        device_list = ['cpu']  # Default to CPU if CUDA is not available
+    
+    dict_name_yolo = ['Whole_Leaf_BBoxes_YOLO', 'Partial_Leaf_BBoxes_YOLO']
+    dict_name_location = ['Whole_Leaf_BBoxes', 'Partial_Leaf_BBoxes']
+    dict_name_cropped = ['Whole_Leaf_Cropped', 'Partial_Leaf_Cropped']
 
-    for filename in batch_filenames:
-        # Unpack classes from components and store them in the SQL database
-        unpack_class_from_components(ProjectSQL, filename, 0, 'Whole_Leaf_BBoxes_YOLO', 'Whole_Leaf_BBoxes')
-        unpack_class_from_components(ProjectSQL, filename, 1, 'Partial_Leaf_BBoxes_YOLO', 'Partial_Leaf_BBoxes')
+    # Create a manager for shared state
+    manager = multiprocessing.Manager()
+    manager = multiprocessing.Manager()
 
-        # Crop the images to bounding boxes and store the results in the SQL database
-        crop_images_to_bbox(ProjectSQL, filename, 0, 'Whole_Leaf_Cropped', 'Whole_Leaf_BBoxes')
-        crop_images_to_bbox(ProjectSQL, filename, 1, 'Partial_Leaf_Cropped', 'Partial_Leaf_BBoxes')
+    for cls in range(0, 2):
+        # Phase 1: Unpack and insert bounding box data
+        queue = manager.Queue()
+
+        # Start the SQL writer process for phase 1 (bounding boxes)
+        sql_writer_process = multiprocessing.Process(target=sql_writer, args=(ProjectSQL.database, queue, dict_name_location[cls], None))  # None for cropped data in this phase
+        sql_writer_process.start()
+
+        # Use ProcessPoolExecutor for parallel workers (unpacking bounding boxes)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+            futures = [
+                executor.submit(unpack_worker, ProjectSQL.database, ProjectSQL.dir_images, filename, cls, 
+                                dict_name_yolo[cls], dict_name_location[cls], dict_name_cropped[cls], Dirs, queue)
+                for filename in batch_filenames
+            ]
+
+            # Wait for all workers to complete
+            for future in concurrent.futures.as_completed(futures):
+                future.result()  # Check for exceptions
+
+        # Send stop signal to the SQL writer for bounding boxes
+        queue.put(('STOP', None))
+        sql_writer_process.join()
+
+        # Phase 2: After bounding boxes are inserted, crop images based on bounding boxes
+        queue = manager.Queue()
+
+        # Start the SQL writer process for phase 2 (cropping images)
+        sql_writer_process2 = multiprocessing.Process(target=sql_writer, args=(ProjectSQL.database, queue, None, dict_name_cropped[cls]))  # None for bounding boxes in this phase
+        sql_writer_process2.start()
+
+        # Use ProcessPoolExecutor for parallel workers (cropping images)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+            futures = [
+                executor.submit(bbox_worker, ProjectSQL.database, ProjectSQL.dir_images, filename, cls, 
+                                dict_name_yolo[cls], dict_name_location[cls], dict_name_cropped[cls], Dirs, queue)
+                for filename in batch_filenames
+            ]
+
+            # Wait for all workers to complete
+            for future in concurrent.futures.as_completed(futures):
+                future.result()  # Check for exceptions
+
+        # Send stop signal to the SQL writer for cropping images
+        queue.put(('STOP', None))
+        sql_writer_process2.join()
 
 
 
+    # test_sql(get_database_path(ProjectSQL), n_rows=1)
 
-
+    loop_end_t = perf_counter()  # End timing the for loop
+    t_loop = f"[Batch {batch+1}/{n_batches}: Unpacking images for segmentation elapsed time] {round(loop_end_t - loop_start_t)} seconds ({round((loop_end_t - loop_start_t)/60)} minutes)"
+    logger.info(t_loop)
+    time_report['t_unpack_for_segment'] = t_loop
 
     # Run the leaf instance segmentation operations
     # dir_seg_model = os.path.join(dir_home, 'leafmachine2', 'segmentation', 'models',cfg['leafmachine']['leaf_segmentation']['segmentation_model'])
@@ -84,15 +141,12 @@ def segment_leaves(cfg, time_report, logger, dir_home, ProjectSQL, batch, n_batc
 
     if cfg['leafmachine']['leaf_segmentation']['segment_whole_leaves']:
         logger.info(f'Segmenting whole leaves')
-        segment_whole_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers)
+        segment_whole_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers, device_list)
 
     if cfg['leafmachine']['leaf_segmentation']['segment_partial_leaves']:
         logger.info(f'Segmenting partial leaves')
-        segment_partial_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers)
+        segment_partial_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers, device_list)
 
-
-
-    
     end_t = perf_counter()
     # print(f'Batch {batch+1}/{n_batches}: Leaf Segmentation Duration --> {round((end_t - start_t)/60)} minutes')
     t_seg = f"[Batch {batch+1}/{n_batches}: Leaf Segmentation elapsed time] {round(end_t - start_t)} seconds ({round((end_t - start_t)/60)} minutes)"
@@ -100,27 +154,221 @@ def segment_leaves(cfg, time_report, logger, dir_home, ProjectSQL, batch, n_batc
     time_report['t_seg'] = t_seg
     return time_report
 
+# Worker function to process each file
+def unpack_worker(ProjectSQL, dir_images, filename, cls, dict_name_yolo, dict_name_location, dict_name_cropped, Dirs, queue):
+    # Create a new SQLite connection per worker
+    conn = sqlite3.connect(ProjectSQL)
+    cur = conn.cursor()
+    
+    # Unpack classes from components and store the results in a list
+    class_data = unpack_class_from_components(cur, filename, cls)
+
+    # Put the data into the queue for the SQL writer
+    if class_data:
+        queue.put(('bbox', class_data))  # Tag the data
+
+    conn.close()
+
+# Worker function to process each file
+def bbox_worker(ProjectSQL, dir_images, filename, cls, dict_name_yolo, dict_name_location, dict_name_cropped, Dirs, queue):
+    # Create a new SQLite connection per worker
+    conn = sqlite3.connect(ProjectSQL)
+    cur = conn.cursor()
+
+    # Crop the images to bounding boxes and store the results in the list
+    crop_data = crop_images_to_bbox(cur, dir_images, filename, cls, dict_name_location)
+
+    # Put the data into the queue for the SQL writer
+    if crop_data:
+        queue.put(('crop', crop_data))  # Tag the data
+
+    conn.close()
+
+# Function to extract bounding box information from components (returns the data to insert)
+def unpack_class_from_components(cur, filename, cls):
+    data = []
+
+    # Get the width and height from the images table
+    cur.execute("SELECT width, height FROM images WHERE name = ?", (filename,))
+    width, height = cur.fetchone()
+
+    # Retrieve plant annotations for the given filename and class
+    cur.execute("SELECT annotation FROM annotations_plant WHERE file_name = ? AND component = 'Detections_Plant_Components'", (filename,))
+    plant_annotations = cur.fetchall()
+
+    for annotation in plant_annotations:
+        # Process the annotation data to extract bounding box coordinates
+        class_index, x_center, y_center, bbox_width, bbox_height = map(float, annotation[0].split(','))
+        if int(class_index) == cls:
+            x_min = int(x_center * width - (bbox_width * width / 2))
+            y_min = int(y_center * height - (bbox_height * height / 2))
+            x_max = int(x_center * width + (bbox_width * width / 2))
+            y_max = int(y_center * height + (bbox_height * height / 2))
+
+            # Collect the data instead of directly inserting into SQL
+            data.append((filename, cls, x_min, y_min, x_max, y_max))
+
+    return data
+
+# Function to crop images based on bounding box data (returns the data to insert)
+def crop_images_to_bbox(cur, dir_images, filename, cls, dict_from):
+    data = []
+
+    # Retrieve bounding boxes from the SQL database
+    cur.execute(f"SELECT x_min, y_min, x_max, y_max FROM {dict_from} WHERE file_name = ? AND class = ?", (filename, cls))
+    bboxes = cur.fetchall()
+
+    # Try to load the image
+    try:
+        img_path = glob.glob(os.path.join(dir_images, f"{filename}.*"))[0]
+        img = cv2.imread(img_path)
+    except:
+        img = None
+
+    if img is None:
+        return data
+
+    # Process each bounding box and collect cropped image data
+    for bbox in bboxes:
+        x_min, y_min, x_max, y_max = bbox
+        img_crop = img[y_min:y_max, x_min:x_max]
+        loc = '-'.join(map(str, [x_min, y_min, x_max, y_max]))
+        crop_name = f"{filename}__{'L' if cls == 0 else 'PL'}__{loc}"
+
+        # Store the cropped image as a BLOB in the database (collect the data)
+        _, img_encoded = cv2.imencode('.jpg', img_crop)
+        data.append((filename, crop_name, img_encoded.tobytes()))
+
+    return data
+
+# SQL writer function to handle batch inserts from the queue
+def sql_writer(ProjectSQL, queue, dict_name_location, dict_name_cropped):
+    conn = sqlite3.connect(ProjectSQL)
+    cur = conn.cursor()
+
+    bbox_buffer = []
+    crop_buffer = []
+    batch_size = 100
+
+    while True:
+        try:
+            # Retrieve data from the queue
+            tag, data = queue.get()
+
+            # Handle the stop signal
+            if tag == 'STOP':
+                break
+
+            # Buffer data based on its tag (either 'bbox' or 'crop')
+            if tag == 'bbox':
+                bbox_buffer.extend(data)
+            elif tag == 'crop':
+                crop_buffer.extend(data)
+
+            # If the buffer reaches the batch size, perform the insert
+            if len(bbox_buffer) >= batch_size:
+                insert_bbox_data_in_batches(cur, bbox_buffer, dict_name_location)
+                bbox_buffer.clear()
+
+            if len(crop_buffer) >= batch_size:
+                insert_crop_data_in_batches(cur, crop_buffer, dict_name_cropped)
+                crop_buffer.clear()
+
+        except Exception as e:
+            # Log the exception in case of error
+            print(f"Error in SQL writer: {e}")
+            continue
+
+    # Insert any remaining data in the buffer
+    if bbox_buffer:
+        insert_bbox_data_in_batches(cur, bbox_buffer, dict_name_location)
+
+    if crop_buffer:
+        insert_crop_data_in_batches(cur, crop_buffer, dict_name_cropped)
+
+    conn.commit()
+    conn.close()
 
 
-def segment_whole_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers):
+# # Function to insert data in batches
+# def insert_bbox_data_in_batches(cur, data, dict_name_location, dict_name_cropped):
+#     # Prepare insert queries for both Whole_Leaf_BBoxes and Whole_Leaf_Cropped
+#     bbox_data = [row for row in data if len(row) == 6]  # Bounding boxes have 5 fields
+#     crop_data = [row for row in data if len(row) == 3]  # Cropped images have 3 fields
+
+#     # Insert bounding boxes
+#     try:
+#         if bbox_data:
+#             cur.executemany(f"""INSERT INTO {dict_name_location} (file_name, class, x_min, y_min, x_max, y_max) VALUES (?, ?, ?, ?, ?, ?)""",
+#                 bbox_data)
+#     except sqlite3.Error as e:
+#         print(f"Database error: {e}")
+# # cur.execute(f"INSERT INTO {dict_name_location} (file_name, class, x_min, y_min, x_max, y_max) VALUES (?, ?, ?, ?, ?, ?)",
+# #                         (filename, cls, x_min, y_min, x_max, y_max))
+#     # Insert cropped images
+#     try:
+#         if crop_data:
+#             cur.executemany(f"""INSERT INTO {dict_name_cropped} (file_name, crop_name, cropped_image) VALUES (?, ?, ?)""", 
+#                 crop_data)
+#     except sqlite3.Error as e:
+#         print(f"Database error: {e}")
+# #         cur.execute(f"INSERT INTO {dict_name_cropped} (file_name, crop_name, cropped_image) VALUES (?, ?, ?)", 
+# #                     (filename, crop_name, img_encoded.tobytes()))
+#     cur.connection.commit()
+
+
+# Function to insert bounding box data in batches
+def insert_bbox_data_in_batches(cur, bbox_data, dict_name_location):
+    try:
+        if bbox_data:
+            cur.executemany(f'INSERT INTO {dict_name_location} (file_name, class, x_min, y_min, x_max, y_max) VALUES (?, ?, ?, ?, ?, ?)', bbox_data)
+    except sqlite3.Error as e:
+        print(f"Database error during bbox insert: {e}")
+
+
+# Function to insert cropped image data in batches
+def insert_crop_data_in_batches(cur, crop_data, dict_name_cropped):
+    try:
+        if crop_data:
+            cur.executemany(f'INSERT INTO {dict_name_cropped} (file_name, crop_name, cropped_image) VALUES (?, ?, ?)', crop_data)
+    except sqlite3.Error as e:
+        print(f"Database error during crop insert: {e}")
+
+
+
+
+
+
+
+
+
+
+def segment_whole_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers, device_list):
     logger.info(f'Segmenting whole leaves')
 
-    # Split filenames into chunks for each worker
-    chunks = [batch_filenames[i::num_workers] for i in range(num_workers)]
-    
     total_files = len(batch_filenames)
-    
+
+    # Calculate chunk size for even distribution
+    chunk_size = (total_files + num_workers - 1) // num_workers  # Ceiling division
+
+    # Split filenames into chunks, handling remainder
+    chunks = [batch_filenames[i * chunk_size:(i + 1) * chunk_size] for i in range(num_workers - 1)]
+    chunks.append(batch_filenames[(num_workers - 1) * chunk_size:])  # Last chunk handles the remainder
+
     # Create a progress queue to handle progress updates
     progress_queue = multiprocessing.Queue()
 
     # Create a tqdm progress bar in the main process
     with tqdm(total=total_files, desc="Segmenting Whole Leaves", unit="image") as pbar:
         processes = []
-        for chunk in chunks:
+        for i, chunk in enumerate(chunks):
+            # Assign device from device_list (distribute workload across devices)
+            device = device_list[i % len(device_list)]  # Cycle through available devices
+
             p = multiprocessing.Process(
                 target=segment_images_batch,
                 args=(cfg, dir_home, ProjectSQL.database, ProjectSQL.dir_images, chunk, 0,
-                      'Whole_Leaf_Cropped', 'Whole_Leaf_BBoxes', 'Segmentation_Whole_Leaf', Dirs, progress_queue)
+                      'Whole_Leaf_Cropped', 'Whole_Leaf_BBoxes', 'Segmentation_Whole_Leaf', Dirs, progress_queue, device)
             )
             processes.append(p)
             p.start()
@@ -138,7 +386,7 @@ def segment_whole_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dir
 
     torch.cuda.empty_cache()
 
-def segment_partial_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers):
+def segment_partial_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers, device_list):
     logger.info(f'Segmenting partial leaves')
 
     # Split filenames into chunks for each worker
@@ -152,11 +400,14 @@ def segment_partial_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, D
     # Create a tqdm progress bar in the main process
     with tqdm(total=total_files, desc="Segmenting Partial Leaves", unit="image") as pbar:
         processes = []
-        for chunk in chunks:
+        for i, chunk in enumerate(chunks):
+            # Assign device from device_list (distribute workload across devices)
+            device = device_list[i % len(device_list)]  # Cycle through available devices
+
             p = multiprocessing.Process(
                 target=segment_images_batch,
                 args=(cfg, dir_home, ProjectSQL.database, ProjectSQL.dir_images, chunk, 1,
-                      'Partial_Leaf_Cropped', 'Partial_Leaf_BBoxes', 'Segmentation_Partial_Leaf', Dirs, progress_queue)
+                      'Partial_Leaf_Cropped', 'Partial_Leaf_BBoxes', 'Segmentation_Partial_Leaf', Dirs, progress_queue, device)
             )
             processes.append(p)
             p.start()
@@ -206,68 +457,21 @@ def segment_partial_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, D
 #                                    save_oriented_images=save_oriented_images, save_keypoint_overlay=save_keypoint_overlay, 
 #                                    overrides=overrides)
    
-def initialize_logger(logger_name, log_to_file=None, suppress_warnings=None, suppress_loggers=None):
-    """
-    Initialize and return a logger with the given name.
 
-    Parameters:
-        logger_name (str): Name of the logger.
-        log_to_file (str or None): Path to a file to log to. If None, logs will only appear in the console.
-        suppress_warnings (str or list of str or None): Messages or warning types to suppress.
-        suppress_loggers (list of str or None): Specific loggers to suppress by name.
 
-    Returns:
-        logging.Logger: Configured logger instance.
-    """
-    # Initialize the logger
-    logger = logging.getLogger(logger_name)
-    logger.setLevel(logging.ERROR)
-    
-    # Set up log format
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    
-    # Configure stream handler (console output)
-    handler = logging.StreamHandler()
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    
-    # If log_to_file is provided, add a file handler
-    if log_to_file:
-        file_handler = logging.FileHandler(log_to_file)
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
-    
-    # Suppress specific warnings if provided
-    if suppress_warnings:
-        if isinstance(suppress_warnings, str):
-            warnings.filterwarnings("ignore", message=suppress_warnings)
-        elif isinstance(suppress_warnings, list):
-            for warning in suppress_warnings:
-                warnings.filterwarnings("ignore", message=warning)
-    
-    # Suppress specific loggers if provided
-    if suppress_loggers:
-        for suppressed_logger_name in suppress_loggers:
-            suppressed_logger = logging.getLogger(suppressed_logger_name)
-            suppressed_logger.setLevel(logging.ERROR)
-            # Optionally, you can also disable propagation if needed
-            suppressed_logger.propagate = False
-
-    return logger
-
-def segment_images_batch(cfg, dir_home, ProjectSQL, dir_images, filenames, leaf_type, dict_name_cropped, dict_from, dict_name_seg, Dirs, progress_queue):
+def segment_images_batch(cfg, dir_home, ProjectSQL, dir_images, filenames, leaf_type, dict_name_cropped, dict_from, dict_name_seg, Dirs, progress_queue, device):
     conn = sqlite3.connect(ProjectSQL)
-    cur = conn.cursor()
-
+    torch.cuda.empty_cache()
+    
     # Reinitialize the logger inside the process if necessary
-    logger = initialize_logger('SEGMENT', 
+    logger = initialize_logger_for_parallel_processes('SEGMENT', 
                            suppress_warnings=["torch.meshgrid"],
                            suppress_loggers=['Checkpointer', 'ultralytics', 'detectron2', 'yolo'])
 
 
     # Initialize the instance detector (model is loaded once per process)
     dir_seg_model = os.path.join(dir_home, 'leafmachine2', 'segmentation', 'models', cfg['leafmachine']['leaf_segmentation']['segmentation_model'])
-    Instance_Detector = Detector_LM2(logger, dir_seg_model, cfg['leafmachine']['leaf_segmentation']['minimum_confidence_threshold'], leaf_type)
+    Instance_Detector = Detector_LM2(logger, dir_seg_model, cfg['leafmachine']['leaf_segmentation']['minimum_confidence_threshold'], leaf_type, device)
 
     save_oriented_images = cfg['leafmachine']['leaf_segmentation']['save_oriented_images']
     save_keypoint_overlay = cfg['leafmachine']['leaf_segmentation']['save_keypoint_overlay']
@@ -316,15 +520,19 @@ def segment_images_batch(cfg, dir_home, ProjectSQL, dir_images, filenames, leaf_
         except:
             logger.error(f"Could not load image for {filename}")
             return
-
-        # Determine conversion factor (CF)
-        CF = determine_conversion_factor(filename, cur)
+        
+        cur = conn.cursor()
 
         # Retrieve the cropped images from SQL
         cur.execute(f"SELECT crop_name, cropped_image FROM {dict_name_cropped} WHERE file_name = ?", (filename,))
         crops = cur.fetchall()
 
+        # Determine conversion factor (CF)
+        CF = determine_conversion_factor(filename, cur)
+
+        # inddd = 0
         for crop_name, img_cropped_blob in crops:
+            # inddd += 1
             img_cropped = cv2.imdecode(np.frombuffer(img_cropped_blob, np.uint8), cv2.IMREAD_COLOR)
 
             # Segment the image
@@ -335,6 +543,9 @@ def segment_images_batch(cfg, dir_home, ProjectSQL, dir_images, filenames, leaf_
 
             # Further processing (e.g., keypoint detection, cropping, saving results)
             keypoint_data = Pose_Predictor.process_images(img_cropped, filename=crop_name)
+
+            # if inddd == 2:
+            #     print(keypoint_data)
 
             if len(out_polygons) > 0:
                 if keep_best:
@@ -349,12 +560,12 @@ def segment_images_batch(cfg, dir_home, ProjectSQL, dir_images, filenames, leaf_
                 cropped_overlay = []
                 overlay_data = []
                 cropped_overlay_size = []
-
+            
             # Save results to SQL
             save_segmentation_results_to_sql(cur, filename, crop_name, detected_components, out_polygons, out_bboxes, out_labels, out_color, cropped_overlay, overlay_data, dict_name_seg)
+            save_keypoints_results_to_sql(cur, filename, crop_name, keypoint_data[crop_name])
 
-
-            conn.commit()
+            # conn.commit()
 
             # Save RGB cropped images
             save_rgb_cropped(save_rgb_cropped_images, crop_name, img_cropped, leaf_type, Dirs)
@@ -408,44 +619,235 @@ def convert_ndarray_to_list(d):
         return bool(d)
     else:
         return d
+
+def save_keypoints_results_to_sql(cur, filename, crop_name, keypoint_data):
+    if keypoint_data:
+        # Convert keypoints, tip, and base to JSON serializable formats
+        keypoints_serializable = convert_ndarray_to_list(keypoint_data.get('keypoints', []))
+        keypoints_serializable = [[int(x), int(y)] for x, y in keypoints_serializable]
+
+        angle = convert_ndarray_to_list(keypoint_data.get('angle', None))
+        tip_serializable = convert_ndarray_to_list(keypoint_data.get('tip', []))
+        base_serializable = convert_ndarray_to_list(keypoint_data.get('base', []))
+        all_measurements = keypoint_data.get('keypoint_measurements', [])
+
+        # Extract numerical values directly for storage
+        distance_lamina = convert_ndarray_to_list(all_measurements.get('distance_lamina', None))
+        distance_width = convert_ndarray_to_list(all_measurements.get('distance_width', None))
+        distance_petiole = convert_ndarray_to_list(all_measurements.get('distance_petiole', None))
+        distance_midvein_span = convert_ndarray_to_list(all_measurements.get('distance_midvein_span', None))
+        distance_petiole_span = convert_ndarray_to_list(all_measurements.get('distance_petiole_span', None))
+        
+        # For these, if they're arrays or more complex structures, keep them as lists and serialize
+        trace_midvein_distance_serializable = convert_ndarray_to_list(all_measurements.get('trace_midvein_distance', []))
+        trace_petiole_distance_serializable = convert_ndarray_to_list(all_measurements.get('trace_petiole_distance', []))
+
+        # Angle and reflex attributes
+        apex_angle = convert_ndarray_to_list(all_measurements.get('apex_angle', None))
+        apex_is_reflex = 1 if all_measurements.get('apex_is_reflex', False) else 0
+        base_angle = convert_ndarray_to_list(all_measurements.get('base_angle', None))
+        base_is_reflex = 1 if all_measurements.get('base_is_reflex', False) else 0
+
+        # Serialize the data to JSON
+        keypoints_json = json.dumps(keypoints_serializable)
+        tip_json = json.dumps(tip_serializable)
+        base_json = json.dumps(base_serializable)
+
+    else:
+        # Populate with NULL or default values when keypoint_data is empty
+        keypoints_json = json.dumps([])  # Empty list for keypoints
+        angle = None
+        tip_json = json.dumps([])  # Empty list for tip
+        base_json = json.dumps([])  # Empty list for base
+        distance_lamina = None
+        distance_width = None
+        distance_petiole = None
+        distance_midvein_span = None
+        distance_petiole_span = None
+        trace_midvein_distance_serializable = json.dumps([])  # Empty list for trace midvein distance
+        trace_petiole_distance_serializable = json.dumps([])  # Empty list for trace petiole distance
+        apex_angle = None
+        apex_is_reflex = 0  # Default to False (0)
+        base_angle = None
+        base_is_reflex = 0  # Default to False (0)
     
-def save_segmentation_results_to_sql(cur, filename, crop_name, detected_components, out_polygons, out_bboxes, out_labels, out_color, cropped_overlay, overlay_data, dict_name_seg):
-    # Convert detected components to a JSON serializable format
-    detected_components_serializable = convert_ndarray_to_list(detected_components)
-
-    # Convert the other data structures if needed
-    out_polygons_serializable = convert_ndarray_to_list(out_polygons)
-    out_bboxes_serializable = convert_ndarray_to_list(out_bboxes)
-    out_labels_serializable = convert_ndarray_to_list(out_labels)
-    out_color_serializable = convert_ndarray_to_list(out_color)
-    overlay_data_serializable = convert_ndarray_to_list(overlay_data)
-
-    # Serialize the data to JSON
-    detected_components_json = json.dumps(detected_components_serializable)
-    out_polygons_json = json.dumps(out_polygons_serializable)
-    out_bboxes_json = json.dumps(out_bboxes_serializable)
-    out_labels_json = json.dumps(out_labels_serializable)
-    out_color_json = json.dumps(out_color_serializable)
-
-    # Convert overlay data to JSON
-    overlay_data_serializable = []
-    for overlay in overlay_data:
-        if isinstance(overlay, np.ndarray):
-            overlay_data_serializable.append(overlay.tolist())
-        else:
-            overlay_data_serializable.append(overlay)
-    overlay_data_json = json.dumps(overlay_data_serializable, default=lambda o: o.item() if isinstance(o, np.generic) else o)
-
-    # Convert cropped overlay to binary (Blob) to store in SQLite if needed
-    # _, cropped_overlay_blob = cv2.imencode('.png', cropped_overlay)
-
     # Save the results back to the SQL database
+    cur.execute("""
+        INSERT INTO Keypoints_Data 
+        (file_name, crop_name, keypoints, angle, tip, base, 
+        distance_lamina, distance_width, distance_petiole, distance_midvein_span, distance_petiole_span,
+        trace_midvein_distance, trace_petiole_distance, apex_angle, apex_is_reflex, base_angle, base_is_reflex) 
+        VALUES (?, ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, ?)""",
+        (filename, crop_name, keypoints_json, angle, tip_json, base_json, 
+        distance_lamina, distance_width, distance_petiole, distance_midvein_span, distance_petiole_span, 
+        trace_midvein_distance_serializable, trace_petiole_distance_serializable, apex_angle, apex_is_reflex, base_angle, base_is_reflex)
+    )
+
+    # Make sure to commit each insertion to avoid carrying over previous data
+    cur.connection.commit()
+
+def convert_to_serializable(obj):
+    """Recursively convert non-serializable objects (including NumPy types and tuples) to Python native types that can be JSON serialized."""
+    if isinstance(obj, dict):
+        return {k: convert_to_serializable(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [convert_to_serializable(v) for v in obj]
+    elif isinstance(obj, tuple):
+        return [convert_to_serializable(v) for v in obj]  # Convert tuple to list
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    elif isinstance(obj, (np.integer, np.int32, np.int64)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float32, np.float64)):
+        return float(obj)
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, (str, int, float, bool, type(None))):
+        return obj
+    else:
+        print(f"Non-serializable object found: {obj} of type {type(obj)}")
+        raise TypeError(f"Object of type {type(obj)} is not JSON serializable")
+
+
+
+def save_segmentation_results_to_sql(cur, filename, crop_name, detected_components, out_polygons, out_bboxes, out_labels, out_color, cropped_overlay, overlay_data_in, dict_name_seg):
+    # Extract the properties from the first detected component
+    # detected_components has leaf_ petiole_ and hole_
+    props = None
+    object_name = json.dumps([])
+    overlay_data = json.dumps([])
+    bbox = json.dumps([])  # Convert list or ndarray to string
+    bbox_min = json.dumps([])  # Convert list or ndarray to string
+    rotate_angle = 0  # Already a float/int
+    bbox_min_long_side = 0  # Already a float/int
+    bbox_min_short_side = 0  # Already a float/int
+    efd_coeffs_features = json.dumps([])
+    efd_a0 = json.dumps([])
+    efd_c0 = json.dumps([])
+    efd_scale = json.dumps([])
+    efd_angle = json.dumps([])
+    efd_phase = json.dumps([])
+    efd_area = 0
+    efd_perimeter = 0
+    efd_overlay = json.dumps([])
+    area = 0
+    perimeter = 0
+    centroid = json.dumps([])
+    convex_hull = 0
+    convexity = 0
+    concavity = 0
+    circularity = 0
+    n_pts_in_polygon = 0
+    aspect_ratio = 0
+    polygon_closed = json.dumps([])
+    polygon_closed_rotated = json.dumps([])
+
+    out_polygons_json = json.dumps([])
+    out_bboxes_json = json.dumps([])
+    out_labels_json = json.dumps([])
+    out_color_json = json.dumps([])
+    
+
+    if overlay_data_in:
+        # Convert detected components to a JSON serializable format
+        # detected_components_serializable = convert_ndarray_to_list(detected_components)
+        overlay_poly, overlay_poly_oriented, overlay_efd, overlay_rect, overlay_color = overlay_data_in
+
+
+        # Convert the other data structures if needed
+        out_polygons_serializable = convert_ndarray_to_list(out_polygons)
+        out_bboxes_serializable = convert_ndarray_to_list(out_bboxes)
+        out_labels_serializable = convert_ndarray_to_list(out_labels)
+        out_color_serializable = convert_ndarray_to_list(out_color)
+
+        # Serialize the data to JSON
+        # detected_components_json = json.dumps(detected_components_serializable)
+        out_polygons_json = json.dumps(out_polygons_serializable)
+        out_bboxes_json = json.dumps(out_bboxes_serializable)
+        out_labels_json = json.dumps(out_labels_serializable)
+        out_color_json = json.dumps(out_color_serializable)
+
+        overlay_data_serializable = convert_to_serializable(overlay_data_in)
+        overlay_data_json = json.dumps(overlay_data_serializable)
+
+        # Convert overlay data to JSON
+        # overlay_data_serializable = []
+        # for overlay in overlay_data:
+        #     if isinstance(overlay, np.ndarray):
+        #         overlay_data_serializable.append(overlay.tolist())
+        #     else:
+        #         overlay_data_serializable.append(overlay)
+        # overlay_data_json = json.dumps(overlay_data_serializable, default=lambda o: o.item() if isinstance(o, np.generic) else o)
+
+        
+        
+        for i, props_cand in enumerate(detected_components):
+            for key in props_cand.keys():
+                if 'leaf' in key:
+                    props = props_cand[key]
+
+                    # Prepare variables for SQL insertion from props
+                    object_name = key
+                    overlay_data = overlay_data_json
+                    bbox =  json.dumps(convert_ndarray_to_list(props['bbox']))  # Convert list or ndarray to string
+                    bbox_min =  json.dumps(convert_ndarray_to_list(props['bbox_min']))  # Convert list or ndarray to string
+                    rotate_angle = props['rotate_angle']  # Already a float/int
+                    bbox_min_long_side = props['long']  # Already a float/int
+                    bbox_min_short_side = props['short']  # Already a float/int
+
+                    # Handle efds if present
+                    efd_coeffs_features =  json.dumps(convert_ndarray_to_list(props['efds']['coeffs_features'])) if 'efds' in props and 'coeffs_features' in props['efds'] else None
+                    efd_a0 =  json.dumps(convert_ndarray_to_list(props['efds']['a0'])) if 'efds' in props and 'a0' in props['efds'] else None
+                    efd_c0 =  json.dumps(convert_ndarray_to_list(props['efds']['c0'])) if 'efds' in props and 'c0' in props['efds'] else None
+                    efd_scale =  json.dumps(convert_ndarray_to_list(props['efds']['scale'])) if 'efds' in props and 'scale' in props['efds'] else None
+                    efd_angle =  json.dumps(convert_ndarray_to_list(props['efds']['angle'])) if 'efds' in props and 'angle' in props['efds'] else None
+                    efd_phase =  json.dumps(convert_ndarray_to_list(props['efds']['phase'])) if 'efds' in props and 'phase' in props['efds'] else None
+                    efd_area =  json.dumps(convert_ndarray_to_list(props['efds']['efd_area'])) if 'efds' in props and 'efd_area' in props['efds'] else None
+                    efd_perimeter =  json.dumps(convert_ndarray_to_list(props['efds']['efd_perimeter'])) if 'efds' in props and 'efd_perimeter' in props['efds'] else None
+                    efd_overlay = json.dumps(overlay_efd[0])
+                    area = props['area']  # Already a float/int
+                    perimeter = props['perimeter']  # Already a float/int
+                    
+                    # Convert centroid to a string
+                    centroid =  json.dumps(convert_ndarray_to_list(props['centroid']))  # Convert tuple to string
+
+                    convex_hull = props['convex_hull']  # Already a float/int
+                    convexity = props['convexity']  # Already a float/int
+                    concavity = props['concavity']  # Already a float/int
+                    circularity = props['circularity']  # Already a float/int
+                    n_pts_in_polygon = props['degree']  # Already an int
+                    aspect_ratio = props['aspect_ratio']  # Already a float/int
+
+                    # Convert arrays to strings for SQL storage
+                    polygon_closed =  json.dumps(convert_ndarray_to_list(props['polygon_closed']))  # Convert ndarray to string
+                    polygon_closed_rotated =  json.dumps(convert_ndarray_to_list(props['polygon_closed_rotated']))  # Convert ndarray to string
+                    
+                        
+
+    # Perform a single SQL insertion
     cur.execute(f"""
         INSERT INTO {dict_name_seg} 
-        (file_name, crop_name, segmentation_data, polygons, bboxes, labels, colors, overlay_data) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (filename, crop_name, detected_components_json, out_polygons_json, out_bboxes_json, out_labels_json, out_color_json, overlay_data_json)
-    )   
+        (file_name, crop_name, object_name, overlay_data, polygons, bboxes, labels, colors, 
+        bbox, bbox_min, rotate_angle, bbox_min_long_side, bbox_min_short_side, efd_coeffs_features, 
+        efd_a0, efd_c0, efd_scale, efd_angle, efd_phase, efd_area, efd_perimeter, efd_overlay, area, perimeter, centroid, 
+        convex_hull, convexity, concavity, circularity, n_pts_in_polygon, aspect_ratio, 
+        polygon_closed, polygon_closed_rotated) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, ?, 
+                ?, ?)""",
+        (filename, crop_name, object_name, overlay_data, out_polygons_json, out_bboxes_json, out_labels_json, out_color_json, #overlay_data_json,
+        bbox, bbox_min, rotate_angle, bbox_min_long_side, bbox_min_short_side, efd_coeffs_features, 
+        efd_a0, efd_c0, efd_scale, efd_angle, efd_phase, efd_area, efd_perimeter, efd_overlay, area, perimeter, centroid, 
+        convex_hull, convexity, concavity, circularity, n_pts_in_polygon, aspect_ratio, 
+        polygon_closed, polygon_closed_rotated)
+    )
+
+    # Commit the transaction to save changes
+    cur.connection.commit()
 
 
 ''' #SEGMENT PARALLEL
@@ -1520,35 +1922,35 @@ def create_overlay_and_calculate_props(keypoint_data, seg_name, img_cropped, out
 #                     # cv2.waitKey(0)
 #                     # img_crop.show() # PIL
 #     return dict
-def crop_images_to_bbox(ProjectSQL, filename, cls, dict_name_cropped, dict_from):
-    conn = ProjectSQL.conn
-    cur = conn.cursor()
+# def crop_images_to_bbox(ProjectSQL, filename, cls, dict_name_cropped, dict_from):
+#     conn = ProjectSQL.conn
+#     cur = conn.cursor()
 
-    # Retrieve bounding boxes from the SQL database
-    cur.execute(f"SELECT x_min, y_min, x_max, y_max FROM {dict_from} WHERE file_name = ? AND class = ?", (filename, cls))
-    bboxes = cur.fetchall()
+#     # Retrieve bounding boxes from the SQL database
+#     cur.execute(f"SELECT x_min, y_min, x_max, y_max FROM {dict_from} WHERE file_name = ? AND class = ?", (filename, cls))
+#     bboxes = cur.fetchall()
 
-    # Try to load the image
-    try:
-        img_path = glob.glob(os.path.join(ProjectSQL.dir_images, f"{filename}.*"))[0]
-        img = cv2.imread(img_path)
-    except:
-        img = None
+#     # Try to load the image
+#     try:
+#         img_path = glob.glob(os.path.join(ProjectSQL.dir_images, f"{filename}.*"))[0]
+#         img = cv2.imread(img_path)
+#     except:
+#         img = None
 
-    if img is None:
-        return
+#     if img is None:
+#         return
 
-    for bbox in bboxes:
-        x_min, y_min, x_max, y_max = bbox
-        img_crop = img[y_min:y_max, x_min:x_max]
-        loc = '-'.join(map(str, [x_min, y_min, x_max, y_max]))
-        crop_name = f"{filename}__{'L' if cls == 0 else 'PL'}__{loc}"
+#     for bbox in bboxes:
+#         x_min, y_min, x_max, y_max = bbox
+#         img_crop = img[y_min:y_max, x_min:x_max]
+#         loc = '-'.join(map(str, [x_min, y_min, x_max, y_max]))
+#         crop_name = f"{filename}__{'L' if cls == 0 else 'PL'}__{loc}"
 
-        # Store the cropped image in the SQL database (as a BLOB)
-        _, img_encoded = cv2.imencode('.jpg', img_crop)
-        cur.execute(f"INSERT INTO {dict_name_cropped} (file_name, crop_name, cropped_image) VALUES (?, ?, ?)", 
-                    (filename, crop_name, img_encoded.tobytes()))
-    conn.commit()
+#         # Store the cropped image in the SQL database (as a BLOB)
+#         _, img_encoded = cv2.imencode('.jpg', img_crop)
+#         cur.execute(f"INSERT INTO {dict_name_cropped} (file_name, crop_name, cropped_image) VALUES (?, ?, ?)", 
+#                     (filename, crop_name, img_encoded.tobytes()))
+#     conn.commit()
 
 
 # def unpack_class_from_components(dict, cls, dict_name_yolo, dict_name_location, Project):
@@ -1575,33 +1977,33 @@ def crop_images_to_bbox(ProjectSQL, filename, cls, dict_name_cropped, dict_from)
 #             value[dict_name_location] = converted_list
 #     # print(dict)
 #     return dict
-def unpack_class_from_components(ProjectSQL, filename, cls, dict_name_yolo, dict_name_location):
-    conn = ProjectSQL.conn
-    cur = conn.cursor()
+# def unpack_class_from_components(ProjectSQL, filename, cls, dict_name_yolo, dict_name_location):
+#     conn = ProjectSQL.conn
+#     cur = conn.cursor()
 
-    # Get the width and height from the images table
-    cur.execute("SELECT width, height FROM images WHERE name = ?", (filename,))
-    width, height = cur.fetchone()
+#     # Get the width and height from the images table
+#     cur.execute("SELECT width, height FROM images WHERE name = ?", (filename,))
+#     width, height = cur.fetchone()
 
-    # Retrieve plant annotations for the given filename and class
-    cur.execute("SELECT annotation FROM annotations_plant WHERE file_name = ? AND component = 'Detections_Plant_Components'", (filename,))
-    plant_annotations = cur.fetchall()
+#     # Retrieve plant annotations for the given filename and class
+#     cur.execute("SELECT annotation FROM annotations_plant WHERE file_name = ? AND component = 'Detections_Plant_Components'", (filename,))
+#     plant_annotations = cur.fetchall()
 
-    for annotation in plant_annotations:
-        # Process the annotation data to extract bounding box coordinates
-        class_index, x_center, y_center, bbox_width, bbox_height = map(float, annotation[0].split(','))
+#     for annotation in plant_annotations:
+#         # Process the annotation data to extract bounding box coordinates
+#         class_index, x_center, y_center, bbox_width, bbox_height = map(float, annotation[0].split(','))
 
-        if int(class_index) == cls:
-            x_min = int(x_center * width - (bbox_width * width / 2))
-            y_min = int(y_center * height - (bbox_height * height / 2))
-            x_max = int(x_center * width + (bbox_width * width / 2))
-            y_max = int(y_center * height + (bbox_height * height / 2))
+#         if int(class_index) == cls:
+#             x_min = int(x_center * width - (bbox_width * width / 2))
+#             y_min = int(y_center * height - (bbox_height * height / 2))
+#             x_max = int(x_center * width + (bbox_width * width / 2))
+#             y_max = int(y_center * height + (bbox_height * height / 2))
 
-            # Insert the processed bounding box into the correct table (Whole_Leaf_BBoxes or Partial_Leaf_BBoxes)
-            cur.execute(f"INSERT INTO {dict_name_location} (file_name, class, x_min, y_min, x_max, y_max) VALUES (?, ?, ?, ?, ?, ?)",
-                        (filename, cls, x_min, y_min, x_max, y_max))
+#             # Insert the processed bounding box into the correct table (Whole_Leaf_BBoxes or Partial_Leaf_BBoxes)
+#             cur.execute(f"INSERT INTO {dict_name_location} (file_name, class, x_min, y_min, x_max, y_max) VALUES (?, ?, ?, ?, ?, ?)",
+#                         (filename, cls, x_min, y_min, x_max, y_max))
 
-    conn.commit()
+#     conn.commit()
 
 
 

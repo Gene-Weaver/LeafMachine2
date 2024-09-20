@@ -24,7 +24,7 @@ def get_dict(dir,json_name):
     return data
 
 class Detector_LM2: 
-    def __init__(self,logger,DIR_MODEL,THRESH, LEAF_TYPE) -> None:
+    def __init__(self,logger,DIR_MODEL,THRESH, LEAF_TYPE, DEVICE) -> None:
         # MODEL_ROOT = os.path.dirname(DIR_MODEL)
         self.cfg = get_cfg()
         try:
@@ -87,6 +87,8 @@ class Detector_LM2:
 
         self.cfg.MODEL.WEIGHTS = model_to_use # "model_final.pth"  # path to the model we just trained
         self.cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = THRESH
+        self.cfg.MODEL.DEVICE = DEVICE
+
         
         self.predictor = PredictorLeaf(self.cfg)
 

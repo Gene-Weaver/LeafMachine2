@@ -208,26 +208,42 @@ class PolynomialModel:
         self.final_poly_model = LinearRegression()
         self.final_poly_model.fit(X_train_poly_filtered, y_train_filtered)
 
+    # def predict_with_polynomial(self, new_data_path):
+    #     new_data = pd.read_csv(new_data_path)
+    #     new_data['MP'] = (new_data['image_height'] * new_data['image_width']) / 1000000
+    #     X_new = new_data[self.features].fillna(0)
+
+    #     poly = PolynomialFeatures(degree=self.poly_degree)
+    #     X_new_poly = poly.fit_transform(X_new)
+    #     predictions = self.final_poly_model.predict(X_new_poly)
+
+    #     new_data['predicted_conversion_mean'] = predictions
+    #     return new_data
     def predict_with_polynomial(self, new_data_path):
         new_data = pd.read_csv(new_data_path)
         new_data['MP'] = (new_data['image_height'] * new_data['image_width']) / 1000000
         X_new = new_data[self.features].fillna(0)
 
-        poly = PolynomialFeatures(degree=self.poly_degree)
-        X_new_poly = poly.fit_transform(X_new)
+        # Reuse the fitted transformer instead of creating a new one
+        X_new_poly = self.poly_transformer.transform(X_new)  # Use transform, not fit_transform
         predictions = self.final_poly_model.predict(X_new_poly)
 
         new_data['predicted_conversion_mean'] = predictions
         return new_data
+
     
     def predict_with_polynomial_single(self, mp_value):
         if self.poly_transformer is None or self.final_poly_model is None:
             raise Exception("Model and transformer must be loaded or trained before prediction.")
-        mp_transformed = self.poly_transformer.transform(np.array([[mp_value]]))
+        
+        # Create a DataFrame with the same column names used in training
+        mp_df = pd.DataFrame({'MP': [mp_value]})  # 'MP' is the feature name
+        
+        mp_transformed = self.poly_transformer.transform(mp_df)
         prediction = self.final_poly_model.predict(mp_transformed)
         return prediction[0]
 
-    def save_polynomial_model(self, filename='poly_regressor.joblib'):
+    def save_polynomial_model(self, filename='poly_regressor_v1_5_2.joblib'):
         if self.final_poly_model:
             current_file_path = os.path.abspath(__file__)
 
@@ -240,7 +256,7 @@ class PolynomialModel:
         else:
             print("Polynomial regressor is not trained.")
 
-    def load_polynomial_model(self, filename='poly_regressor.joblib'):
+    def load_polynomial_model(self, filename='poly_regressor_v1_5_2.joblib'):
         current_file_path = os.path.abspath(__file__)
         # Extract the directory part of the path
         current_dir = os.path.dirname(current_file_path)    
@@ -271,11 +287,11 @@ if __name__ == '__main__':
     poly_model.export_predictions(new_predictions_poly, 'D:/T_Downloads/LM2_Quercus_NA-500_MEASUREMENTS_POLYPREDICITONS.csv')
 
     # Visualize with polynomial regression in decision boundary plots
-    rf_model.visualize_decision_boundaries(poly_model=poly_model)
+    # rf_model.visualize_decision_boundaries(poly_model=poly_model)
 
 
     poly_model = PolynomialModel()
-    poly_model.load_polynomial_model('poly_regressor.joblib')
+    poly_model.load_polynomial_model('poly_regressor_v1_5_2.joblib')
     mp_value = 1.4  # Example MP value
     prediction = poly_model.predict_with_polynomial_single(mp_value)
     print(f'Predicted conversion mean for MP={mp_value}: {prediction}')

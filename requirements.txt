@@ -63,9 +63,9 @@ rawpy>=0.18.1
 ray>=2.9.3
 Requests>=2.31.0
 rich>=13.7.1
-scikit_image>=0.19.3
-scikit_learn>=1.1.3
-scipy>=1.9.1
+scikit_image==0.24.0
+scikit_learn==1.5.2
+scipy==1.14.1
 seaborn>=0.13.2
 sentence_transformers>=2.2.2
 sentry_sdk>=1.9.10
@@ -93,7 +93,6 @@ xmltodict>=0.13.0
 yt_dlp>=2024.3.10
 beautifulsoup4>=4.12.3
 opencv-contrib-python>=4.9.0.80 # 4.8.0.76
-giotto-tda>=0.6.0
 selenium==4.21.0
 undetected-chromedriver==3.5.5
 aiohttp_retry
@@ -101,3 +100,4 @@ requests
 labelbox
 shapely
 aiofiles
+streamlit-drawable-canvas

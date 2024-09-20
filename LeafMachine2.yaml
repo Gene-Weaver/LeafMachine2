@@ -21,13 +21,14 @@ leafmachine:
     include_these_objects_in_specimen_crop: ['ruler','barcode','colorcard', 'label', 'map', 'envelope', 'photo', 'attached_item', 'leaf_whole', 'leaf_partial', 'leaflet', 'seed_fruit_one', 'seed_fruit_many', 'flower_one', 'flower_many', 'bud', 'specimen', 'roots', 'wood']
     binarize_labels: false
     binarize_labels_skeletonize: false
-    do_save_cropped_annotations: true
+    do_save_cropped_annotations: false
     save_cropped_annotations:
     - label
     save_per_annotation_class: true
     save_per_image: false
   data:
     do_apply_conversion_factor: true
+    do_apply_predicted_conversion_factor_as_backup: true
     include_darwin_core_data_from_combined_file: false
     save_individual_csv_files_landmarks: false
     save_individual_csv_files_measurements: false
@@ -36,8 +37,8 @@ leafmachine:
     save_json_measurements: false
     save_json_rulers: false
   do:
-    check_for_corrupt_images_make_vertical: true
-    check_for_illegal_filenames: true
+    check_for_corrupt_images_make_vertical: false
+    check_for_illegal_filenames: false
     run_leaf_processing: true
   landmark_detector:
     detector_iteration: Landmarks
@@ -133,11 +134,11 @@ leafmachine:
   project:
     GBIF_mode: all
     accept_only_ideal_leaves: true
-    batch_size: 100
+    batch_size: 100000
     censor_archival_components: true
-    dir_images_local: G:\LM2_git_test\LeafMachine2\demo\demo_images
+    dir_images_local: /home/brlab/Dropbox/LM2_Env/Image_Datasets/GBIF_DetailedSample_50Spp #D:/Dropbox/LM2_Env/Image_Datasets/GBIF_DetailedSample_50Spp #/media/nas/GBIF_Downloads/Cornales/Cornaceae/img #/media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg # /media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #G:/herbarium_CF_test #D:/D_Desktop/size_test # D:/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images_ind #/media/data/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images # D:/D_Desktop/temp_50_2 #/media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #/media/nas/GBIF_Downloads/Cornales/Cornaceae/img # /media/data/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images #/media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #  #
     dir_images_subset: ''
-    dir_output: C:\Users\Will\Downloads
+    dir_output: /home/brlab/Desktop/GBIF_DetailedSample_50Spp # C:/Users/Will/Downloads/GBIF_DetailedSample_50Spp #/media/nas/GBIF_Downloads/Cornales/Cornaceae #/media/nas/TEMP_TEST  # C:/Users/Will/Downloads/herbarium_CF_test #/media/nas/test_LM2_optimized_DwC10RandImg #C:/Users/Will/Downloads #/media/nas/GBIF_Downloads/Cornales/Cornaceae #  #  #
     hide_archival_components:
     - ruler
     - barcode
@@ -149,9 +150,11 @@ leafmachine:
     image_location: local
     minimum_total_reproductive_counts: 0
     n_images_per_species: 10
-    num_workers: 4
-    num_workers_ruler: 4
-    num_workers_seg: 4
+    num_workers: 100
+    num_workers_ruler: 100
+    num_workers_seg: 100
+    num_workers_overlay: 24
+    num_gpus: 1
     overlay_background_color: black
     overlay_dpi: 300
     path_combined_csv_local: null
@@ -159,7 +162,7 @@ leafmachine:
     path_occurrence_csv_local: null
     process_subset_of_images: false
     replacement_color: '#FFFFFF'
-    run_name: test
+    run_name: LM2
     padding_for_crop: 150
     orientation: '6'
     colorspace: 'raw'
@@ -171,6 +174,7 @@ leafmachine:
     use_CF_predictor: true
     use_existing_archival_component_detections: null
     use_existing_plant_component_detections: null
+    device: "cuda"
   ruler_detection:
     detect_ruler_type: true
     minimum_confidence_threshold: 0.5

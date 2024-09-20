@@ -4,6 +4,7 @@ LeafMachine2 Processes
 import os, inspect, sys, logging, gc
 from time import perf_counter
 from memory_profiler import profile
+import multiprocessing
 
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
@@ -13,7 +14,7 @@ from leafmachine2.component_detector.component_detector import detect_plant_comp
 from leafmachine2.segmentation.detectron2.segment_leaves import segment_leaves
 # from import  # ruler classifier?
 # from import  # landmarks
-from leafmachine2.machine.general_utils import check_for_subdirs, get_datetime, load_config_file, load_config_file_testing, report_config, split_into_batches_sql, save_config_file, subset_dir_images, crop_detections_from_images, crop_detections_from_images_SpecimenCrop
+from leafmachine2.machine.general_utils import check_num_workers, check_for_subdirs, get_datetime, load_config_file, load_config_file_testing, report_config, split_into_batches_sql, save_config_file, subset_dir_images, crop_detections_from_images, crop_detections_from_images_SpecimenCrop
 from leafmachine2.machine.general_utils import print_main_start, print_main_success, print_main_fail, print_main_info, make_file_names_valid, make_images_in_dir_vertical
 from leafmachine2.machine.directory_structure import Dir_Structure
 from leafmachine2.machine.data_project import Project_Info
@@ -21,7 +22,7 @@ from leafmachine2.machine.data_project_sql import Project_Info_SQL, get_database
 from leafmachine2.machine.config import Config
 from leafmachine2.machine.build_custom_overlay import build_custom_overlay, build_custom_overlay_parallel
 from leafmachine2.machine.utils_ruler import convert_rulers
-from leafmachine2.machine.save_data import save_data, merge_csv_files
+from leafmachine2.machine.save_data import save_data, merge_csv_files, extract_and_save_data
 from leafmachine2.machine.binarize_image_ML import run_binarize
 from leafmachine2.machine.LM2_logger import start_logging
 from leafmachine2.machine.utils_ruler import convert_rulers_testing #, parallel_convert_rulers
@@ -31,6 +32,8 @@ from leafmachine2.machine.utils_censor_components import censor_archival_compone
 
 # @profile
 def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
+    multiprocessing.set_start_method('spawn', force=True)
+
     time_report = {}
     t_overall = perf_counter()
 
@@ -72,8 +75,9 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
 
         # Wrangle images and preprocess
         print_main_start("Gathering Images and Image Metadata")
-        Project = Project_Info(cfg, logger, dir_home)
+        # Project = Project_Info(cfg, logger, dir_home)
         ProjectSQL = Project_Info_SQL(cfg, logger, dir_home, Dirs)
+        cfg = check_num_workers(cfg, ProjectSQL.dir_images)
         test_sql(get_database_path(ProjectSQL))
 
         if progress_report:
@@ -129,7 +133,7 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
         # Save cropped detections
         if progress_report:
             progress_report.update_overall("Crop Individual Objects from Images") # Step 9/13
-        # time_report = crop_detections_from_images(cfg, time_report, logger, dir_home, ProjectSQL, Dirs)
+        time_report = crop_detections_from_images(cfg, time_report, logger, dir_home, ProjectSQL, Dirs)
 
 
 
@@ -164,8 +168,7 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
         if progress_report:
             progress_report.set_n_batches(n_batches)
         print_main_start(m)
-        test_sql(get_database_path(ProjectSQL))
-        
+        # test_sql(get_database_path(ProjectSQL))
 
         for batch, Batch_Names in enumerate(Batch_Data): #range(n_batches):
             if progress_report:
@@ -179,18 +182,18 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
                 if progress_report:
                     progress_report.update_batch_part(f"Processing Rulers")
                 logger.name = f'[BATCH {batch+1} Convert Rulers]'
-                logger.warning(f'Working on batch {batch} of {n_batches}')
+                logger.warning(f'Working on batch {batch+1} of {n_batches}')
                 do_test_ruler_conversion = False
                 if do_test_ruler_conversion:
                     dir_rulers = 'F:/Rulers_ByType_V2_target'
                     ProjectSQL, time_report = convert_rulers_testing(dir_rulers, cfg, time_report, logger, dir_home, ProjectSQL, batch, Dirs)
                 else:
-                    ProjectSQL, time_report = convert_rulers(cfg, time_report, logger, dir_home, ProjectSQL, batch, Batch_Names, Dirs, num_workers=12)
+                    ProjectSQL, time_report = convert_rulers(cfg, time_report, logger, dir_home, ProjectSQL, batch, Batch_Names, Dirs)
                     # Project = parallel_convert_rulers(cfg, logger, dir_home, Project, batch, Dirs)
                 
-                test_sql(get_database_path(ProjectSQL), n_rows=1)
+                # test_sql(get_database_path(ProjectSQL), n_rows=1)
 
-                # Segment Whole Leaves
+                # Segment Whole Leaves1
                 if progress_report:
                     progress_report.update_batch_part(f"Segmenting Leaves")
                 do_seg = True # Need to know if segmentation has been added to Project[batch] for landmarks
@@ -203,7 +206,7 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
                 if progress_report:
                     progress_report.update_batch_part(f"Detecting Landmarks")
                 time_report = detect_landmarks(cfg, time_report, logger, dir_home, ProjectSQL, batch, n_batches, Batch_Names, Dirs, do_seg)
-                test_sql(get_database_path(ProjectSQL), n_rows=1)
+                # test_sql(get_database_path(ProjectSQL), n_rows=3)
 
 
 
@@ -222,21 +225,23 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
             # Custom Overlay 
             if progress_report:
                 progress_report.update_batch_part(f"Saving Overlay Images")
+            # test_sql(get_database_path(ProjectSQL), n_rows=1)
             time_report = build_custom_overlay_parallel(cfg, time_report, logger, dir_home, ProjectSQL, batch, Dirs)
 
 
             # Export data to csv and json
             if progress_report:
                 progress_report.update_batch_part(f"Saving Data")
-            time_report = save_data(cfg, time_report, logger, dir_home, Project, batch, n_batches, Dirs)
+            # time_report = save_data(cfg, time_report, logger, dir_home, Project, batch, n_batches, Dirs)
+            time_report = extract_and_save_data(cfg, time_report, logger, ProjectSQL, Dirs, batch, n_batches)
 
 
             # Clear Completed Images
             # print(Project.project_data)
 
             logger.info('Clearing batch data from RAM')
-            Project.project_data.clear() 
-            Project.project_data_list[batch] = {} 
+            # Project.project_data.clear() 
+            # Project.project_data_list[batch] = {} 
             
             gc.collect()
 

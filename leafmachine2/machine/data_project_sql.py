@@ -1,14 +1,11 @@
-import os
-import sys
-import inspect
-import shutil
-import random
+import os, time, sys, inspect, shutil, random, sqlite3
 import pandas as pd
-import sqlite3
 from sqlite3 import Error
 from PIL import Image, ImageFile
 from dataclasses import dataclass, field
 from tqdm import tqdm
+import concurrent.futures
+
 
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
@@ -43,7 +40,7 @@ class Project_Info_SQL():
         self.image_location = cfg['leafmachine']['project']['image_location']
         self.Dirs = Dirs
         self.database = Dirs.database
-        self.conn = self.create_connection(self.database)
+        
 
         self.valid_extensions = ['.jpg', '.JPG', '.jpeg', '.JPEG', '.png', '.PNG', '.bmp', '.BMP', '.tif', '.TIF', '.tiff', '.TIFF']
 
@@ -56,205 +53,475 @@ class Project_Info_SQL():
         make_file_names_valid(self.dir_images, cfg)
         make_images_in_dir_vertical(self.dir_images, cfg)
 
-        self.create_tables()
-        # self.create_archival_components_table()  # Add this line to create the archival_components table
-        # self.create_plant_components_table()  # Add this line to create the archival_components table
+        self.create_tables_if_not_exist()
         self.__make_project_dict()
         self.populate_image_dimensions()  # Populate dimensions after creating the tables
-        self.create_tables_if_not_exist()
 
-    def create_tables_if_not_exist(self):
-        try:
-            cur = self.conn.cursor()
-
-            # Table for Whole_Leaf_BBoxes
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS Whole_Leaf_BBoxes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    file_name TEXT NOT NULL,
-                    class INTEGER,
-                    x_min INTEGER,
-                    y_min INTEGER,
-                    x_max INTEGER,
-                    y_max INTEGER
-                )
-            """)
-
-            # Table for Partial_Leaf_BBoxes
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS Partial_Leaf_BBoxes (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    file_name TEXT NOT NULL,
-                    class INTEGER,
-                    x_min INTEGER,
-                    y_min INTEGER,
-                    x_max INTEGER,
-                    y_max INTEGER
-                )
-            """)
-
-            # Create the 'Whole_Leaf_Cropped' and 'Partial_Leaf_Cropped' tables
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS Whole_Leaf_Cropped (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    file_name TEXT NOT NULL,
-                    crop_name TEXT NOT NULL,
-                    cropped_image BLOB NOT NULL
-                )
-            """)
+    def create_tables_if_not_exist(self, retries=5, delay=1):
         
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS Partial_Leaf_Cropped (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    file_name TEXT NOT NULL,
-                    crop_name TEXT NOT NULL,
-                    cropped_image BLOB NOT NULL
-                )
-            """)
+        # for attempt in range(retries):
+            # try:
+        self.conn = self.create_connection()
+        time.sleep(0.1)
+        self.conn.execute('PRAGMA journal_mode=WAL;')
+        
+        # Ensure the connection is valid before proceeding
+        if self.conn is None:
+            print("Database connection is not established.")
+            return
+    
+        cur = self.conn.cursor()
 
-            # Create the 'Segmentation_Whole_Leaf' and 'Segmentation_Partial_Leaf' tables
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS Segmentation_Whole_Leaf (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    file_name TEXT NOT NULL,
-                    crop_name TEXT NOT NULL,
-                    segmentation_data TEXT NOT NULL,
-                    polygons TEXT NOT NULL,
-                    bboxes TEXT NOT NULL,
-                    labels TEXT NOT NULL,
-                    colors TEXT NOT NULL,
-                    overlay_data TEXT NOT NULL
-                )
-            """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS images (
+                id integer PRIMARY KEY,
+                name text NOT NULL,
+                path text NOT NULL,
+                valid integer,
+                width integer,
+                height integer
+            )
+        """)
+        # Assert images table was created
+        assert self.table_exists('images'), "Table 'images' was not created."
+    
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS annotations_archival (
+                id INTEGER PRIMARY KEY,
+                file_name TEXT NOT NULL,
+                component TEXT NOT NULL,
+                annotation TEXT NOT NULL
+            )
+        """)
+        assert self.table_exists('annotations_archival'), "Table 'annotations_archival' was not created."
 
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS Segmentation_Partial_Leaf (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    file_name TEXT NOT NULL,
-                    crop_name TEXT NOT NULL,
-                    segmentation_data TEXT NOT NULL,
-                    polygons TEXT NOT NULL,
-                    bboxes TEXT NOT NULL,
-                    labels TEXT NOT NULL,
-                    colors TEXT NOT NULL,
-                    overlay_data TEXT NOT NULL
-                )
-            """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS annotations_plant (
+                id INTEGER PRIMARY KEY,
+                file_name TEXT NOT NULL,
+                component TEXT NOT NULL,
+                annotation TEXT NOT NULL
+            )
+        """)
+        assert self.table_exists('annotations_plant'), "Table 'annotations_plant' was not created."
 
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dimensions_archival (
+                id INTEGER PRIMARY KEY,
+                file_name TEXT NOT NULL,
+                width INTEGER,
+                height INTEGER
+            )
+        """)
+        assert self.table_exists('dimensions_archival'), "Table 'dimensions_archival' was not created."
 
-            # Create tables for storing landmarks data
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS Landmarks_Whole_Leaves (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    file_name TEXT NOT NULL,
-                    all_points TEXT NOT NULL,
-                    height INTEGER,
-                    width INTEGER,
-                    apex_center TEXT,
-                    apex_angle_degrees REAL,
-                    base_center TEXT,
-                    base_angle_degrees REAL,
-                    lamina_tip TEXT,
-                    lamina_base TEXT,
-                    lamina_length REAL,
-                    lamina_fit TEXT,
-                    lamina_width REAL,
-                    width_left TEXT,
-                    width_right TEXT,
-                    lobe_count INTEGER,
-                    lobes TEXT,
-                    midvein_fit TEXT,
-                    midvein_fit_points TEXT,
-                    ordered_midvein TEXT,
-                    ordered_midvein_length REAL,
-                    has_midvein INTEGER,
-                    ordered_petiole TEXT,
-                    ordered_petiole_length REAL,
-                    has_ordered_petiole INTEGER,
-                    is_split INTEGER,
-                    has_apex INTEGER,
-                    has_base INTEGER,
-                    has_lamina_tip INTEGER,
-                    has_lamina_base INTEGER,
-                    has_lamina_length INTEGER,
-                    has_width INTEGER,
-                    has_lobes INTEGER,
-                    is_complete_leaf INTEGER,
-                    is_leaf_no_width INTEGER
-                )
-            """)
-
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS Landmarks_Partial_Leaves (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    file_name TEXT NOT NULL,
-                    all_points TEXT NOT NULL,
-                    height INTEGER,
-                    width INTEGER,
-                    apex_center TEXT,
-                    apex_angle_degrees REAL,
-                    base_center TEXT,
-                    base_angle_degrees REAL,
-                    lamina_tip TEXT,
-                    lamina_base TEXT,
-                    lamina_length REAL,
-                    lamina_fit TEXT,
-                    lamina_width REAL,
-                    width_left TEXT,
-                    width_right TEXT,
-                    lobe_count INTEGER,
-                    lobes TEXT,
-                    midvein_fit TEXT,
-                    midvein_fit_points TEXT,
-                    ordered_midvein TEXT,
-                    ordered_midvein_length REAL,
-                    has_midvein INTEGER,
-                    ordered_petiole TEXT,
-                    ordered_petiole_length REAL,
-                    has_ordered_petiole INTEGER,
-                    is_split INTEGER,
-                    has_apex INTEGER,
-                    has_base INTEGER,
-                    has_lamina_tip INTEGER,
-                    has_lamina_base INTEGER,
-                    has_lamina_length INTEGER,
-                    has_width INTEGER,
-                    has_lobes INTEGER,
-                    is_complete_leaf INTEGER,
-                    is_leaf_no_width INTEGER  
-                )
-            """)
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS dimensions_plant (
+                id INTEGER PRIMARY KEY,
+                file_name TEXT NOT NULL,
+                width INTEGER,
+                height INTEGER
+            )
+        """)
+        assert self.table_exists('dimensions_plant'), "Table 'dimensions_plant' was not created."
 
 
-            # Commit changes
-            self.conn.commit()
-        except sqlite3.Error as e:
-            print(f"An error occurred while creating tables: {e}")
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS ruler_data (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT NOT NULL,
+                ruler_image_name TEXT,
+                success BOOLEAN,
+                conversion_mean REAL,
+                predicted_conversion_factor_cm REAL,
+                pooled_sd REAL,
+                ruler_class TEXT,
+                ruler_class_confidence REAL,
+                units TEXT,
+                cross_validation_count INTEGER,
+                n_scanlines INTEGER,
+                n_data_points_in_avg INTEGER,
+                avg_tick_width REAL,
+                plot_points BLOB
+            )
+        """)
+        # summary_img BLOB
+        assert self.table_exists('ruler_data'), "Table 'ruler_data' was not created."
 
+        # Table for Whole_Leaf_BBoxes
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS Whole_Leaf_BBoxes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT NOT NULL,
+                class INTEGER,
+                x_min INTEGER,
+                y_min INTEGER,
+                x_max INTEGER,
+                y_max INTEGER
+            )
+        """)
+        assert self.table_exists('Whole_Leaf_BBoxes'), "Table 'Whole_Leaf_BBoxes' was not created."
 
-    def populate_image_dimensions(self):
+        # Table for Partial_Leaf_BBoxes
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS Partial_Leaf_BBoxes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT NOT NULL,
+                class INTEGER,
+                x_min INTEGER,
+                y_min INTEGER,
+                x_max INTEGER,
+                y_max INTEGER
+            )
+        """)
+        assert self.table_exists('Partial_Leaf_BBoxes'), "Table 'Partial_Leaf_BBoxes' was not created."
+
+        # Create the 'Whole_Leaf_Cropped' and 'Partial_Leaf_Cropped' tables
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS Whole_Leaf_Cropped (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT NOT NULL,
+                crop_name TEXT NOT NULL,
+                cropped_image BLOB NOT NULL
+            )
+        """)
+        assert self.table_exists('Whole_Leaf_Cropped'), "Table 'Whole_Leaf_Cropped' was not created."
+    
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS Partial_Leaf_Cropped (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT NOT NULL,
+                crop_name TEXT NOT NULL,
+                cropped_image BLOB NOT NULL
+            )
+        """)
+        assert self.table_exists('Partial_Leaf_Cropped'), "Table 'Partial_Leaf_Cropped' was not created."
+
+        # Create the 'Segmentation_Whole_Leaf' and 'Segmentation_Partial_Leaf' tables
+        # overlay_data TEXT NOT NULL,    went after colors
+        # 
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS Segmentation_Whole_Leaf (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT NOT NULL,
+                crop_name TEXT NOT NULL,
+                object_name TEXT,
+                overlay_data TEXT,
+                polygons TEXT NOT NULL,
+                bboxes TEXT NOT NULL,
+                labels TEXT NOT NULL,
+                colors TEXT NOT NULL,
+                bbox TEXT,
+                bbox_min TEXT,
+                rotate_angle REAL,
+                bbox_min_long_side REAL,
+                bbox_min_short_side REAL,
+                efd_coeffs_features TEXT,
+                efd_a0 TEXT,
+                efd_c0 TEXT,
+                efd_scale TEXT,
+                efd_angle REAL,
+                efd_phase TEXT,
+                efd_area REAL,
+                efd_perimeter REAL,
+                efd_overlay TEXT,
+                area REAL,
+                perimeter REAL, 
+                centroid TEXT,
+                convex_hull REAL,
+                convexity REAL,
+                concavity REAL,
+                circularity REAL,
+                n_pts_in_polygon REAL,
+                aspect_ratio REAL,
+                polygon_closed TEXT,
+                polygon_closed_rotated TEXT
+            )
+        """)
+        assert self.table_exists('Segmentation_Whole_Leaf'), "Table 'Segmentation_Whole_Leaf' was not created."
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS Segmentation_Partial_Leaf (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT NOT NULL,
+                crop_name TEXT NOT NULL,
+                object_name TEXT,
+                overlay_data TEXT,
+                polygons TEXT NOT NULL,
+                bboxes TEXT NOT NULL,
+                labels TEXT NOT NULL,
+                colors TEXT NOT NULL,
+                bbox TEXT,
+                bbox_min TEXT,
+                rotate_angle REAL,
+                bbox_min_long_side REAL,
+                bbox_min_short_side REAL,
+                efd_coeffs_features TEXT,
+                efd_a0 TEXT,
+                efd_c0 TEXT,
+                efd_scale TEXT,
+                efd_angle REAL,
+                efd_phase TEXT,
+                efd_area REAL,
+                efd_perimeter REAL,
+                efd_overlay TEXT,
+                area REAL,
+                perimeter REAL, 
+                centroid TEXT,
+                convex_hull REAL,
+                convexity REAL,
+                concavity REAL,
+                circularity REAL,
+                n_pts_in_polygon REAL,
+                aspect_ratio REAL,
+                polygon_closed TEXT,
+                polygon_closed_rotated TEXT
+            )
+        """)
+        assert self.table_exists('Segmentation_Partial_Leaf'), "Table 'Segmentation_Partial_Leaf' was not created."
+
+        # Create tables for storing landmarks data
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS Landmarks_Whole_Leaves (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT NOT NULL,
+                crop_name TEXT NOT NULL,
+                all_points TEXT NOT NULL,
+                height INTEGER,
+                width INTEGER,
+                apex_center TEXT,
+                apex_left TEXT,
+                apex_right TEXT,
+                apex_angle_degrees REAL,
+                apex_angle_type TEXT,
+                base_center TEXT,
+                base_left TEXT,
+                base_right TEXT,
+                base_angle_degrees REAL,
+                base_angle_type TEXT,
+                lamina_tip TEXT,
+                lamina_base TEXT,
+                lamina_length REAL,
+                lamina_fit TEXT,
+                lamina_width REAL,
+                width_left TEXT,
+                width_right TEXT,
+                lobe_count INTEGER,
+                lobes TEXT,
+                midvein_fit TEXT,
+                midvein_fit_points TEXT,
+                ordered_midvein TEXT,
+                ordered_midvein_length REAL,
+                has_midvein INTEGER,
+                ordered_petiole TEXT,
+                ordered_petiole_length REAL,
+                has_ordered_petiole INTEGER,
+                is_split INTEGER,
+                has_apex INTEGER,
+                has_base INTEGER,
+                has_lamina_tip INTEGER,
+                has_lamina_base INTEGER,
+                has_lamina_length INTEGER,
+                has_width INTEGER,
+                has_lobes INTEGER,
+                is_complete_leaf INTEGER,
+                is_leaf_no_width INTEGER,
+                t_base_center TEXT, 
+                t_base_left TEXT, 
+                t_base_right TEXT, 
+                t_apex_center TEXT, 
+                t_apex_left TEXT, 
+                t_apex_right TEXT, 
+                t_lamina_base TEXT, 
+                t_lamina_tip TEXT,
+                t_lobes TEXT, 
+                t_midvein TEXT, 
+                t_midvein_fit_points TEXT, 
+                t_petiole TEXT, 
+                t_width_left TEXT, 
+                t_width_right TEXT, 
+                t_width_infer TEXT
+            )
+        """)
+        assert self.table_exists('Landmarks_Whole_Leaves'), "Table 'Landmarks_Whole_Leaves' was not created."
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS Landmarks_Partial_Leaves (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT NOT NULL,
+                crop_name TEXT NOT NULL,
+                all_points TEXT NOT NULL,
+                height INTEGER,
+                width INTEGER,
+                apex_center TEXT,
+                apex_left TEXT,
+                apex_right TEXT,
+                apex_angle_degrees REAL,
+                apex_angle_type TEXT,
+                base_center TEXT,
+                base_left TEXT,
+                base_right TEXT,
+                base_angle_degrees REAL,
+                base_angle_type TEXT,
+                lamina_tip TEXT,
+                lamina_base TEXT,
+                lamina_length REAL,
+                lamina_fit TEXT,
+                lamina_width REAL,
+                width_left TEXT,
+                width_right TEXT,
+                lobe_count INTEGER,
+                lobes TEXT,
+                midvein_fit TEXT,
+                midvein_fit_points TEXT,
+                ordered_midvein TEXT,
+                ordered_midvein_length REAL,
+                has_midvein INTEGER,
+                ordered_petiole TEXT,
+                ordered_petiole_length REAL,
+                has_ordered_petiole INTEGER,
+                is_split INTEGER,
+                has_apex INTEGER,
+                has_base INTEGER,
+                has_lamina_tip INTEGER,
+                has_lamina_base INTEGER,
+                has_lamina_length INTEGER,
+                has_width INTEGER,
+                has_lobes INTEGER,
+                is_complete_leaf INTEGER,
+                is_leaf_no_width INTEGER,
+                t_base_center TEXT, 
+                t_base_left TEXT, 
+                t_base_right TEXT, 
+                t_apex_center TEXT, 
+                t_apex_left TEXT, 
+                t_apex_right TEXT, 
+                t_lamina_base TEXT, 
+                t_lamina_tip TEXT,
+                t_lobes TEXT, 
+                t_midvein TEXT, 
+                t_midvein_fit_points TEXT, 
+                t_petiole TEXT, 
+                t_width_left TEXT, 
+                t_width_right TEXT, 
+                t_width_infer TEXT
+            )
+        """)
+        assert self.table_exists('Landmarks_Partial_Leaves'), "Table 'Landmarks_Partial_Leaves' was not created."
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS Keypoints_Data (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_name TEXT,
+                crop_name TEXT,
+                keypoints TEXT,
+                angle REAL,
+                tip TEXT,
+                base TEXT,
+                distance_lamina REAL, 
+                distance_width REAL, 
+                distance_petiole REAL,
+                distance_midvein_span REAL, 
+                distance_petiole_span REAL,
+                trace_midvein_distance REAL, 
+                trace_petiole_distance REAL, 
+                apex_angle REAL, 
+                apex_is_reflex INTEGER, 
+                base_angle REAL, 
+                base_is_reflex INTEGER
+            )
+        """)
+        assert self.table_exists('Keypoints_Data'), "Table 'Keypoints_Data' was not created."
+
+        # Commit changes and close the cursor
+        self.conn.commit()
+            # except sqlite3.OperationalError as e:
+            #     if "locked" in str(e):
+            #         print(f"Database is locked, retrying in {delay} seconds...")
+            #         time.sleep(delay)
+            #     else:
+            #         raise
+            # except sqlite3.Error as e:
+            #     print(f"Error creating table 'images': {e}")
+            #     self.conn.rollback()  # Rollback the transaction in case of error
+            #     # try:
+            #     #     self.conn.commit()
+            #     #     cur.close()
+            #     # except:
+            #     #     pass
+            #     # print(f"An error occurred while creating tables: {e}")
+            # finally:
+            #     if self.conn:
+            #         self.conn.close()
+            #         try:
+            #             cur.close()  # Close the cursor in the finally block to ensure it's closed no matter what
+            #         except:
+            #             pass
+
+    def table_exists(self, table_name):
+        cur = self.conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+        return cur.fetchone() is not None
+
+    # def populate_image_dimensions(self):
+    #     cur = self.conn.cursor()
+
+    #     # Fetch all images that don't have width and height set
+    #     cur.execute("SELECT id, path FROM images WHERE width IS NULL OR height IS NULL")
+    #     images = cur.fetchall()
+
+    #     for img_id, img_path in images:
+    #         try:
+    #             with Image.open(img_path) as img:
+    #                 width, height = img.size
+    #                 cur.execute("UPDATE images SET width = ?, height = ? WHERE id = ?", (width, height, img_id))
+    #                 self.conn.commit()
+    #         except Exception as e:
+    #             print(f"Error processing image {img_path}: {e}")
+    
+    def populate_image_dimensions(self, batch_size=100):
         cur = self.conn.cursor()
 
         # Fetch all images that don't have width and height set
         cur.execute("SELECT id, path FROM images WHERE width IS NULL OR height IS NULL")
         images = cur.fetchall()
+        cur.close()
 
-        for img_id, img_path in images:
-            try:
-                with Image.open(img_path) as img:
-                    width, height = img.size
-                    cur.execute("UPDATE images SET width = ?, height = ? WHERE id = ?", (width, height, img_id))
-                    self.conn.commit()
-            except Exception as e:
-                print(f"Error processing image {img_path}: {e}")
+        # Split images into batches for parallel processing
+        image_batches = [images[i:i + batch_size] for i in range(0, len(images), batch_size)]
 
-    def create_connection(self, db_file):
+        db_path = self.database
+        
+        # Use ProcessPoolExecutor for parallel processing
+        with concurrent.futures.ProcessPoolExecutor(max_workers=8) as executor:
+            futures = [
+                executor.submit(process_image_batch, batch, db_path)
+                for batch in image_batches
+            ]
+            for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Populating Image Dimensions", colour='green'):
+                future.result()  # Catch exceptions from workers
+
+
+    def create_connection(self, retries=5, delay=0.1):
         conn = None
-        try:
-            conn = sqlite3.connect(db_file)
-            return conn
-        except Error as e:
-            print(e)
+        self.database = os.path.abspath(self.database)  # Ensure the database path is absolute
+        
+        if not os.path.exists(self.database):
+            print(f"Creating new project database: {self.database}")
+            print(f"Populating database with image names and dimensions")
+        
+        for attempt in range(retries):
+            try:
+                # Use mode=rwc to allow reading, writing, and creation of the file if it doesn't exist
+                conn = sqlite3.connect(f'file:{self.database}?mode=rwc', uri=True, timeout=10)
+                return conn
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e):
+                    print(f"Database is locked, retrying in {delay} seconds... (Attempt {attempt+1}/{retries})")
+                    time.sleep(delay)
+                else:
+                    print(f"An error occurred: {e}")
+                    break
         return conn
 
     def create_tables(self):
@@ -311,7 +578,7 @@ class Project_Info_SQL():
             cur = self.conn.cursor()
             cur.execute(sql, (name, path, valid))
             self.conn.commit()
-            print(f"Inserted image into database: {name}, {path}, {valid}")  # Log each database insertion
+            # print(f"Inserted image into database: {name}, {path}, {valid}")  # Log each database insertion
             return cur.lastrowid
         except Error as e:
             print(f"Error inserting image {name} into database: {e}")
@@ -458,6 +725,73 @@ class Project_Info_SQL():
     def close_connection(self):
         if self.conn:
             self.conn.close()
+
+def process_image_batch(image_batch, db_path, batch_commit_size=10, retries=5, delay=0.5):
+    conn = sqlite3.connect(db_path, timeout=30)  # Increased timeout for database lock
+    cur = conn.cursor()
+    
+    batch_updates = []
+    
+    for img_id, img_path in image_batch:
+        width, height = fast_image_size(img_path)
+        if width is not None and height is not None:  # Only proceed if valid dimensions are returned
+            batch_updates.append((width, height, img_id))
+        else:
+            print(f"Warning: Unable to get dimensions for image {img_path}")
+            
+        # Perform batch updates when the size reaches the batch_commit_size
+        if len(batch_updates) >= batch_commit_size:
+            for attempt in range(retries):
+                try:
+                    cur.executemany("UPDATE images SET width = ?, height = ? WHERE id = ?", batch_updates)
+                    conn.commit()
+                    batch_updates.clear()  # Clear the batch after commit
+                    break  # Exit retry loop after success
+                except sqlite3.OperationalError as e:
+                    if "database is locked" in str(e):
+                        print(f"Database is locked, retrying in {delay} seconds... (Attempt {attempt + 1}/{retries})")
+                        time.sleep(delay)  # Wait and retry if database is locked
+                    else:
+                        print(f"Error updating database for batch: {e}")
+                        break
+    
+    # Commit any remaining updates
+    if batch_updates:
+        try:
+            cur.executemany("UPDATE images SET width = ?, height = ? WHERE id = ?", batch_updates)
+            conn.commit()
+        except sqlite3.OperationalError as e:
+            print(f"Final batch update failed due to database lock: {e}")
+    
+    cur.close()
+    conn.close()
+
+
+def fast_image_size(img_path):
+    parser = ImageFile.Parser()
+    try:
+        # First try the fast method by parsing chunks of the file
+        with open(img_path, 'rb') as f:
+            while True:
+                chunk = f.read(1024)
+                if not chunk:
+                    break
+                parser.feed(chunk)
+                if parser.image:
+                    return parser.image.size
+    except Exception as e:
+        print(f"Fast method failed for image {img_path}: {e}")
+    
+    # Fallback to PIL if the fast method fails
+    try:
+        with Image.open(img_path) as img:
+            return img.size  # (width, height)
+    except Exception as e:
+        print(f"PIL fallback also failed for image {img_path}: {e}")
+    
+    # If both methods fail, return None, None
+    return None, None
+
 
 def get_database_path(project_info):
     return project_info.database

@@ -1,9 +1,9 @@
-import os, yaml, datetime, argparse, re, cv2, random, shutil, time
+import os, yaml, datetime, argparse, re, cv2, random, shutil, time, torch
 import pandas as pd
 from pathlib import Path
 from dataclasses import dataclass, field
 from tqdm import tqdm
-import multiprocessing as mp
+import multiprocessing
 import numpy as np
 import concurrent.futures
 from time import perf_counter
@@ -17,6 +17,8 @@ from xml.etree.ElementTree import Element, SubElement, tostring, register_namesp
 from xml.dom import minidom
 import sqlite3
 import ast
+from torchvision import transforms
+import torch.nn.functional as F
 '''
 TIFF --> DNG
 Install
@@ -28,6 +30,85 @@ https://helpx.adobe.com/content/dam/help/en/photoshop/pdf/dng_commandline.pdf
 
 
 # https://stackoverflow.com/questions/287871/how-do-i-print-colored-text-to-the-terminal
+
+def get_num_cpu_cores():
+    """Return the number of available CPU cores."""
+    return os.cpu_count()
+
+def get_gpu_info():
+    """Return the GPU information (availability and total memory in GB) if available."""
+    if torch.cuda.is_available():
+        gpu_memory_gb = torch.cuda.get_device_properties(0).total_memory / (1024 ** 3)  # Convert bytes to GB
+        return True, gpu_memory_gb
+    return False, 0  # No GPU available
+
+def get_num_gpus():
+    """Returns the number of available GPUs in the system."""
+    if torch.cuda.is_available():
+        return torch.cuda.device_count()
+    return 0
+
+def bin_gpu_memory(gpu_memory_gb):
+    """Bin GPU memory into 4GB chunks and return the rounded memory."""
+    return round(gpu_memory_gb / 4) * 4  # Round to the nearest 4GB bin
+
+def check_num_workers(cfg, dir_images):
+    n_images = len(os.listdir(dir_images))
+    n_cores = get_num_cpu_cores()
+    num_gpus = get_num_gpus()
+
+    max_num_workers_overlay = n_cores
+    num_workers_cropping = n_cores
+    # Check GPU availability and memory
+    has_gpu, gpu_memory_gb = get_gpu_info()
+
+    if has_gpu:
+        # Bin GPU memory into 4GB chunks
+        binned_memory = bin_gpu_memory(gpu_memory_gb)
+
+        # Set worker limits based on binned GPU memory
+        if binned_memory >= 32:
+            max_num_workers = 24
+            max_num_workers_ruler = 32
+            max_num_workers_seg = 16
+        elif binned_memory >= 24:
+            max_num_workers = 12
+            max_num_workers_ruler = 16
+            max_num_workers_seg = 8
+        elif binned_memory >= 16:
+            max_num_workers = 10
+            max_num_workers_ruler = 12
+            max_num_workers_seg = 6
+        elif binned_memory >= 12:
+            max_num_workers = 8
+            max_num_workers_ruler = 10
+            max_num_workers_seg = 5
+        elif binned_memory >= 8:
+            max_num_workers = 6
+            max_num_workers_ruler = 8
+            max_num_workers_seg = 4
+        elif binned_memory >= 4:
+            max_num_workers = 4
+            max_num_workers_ruler = 4
+            max_num_workers_seg = 4
+        else:
+            max_num_workers = 4  # For smaller GPUs, fallback to CPU core count
+            max_num_workers_ruler = 4
+            max_num_workers_seg = 2
+    else:
+        # For CPU-only or very small GPUs, use CPU core count
+        max_num_workers = 2
+        max_num_workers_ruler = 2
+        max_num_workers_seg = 2
+
+    # Adjust workers based on available images, cores, or GPU limits
+    cfg['leafmachine']['project']['num_workers'] = min(cfg['leafmachine']['project']['num_workers'], n_images, max_num_workers)
+    cfg['leafmachine']['project']['num_workers_ruler'] = min(cfg['leafmachine']['project']['num_workers_ruler'], n_images, max_num_workers_ruler)
+    cfg['leafmachine']['project']['num_workers_seg'] = min(cfg['leafmachine']['project']['num_workers_seg'], n_images, max_num_workers_seg)
+    cfg['leafmachine']['project']['num_workers_overlay'] = min(cfg['leafmachine']['project']['num_workers_overlay'], n_images, max_num_workers_overlay)
+    cfg['leafmachine']['project']['num_gpus'] = num_gpus
+
+    return cfg
 
 def validate_dir(dir):
     if not os.path.exists(dir):
@@ -726,6 +807,27 @@ def crop_detections_from_images_worker_VV(filename, analysis, Project, Dirs, sav
         crop_component_from_yolo_coords_VV('ARCHIVAL', Dirs, analysis, archival, full_image, filename, save_per_image, save_per_class, save_list)
  
 
+def crop_detections_from_images_worker(device, filename, analysis, dir_images, Dirs, save_per_image, save_per_class, save_list):
+    try:
+        image_path = glob.glob(os.path.join(dir_images, filename + '.*'))[0]
+        full_image = cv2.imread(image_path)
+        full_image = torch.tensor(full_image, device=device).permute(2, 0, 1).float()  # Move image to GPU and convert to tensor
+    except:
+        raise FileNotFoundError(f"Could not load image for {filename}")
+
+    has_archival = any(component == 'Detections_Archival_Components' for _, component, _ in analysis)
+    has_plant = any(component == 'Detections_Plant_Components' for _, component, _ in analysis)
+
+    if has_archival and (save_per_image or save_per_class):
+        archival_annotations = [ann for _, component, ann in analysis if component == 'Detections_Archival_Components']
+        crop_component_from_yolo_coords('ARCHIVAL', Dirs, archival_annotations, full_image, filename, save_per_image, save_per_class, save_list)
+
+    if has_plant and (save_per_image or save_per_class):
+        plant_annotations = [ann for _, component, ann in analysis if component == 'Detections_Plant_Components']
+        crop_component_from_yolo_coords('PLANT', Dirs, plant_annotations, full_image, filename, save_per_image, save_per_class, save_list)
+
+
+""" # Replacing with GPU version
 #Works with Project, not SQL
 def crop_detections_from_images_worker(filename, analysis, ProjectSQL, Dirs, save_per_image, save_per_class, save_list, cur):
     try:
@@ -751,6 +853,7 @@ def crop_detections_from_images_worker(filename, analysis, ProjectSQL, Dirs, sav
         # Filter and extract plant annotations
         plant_annotations = [ann for _, component, ann in analysis if component == 'Detections_Plant_Components']
         crop_component_from_yolo_coords('PLANT', Dirs, plant_annotations, full_image, filename, save_per_image, save_per_class, save_list)
+"""
 
 '''
 def crop_detections_from_images_worker(image_name, archival_components, plant_components, Dirs, save_per_image, save_per_class, save_list, binarize_labels):
@@ -785,8 +888,7 @@ def crop_detections_from_images_worker(image_name, archival_components, plant_co
 '''
 
 
-
-# works with Project, not with SQL
+""" # Replacing this with a version that uses GPU to crop
 def crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dirs, batch_size=50):
     t2_start = perf_counter()
     logger.name = 'Crop Components'
@@ -844,19 +946,76 @@ def crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dir
                     pass
                 futures.clear()
 
-    #     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-    #         futures = []
-    #         for i in range(0, len(Project.project_data), batch_size):
-    #             batch = list(Project.project_data.items())[i:i+batch_size]
-    #             # print(f'Cropping Detections from Images {i} to {i+batch_size}')
-    #             logger.info(f'Cropping {detections} from images {i} to {i+batch_size} [{len(Project.project_data)}]')
-    #             for filename, analysis in batch:
-    #                 if len(analysis) != 0:
-    #                     futures.append(executor.submit(crop_detections_from_images_worker, filename, analysis, Project, Dirs, save_per_image, save_per_class, save_list, binarize_labels))
+    t2_stop = perf_counter()
+    t_crops = f"[Cropping elapsed time] {round(t2_stop - t2_start)} seconds ({round((t2_stop - t2_start)/60)} minutes)"
+    logger.info(t_crops)
+    time_report['t_crops'] = t_crops
+    return time_report
+"""
 
-    #             for future in concurrent.futures.as_completed(futures):
-    #                 pass
-    #             futures.clear()
+
+
+
+
+def crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dirs, batch_size=50):
+    t2_start = perf_counter()
+    logger.name = 'Crop Components'
+    
+    if cfg['leafmachine']['cropped_components']['do_save_cropped_annotations']:
+        detections = cfg['leafmachine']['cropped_components']['save_cropped_annotations']
+        logger.info(f"Cropping {detections} components from images")
+
+        save_per_image = cfg['leafmachine']['cropped_components']['save_per_image']
+        save_per_class = cfg['leafmachine']['cropped_components']['save_per_annotation_class']
+        save_list = cfg['leafmachine']['cropped_components']['save_cropped_annotations']
+        device = cfg['leafmachine']['project']['device']
+        binarize_labels = cfg.get('leafmachine', {}).get('cropped_components', {}).get('binarize_labels', False)
+
+        batch_size = int(cfg['leafmachine']['project'].get('batch_size', 50))
+        num_workers = int(cfg['leafmachine']['project'].get('num_workers_cropping', 12))
+
+        dir_images = Project.dir_images
+
+        if binarize_labels:
+            save_per_class = True
+
+        # Process in parallel using ProcessPoolExecutor
+        with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+            futures = []
+            conn = Project.conn
+            cur = conn.cursor()
+
+            cur.execute("SELECT COUNT(*) FROM images")
+            total_images = cur.fetchone()[0]
+
+            for i in range(0, total_images, batch_size):
+                cur.execute("SELECT name FROM images LIMIT ? OFFSET ?", (batch_size, i))
+                batch = cur.fetchall()
+
+                logger.info(f'Cropping {detections} from images {i} to {i + batch_size} [{total_images}]')
+                
+                for (filename,) in batch:
+                    cur.execute("SELECT 'PLANT' as component_type, component, annotation FROM annotations_plant WHERE file_name = ?", (filename,))
+                    plant_annotations = cur.fetchall()
+
+                    cur.execute("SELECT 'ARCHIVAL' as component_type, component, annotation FROM annotations_archival WHERE file_name = ?", (filename,))
+                    archival_annotations = cur.fetchall()
+
+                    combined_annotations = plant_annotations + archival_annotations
+
+                    # Submit each task to the process pool for parallel processing
+                    futures.append(
+                        executor.submit(
+                            crop_detections_from_images_worker, device, filename, combined_annotations, dir_images, Dirs, save_per_image, save_per_class, save_list
+                        )
+                    )
+
+            # Wait for all tasks to complete
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    future.result()  # This will raise any exceptions encountered in the worker
+                except Exception as e:
+                    logger.error(f"Error processing image: {e}")
 
     t2_stop = perf_counter()
     t_crops = f"[Cropping elapsed time] {round(t2_stop - t2_start)} seconds ({round((t2_stop - t2_start)/60)} minutes)"
@@ -865,8 +1024,62 @@ def crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dir
     return time_report
 
 
-
 '''
+def crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dirs, batch_size=50):
+    t2_start = perf_counter()
+    logger.name = 'Crop Components'
+    
+    if cfg['leafmachine']['cropped_components']['do_save_cropped_annotations']:
+        detections = cfg['leafmachine']['cropped_components']['save_cropped_annotations']
+        logger.info(f"Cropping {detections} components from images")
+
+        save_per_image = cfg['leafmachine']['cropped_components']['save_per_image']
+        save_per_class = cfg['leafmachine']['cropped_components']['save_per_annotation_class']
+        save_list = cfg['leafmachine']['cropped_components']['save_cropped_annotations']
+        device = cfg['leafmachine']['project']['device']
+        binarize_labels = cfg.get('leafmachine', {}).get('cropped_components', {}).get('binarize_labels', False)
+
+        batch_size = int(cfg['leafmachine']['project'].get('batch_size', 50))
+        num_workers = int(cfg['leafmachine']['project'].get('num_workers_overlay', 12))
+
+        if binarize_labels:
+            save_per_class = True
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+            futures = []
+            conn = Project.conn
+            cur = conn.cursor()
+
+            cur.execute("SELECT COUNT(*) FROM images")
+            total_images = cur.fetchone()[0]
+
+            for i in range(0, total_images, batch_size):
+                cur.execute("SELECT name FROM images LIMIT ? OFFSET ?", (batch_size, i))
+                batch = cur.fetchall()
+
+                logger.info(f'Cropping {detections} from images {i} to {i + batch_size} [{total_images}]')
+                for (filename,) in batch:
+                    cur.execute("SELECT 'PLANT' as component_type, component, annotation FROM annotations_plant WHERE file_name = ?", (filename,))
+                    plant_annotations = cur.fetchall()
+
+                    cur.execute("SELECT 'ARCHIVAL' as component_type, component, annotation FROM annotations_archival WHERE file_name = ?", (filename,))
+                    archival_annotations = cur.fetchall()
+
+                    combined_annotations = plant_annotations + archival_annotations
+
+                    futures.append(executor.submit(crop_detections_from_images_worker, device, filename, combined_annotations, Project, Dirs, save_per_image, save_per_class, save_list, cur))
+
+                for future in concurrent.futures.as_completed(futures):
+                    pass
+                futures.clear()
+
+    t2_stop = perf_counter()
+    t_crops = f"[Cropping elapsed time] {round(t2_stop - t2_start)} seconds ({round((t2_stop - t2_start)/60)} minutes)"
+    logger.info(t_crops)
+    time_report['t_crops'] = t_crops
+    return time_report
+
+
 def crop_detections_from_images(cfg, time_report, logger, dir_home, Project, Dirs, batch_size=50):
     t2_start = perf_counter()
     logger.name = 'Crop Components'
@@ -1666,8 +1879,42 @@ def crop_component_from_yolo_coords_VV(anno_type, Dirs, analysis, all_detections
         original_image_name = '.'.join([filename,'jpg'])
         cv2.imwrite(os.path.join(Dirs.save_original, original_image_name), full_image)
         
+def crop_component_from_yolo_coords(anno_type, Dirs, all_detections, full_image, filename, save_per_image, save_per_class, save_list):
+    if len(all_detections) < 1:
+        print('     MAKE THIS HAVE AN EMPTY PLACEHOLDER')
+    else:
+        for detection_str in all_detections:
+            detection = list(map(float, detection_str.split(',')))
+            detection_class = int(detection[0])
+            detection_class = set_index_for_annotation(detection_class, anno_type)
 
+            if (detection_class in save_list) or ('save_all' in save_list):
+                height, width = full_image.shape[1], full_image.shape[2]
+                location = yolo_to_position_ruler(detection, height, width)
 
+                min_x, min_y, max_x, max_y = location[1], location[2], location[3], location[4]
+
+                # Perform cropping using PyTorch operations (on GPU)
+                detection_cropped = full_image[:, min_y:max_y, min_x:max_x]
+
+                # Transfer cropped image back to CPU for saving
+                detection_cropped_cpu = detection_cropped.permute(1, 2, 0).cpu().numpy().astype('uint8')
+
+                loc = '-'.join([str(min_x), str(min_y), str(max_x), str(max_y)])
+                detection_cropped_name = '.'.join(['__'.join([filename, str(detection_class), loc]), 'jpg'])
+
+                # Save per image
+                if (detection_class in save_list) and save_per_image:
+                    dir_destination = os.path.join(Dirs.save_per_image, filename, str(detection_class))
+                    validate_dir(dir_destination)
+                    cv2.imwrite(os.path.join(dir_destination, detection_cropped_name), detection_cropped_cpu)
+
+                # Save per class
+                if (detection_class in save_list) and save_per_class:
+                    dir_destination = os.path.join(Dirs.save_per_annotation_class, str(detection_class))
+                    validate_dir(dir_destination)
+                    cv2.imwrite(os.path.join(dir_destination, detection_cropped_name), detection_cropped_cpu)
+""" # Replacing with GPU verison
 def crop_component_from_yolo_coords(anno_type, Dirs, all_detections, full_image, filename, save_per_image, save_per_class, save_list):
     if len(all_detections) < 1:
         print('     MAKE THIS HAVE AN EMPTY PLACEHOLDER')  # TODO ###################################################################################
@@ -1704,7 +1951,7 @@ def crop_component_from_yolo_coords(anno_type, Dirs, all_detections, full_image,
                     validate_dir(dir_destination)
                     cv2.imwrite(os.path.join(dir_destination, detection_cropped_name), detection_cropped)
 
-
+"""
 
 def yolo_to_position_ruler(annotation, height, width):
     return ['ruler', 

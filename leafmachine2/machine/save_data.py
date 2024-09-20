@@ -1,10 +1,276 @@
 
 from __future__ import annotations
-import os, sys, inspect, json, imagesize, shutil
+import os, sys, inspect, json, imagesize, shutil, sqlite3
 import pandas as pd
 from dataclasses import dataclass, field
 from time import perf_counter
 
+def extract_and_save_data(cfg, time_report, logger, ProjectSQL, Dirs, batch, n_batches):
+    start_t = perf_counter()
+    logger.name = f'[BATCH {batch+1} Save Data]'
+    logger.info(f'Saving data for {batch+1} of {n_batches}')
+
+    # Connect to the database
+    conn = sqlite3.connect(ProjectSQL.database)
+    cur = conn.cursor()
+
+    # Extract and process Ruler Data
+    df_project_rulers = pd.read_sql_query("""
+        SELECT DISTINCT r.file_name as filename, 
+               d.height as image_height, 
+               d.width as image_width, 
+               r.ruler_image_name, 
+               r.success as ruler_success,
+               r.conversion_mean, 
+               r.predicted_conversion_factor_cm, 
+               r.pooled_sd, 
+               r.ruler_class, 
+               r.ruler_class_confidence,
+               r.units, 
+               r.cross_validation_count, 
+               r.n_scanlines, 
+               r.n_data_points_in_avg, 
+               r.avg_tick_width
+        FROM ruler_data r
+        LEFT JOIN dimensions_archival d ON r.file_name = d.file_name
+    """, conn)
+
+    # Extract and process EFD data
+    df_project_EFD = pd.read_sql_query("""
+        SELECT DISTINCT s.file_name as filename, 
+            d.height as image_height, 
+            d.width as image_width,
+            s.crop_name as component_name,
+            r.conversion_mean as conversion_mean, 
+            r.predicted_conversion_factor_cm as predicted_conversion_factor_cm,
+            'N/A' as annotation_name, 
+            'N/A' as efd_order, 
+            'N/A' as efd_coeffs_features, 
+            'N/A' as efd_a0,
+            'N/A' as efd_c0, 
+            'N/A' as efd_scale, 
+            'N/A' as efd_angle, 
+            'N/A' as efd_phase, 
+            'N/A' as efd_area, 
+            'N/A' as efd_perimeter, 
+            'N/A' as efd_plot_points
+        FROM Segmentation_Whole_Leaf s
+        LEFT JOIN dimensions_archival d ON s.file_name = d.file_name
+        LEFT JOIN ruler_data r ON s.file_name = r.file_name
+    """, conn)
+
+    df_project_EFD = populate_efd_data(df_project_EFD, cfg)
+
+    # Extract and process landmark data
+    df_project_landmarks = pd.read_sql_query("""
+        SELECT DISTINCT s.file_name as filename, 
+               d.height as image_height, 
+               d.width as image_width, 
+               s.crop_name as component_name, 
+               d.height as component_height, 
+               d.width as component_width,
+               r.conversion_mean, 
+               r.predicted_conversion_factor_cm,
+               l.lamina_length, 
+               l.lamina_width, 
+               l.ordered_midvein_length, 
+               l.ordered_petiole_length, 
+               l.lobe_count,
+               l.apex_angle_type, 
+               l.apex_angle_degrees, 
+               l.base_angle_type, 
+               l.base_angle_degrees,
+               l.has_apex, 
+               l.has_base, 
+               l.has_lamina_base, 
+               l.has_lamina_length, 
+               l.has_lamina_tip, 
+               l.has_lobes, 
+               l.has_midvein, 
+               l.has_ordered_petiole,
+               l.has_width, 
+               l.apex_center, 
+               l.apex_left, 
+               l.apex_right, 
+               l.base_center,
+               l.base_left, 
+               l.base_right, 
+               l.lamina_tip, 
+               l.lamina_base, 
+               l.lobes, 
+               l.midvein_fit_points,
+               l.ordered_midvein, 
+               l.ordered_petiole, 
+               l.width_left, 
+               l.width_right, 
+               l.lamina_fit as lamina_fit_ax_b, 
+               l.midvein_fit as midvein_fit_ax_b
+        FROM Segmentation_Whole_Leaf s
+        LEFT JOIN dimensions_archival d ON s.file_name = d.file_name
+        LEFT JOIN ruler_data r ON s.file_name = r.file_name
+        LEFT JOIN Landmarks_Whole_Leaves l ON s.file_name = l.file_name AND s.crop_name = l.crop_name
+    """, conn)
+
+    df_project_landmarks = apply_conversion_factors(df_project_landmarks, cfg, 'landmarks')
+
+    # Extract data for segmentation and apply conversion factors
+    df_project_seg = pd.read_sql_query("""
+        SELECT DISTINCT s.file_name as filename, 
+            d.height as image_height, 
+            d.width as image_width,
+            s.crop_name as component_name, 
+            r.conversion_mean, 
+            r.predicted_conversion_factor_cm,
+            s.area, 
+            s.perimeter, 
+            s.convex_hull,                  
+            s.bbox,
+            s.bbox_min,
+            s.rotate_angle,
+            s.bbox_min_long_side,
+            s.bbox_min_short_side,
+            s.efd_coeffs_features,
+            s.efd_a0,
+            s.efd_c0,
+            s.efd_scale,
+            s.efd_angle,
+            s.efd_phase,
+            s.efd_area,
+            s.efd_perimeter,
+            s.centroid,
+            s.convex_hull,
+            s.convexity,
+            s.concavity,
+            s.circularity,
+            s.n_pts_in_polygon,
+            s.aspect_ratio,
+            s.polygon_closed,
+            s.polygon_closed_rotated,                  
+            k.keypoints, 
+            k.angle, 
+            k.tip, 
+            k.base, 
+            k.distance_lamina, 
+            k.distance_width, 
+            k.distance_petiole,
+            k.distance_midvein_span, 
+            k.distance_petiole_span, 
+            k.trace_midvein_distance, 
+            k.trace_petiole_distance,
+            k.apex_angle, 
+            k.apex_is_reflex, 
+            k.base_angle, 
+            k.base_is_reflex
+        FROM Segmentation_Whole_Leaf s
+        LEFT JOIN dimensions_archival d ON s.file_name = d.file_name
+        LEFT JOIN ruler_data r ON s.file_name = r.file_name
+        LEFT JOIN Keypoints_Data k ON s.file_name = k.file_name AND s.crop_name = k.crop_name
+    """, conn)
+
+    df_project_seg = apply_conversion_factors(df_project_seg, cfg, 'seg')
+    df_project_seg.loc[:, ['polygon_closed', 'polygon_closed_rotated']] = "too_long_export_as_txt"
+    
+    # Save each DataFrame to a CSV file
+    df_project_EFD.to_csv(os.path.join(Dirs.data_csv_project_batch_EFD, f'{Dirs.run_name}__EFD__{batch}of{n_batches}.csv'), index=False)
+    df_project_landmarks.to_csv(os.path.join(Dirs.data_csv_project_batch_landmarks, f'{Dirs.run_name}__Landmarks__{batch}of{n_batches}.csv'), index=False)
+    df_project_rulers.to_csv(os.path.join(Dirs.data_csv_project_batch_ruler, f'{Dirs.run_name}__Ruler__{batch}of{n_batches}.csv'), index=False)
+    df_project_seg.to_csv(os.path.join(Dirs.data_csv_project_batch_measurements, f'{Dirs.run_name}__Measurements__{batch}of{n_batches}.csv'), index=False)
+
+    end_t = perf_counter()
+
+    t_save = f"[Batch {batch+1}: Save Data elapsed time] {round(end_t - start_t)} seconds ({round((end_t - start_t)/60)} minutes)"
+    logger.info(t_save)
+    time_report['t_save'] = t_save
+    return time_report
+
+def populate_efd_data(df, cfg):
+    n_order = cfg['leafmachine']['leaf_segmentation']['elliptic_fourier_descriptor_order'] if cfg['leafmachine']['leaf_segmentation']['elliptic_fourier_descriptor_order'] else 40
+    coeffs_col_names = [f'coeffs_{i}' for i in range(n_order)]
+    
+    # Add columns for the coefficients
+    for col_name in coeffs_col_names:
+        df[col_name] = 'NA'
+
+    # Populate data in df (sample logic, can be adjusted based on actual needs)
+    for index, row in df.iterrows():
+        # Here you would fill in the fields with real data or calculations
+        row['efd_order'] = n_order
+        # Example of how you might fill the coefficient columns:
+        for i in range(n_order):
+            row[coeffs_col_names[i]] = 'not_yet_supported'  # replace 'some_value' with actual data
+
+    return df
+
+def apply_conversion_factors(df, cfg, opt):
+    if not cfg['leafmachine']['data']['do_apply_conversion_factor']:
+        return df
+    
+    for index, row in df.iterrows():
+        if not cfg['leafmachine']['data']['do_apply_predicted_conversion_factor_as_backup']:
+            conversion_mean = row['conversion_mean']
+            if pd.isna(conversion_mean) or conversion_mean == 0:
+                continue
+
+        dict_seg = row.to_dict()
+
+        # Apply conversion factors using the existing methods
+        dict_seg = divide_values_length(cfg, dict_seg, opt)
+        if opt == 'seg':
+            dict_seg = divide_values_sq(cfg, dict_seg)
+
+        # Update the row with the modified values
+        for key, value in dict_seg.items():
+            df.at[index, key] = value
+
+    return df
+
+def divide_values_length(cfg, dict_seg, opt):
+    if dict_seg['conversion_mean'] == 0 or dict_seg['conversion_mean'] == 'NA':
+        if dict_seg['predicted_conversion_factor_cm'] == 0 or dict_seg['predicted_conversion_factor_cm'] == 'NA':
+            return dict_seg
+        else:
+            CF = dict_seg['predicted_conversion_factor_cm']
+    else:
+        CF = dict_seg['conversion_mean']
+
+    if opt == 'seg':
+        dict_seg['perimeter'] = round(dict_seg['perimeter'] / CF, 2) if dict_seg['perimeter'] is not None else None
+        dict_seg['distance_lamina'] = round(dict_seg['distance_lamina'] / CF, 2) if dict_seg['distance_lamina'] is not None else None
+        dict_seg['perimeter'] = round(dict_seg['perimeter'] / CF, 2) if dict_seg['perimeter'] is not None else None
+        dict_seg['distance_width'] = round(dict_seg['distance_width'] / CF, 2) if dict_seg['distance_width'] is not None else None
+        dict_seg['distance_petiole'] = round(dict_seg['distance_petiole'] / CF, 2) if dict_seg['distance_petiole'] is not None else None
+        dict_seg['distance_midvein_span'] = round(dict_seg['distance_midvein_span'] / CF, 2) if dict_seg['distance_midvein_span'] is not None else None
+        dict_seg['distance_petiole_span'] = round(dict_seg['distance_petiole_span'] / CF, 2) if dict_seg['distance_petiole_span'] is not None else None
+        dict_seg['trace_midvein_distance'] = round(dict_seg['trace_midvein_distance'] / CF, 2) if dict_seg['trace_midvein_distance'] is not None else None
+        dict_seg['trace_petiole_distance'] = round(dict_seg['trace_petiole_distance'] / CF, 2) if dict_seg['trace_petiole_distance'] is not None else None
+        
+        dict_seg['bbox_min_long_side'] = round(dict_seg['bbox_min_long_side'] / CF, 2) if dict_seg['bbox_min_long_side'] is not None else None
+        dict_seg['bbox_min_short_side'] = round(dict_seg['bbox_min_short_side'] / CF, 2) if dict_seg['bbox_min_short_side'] is not None else None
+        dict_seg['efd_perimeter'] = round(dict_seg['efd_perimeter'] / CF, 2) if dict_seg['efd_perimeter'] is not None else None
+
+    else:
+        dict_seg['lamina_length'] = round(dict_seg['lamina_length'] / CF, 2) if dict_seg['lamina_length'] is not None else None
+        dict_seg['lamina_width'] = round(dict_seg['lamina_width'] / CF, 2) if dict_seg['lamina_width'] is not None else None
+        dict_seg['ordered_midvein_length'] = round(dict_seg['ordered_midvein_length'] / CF, 2) if dict_seg['ordered_midvein_length'] is not None else None
+        dict_seg['ordered_petiole_length'] = round(dict_seg['ordered_petiole_length'] / CF, 2) if dict_seg['ordered_petiole_length'] is not None else None
+        
+    return dict_seg
+
+def divide_values_sq(cfg, dict_seg):
+    if dict_seg['conversion_mean'] == 0 or dict_seg['conversion_mean'] == 'NA':
+        if dict_seg['predicted_conversion_factor_cm'] == 0 or dict_seg['predicted_conversion_factor_cm'] == 'NA':
+            return dict_seg
+        else:
+            CF = dict_seg['predicted_conversion_factor_cm']
+    else:
+        CF = dict_seg['conversion_mean']
+
+    dict_seg['area'] = round(dict_seg['area'] / (CF * CF), 2) if dict_seg['area'] is not None else None
+    dict_seg['convex_hull'] = round(dict_seg['convex_hull'] / (CF * CF), 2) if dict_seg['convex_hull'] is not None else None
+    dict_seg['efd_area'] = round(dict_seg['efd_area'] / (CF * CF), 2) if dict_seg['efd_area'] is not None else None
+
+    return dict_seg
+    
 
 def save_data(cfg, time_report, logger, dir_home, Project, batch, n_batches, Dirs):
     start_t = perf_counter()
@@ -1247,54 +1513,56 @@ class Data_Vault():
         with open(os.path.join(dir_components, '.'.join([name_json, 'json'])), "w") as outfile:
             json.dump(dict_labels, outfile)
 
-    def divide_values_length(self, dict_seg, df_ruler_use):
-        if (df_ruler_use['conversion_mean'][0] == 0) or (df_ruler_use['conversion_mean'][0] == 'NA'):
-            return dict_seg
-        else:
-            # try:
-            bbox_min_long_side = round(dict_seg['bbox_min_long_side'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['bbox_min_long_side'][0] is not None else None
-            bbox_min_short_side = round(dict_seg['bbox_min_short_side'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['bbox_min_short_side'][0] is not None else None
-            perimeter = round(dict_seg['perimeter'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['perimeter'][0] is not None else None
+    # def divide_values_length(self, dict_seg, df_ruler_use):
+    #     if (df_ruler_use['conversion_mean'][0] == 0) or (df_ruler_use['conversion_mean'][0] == 'NA'):
+    #         return dict_seg
+    #     else:
+    #         # try:
+    #         bbox_min_long_side = round(dict_seg['bbox_min_long_side'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['bbox_min_long_side'][0] is not None else None
+    #         bbox_min_short_side = round(dict_seg['bbox_min_short_side'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['bbox_min_short_side'][0] is not None else None
+    #         perimeter = round(dict_seg['perimeter'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['perimeter'][0] is not None else None
             
-            if self.cfg['leafmachine']['leaf_segmentation']['calculate_elliptic_fourier_descriptors']:
-                efd_perimeter = round(dict_seg['efd_perimeter'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['efd_perimeter'][0] is not None else None
-            else:
-                efd_perimeter = 0
-            # except:
-            #     bbox_min_long_side = round(dict_seg['bbox_min_long_side'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['bbox_min_long_side'][0] is not None else None
-            #     bbox_min_short_side = round(dict_seg['bbox_min_short_side'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['bbox_min_short_side'][0] is not None else None
-            #     perimeter = round(dict_seg['perimeter'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['perimeter'][0] is not None else None
-            #     efd_perimeter = round(dict_seg['efd_perimeter'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['efd_perimeter'][0] is not None else None
-            dict_seg['bbox_min_long_side'] = bbox_min_long_side
-            dict_seg['bbox_min_short_side'] = bbox_min_short_side
-            dict_seg['perimeter'] = perimeter
-            dict_seg['efd_perimeter'] = efd_perimeter
-            return dict_seg
+    #         if self.cfg['leafmachine']['leaf_segmentation']['calculate_elliptic_fourier_descriptors']:
+    #             efd_perimeter = round(dict_seg['efd_perimeter'][0] / df_ruler_use['conversion_mean'][0], 2) if dict_seg['efd_perimeter'][0] is not None else None
+    #         else:
+    #             efd_perimeter = 0
+    #         # except:
+    #         #     bbox_min_long_side = round(dict_seg['bbox_min_long_side'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['bbox_min_long_side'][0] is not None else None
+    #         #     bbox_min_short_side = round(dict_seg['bbox_min_short_side'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['bbox_min_short_side'][0] is not None else None
+    #         #     perimeter = round(dict_seg['perimeter'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['perimeter'][0] is not None else None
+    #         #     efd_perimeter = round(dict_seg['efd_perimeter'][0] / df_ruler_use['conversion_mean'][0][0], 2) if dict_seg['efd_perimeter'][0] is not None else None
+    #         dict_seg['bbox_min_long_side'] = bbox_min_long_side
+    #         dict_seg['bbox_min_short_side'] = bbox_min_short_side
+    #         dict_seg['perimeter'] = perimeter
+    #         dict_seg['efd_perimeter'] = efd_perimeter
+    #         return dict_seg
     
-    def divide_values_sq(self, dict_seg, df_ruler_use):
-        if (df_ruler_use['conversion_mean'][0] == 0) or (df_ruler_use['conversion_mean'][0] == 'NA'):
-            return dict_seg
-        else:
-            # try:
-            if self.cfg['leafmachine']['leaf_segmentation']['calculate_elliptic_fourier_descriptors']:
-                efd_area = round(dict_seg['efd_area'][0] / (df_ruler_use['conversion_mean'][0] * df_ruler_use['conversion_mean'][0]), 2) if dict_seg['efd_area'][0] is not None else None
-            else:
-                efd_area = 0
-            area = round(dict_seg['area'][0] / (df_ruler_use['conversion_mean'][0] * df_ruler_use['conversion_mean'][0]), 2) if dict_seg['area'][0] is not None else None
-            convex_hull = round(dict_seg['convex_hull'][0] / (df_ruler_use['conversion_mean'][0] * df_ruler_use['conversion_mean'][0]), 2) if dict_seg['convex_hull'][0] is not None else None
-            # except:
-            #     efd_area = round(dict_seg['efd_area'][0] / (df_ruler_use['conversion_mean'][0][0] * df_ruler_use['conversion_mean'][0][0]), 2) if dict_seg['efd_area'][0] is not None else None
-            #     area = round(dict_seg['area'][0] / (df_ruler_use['conversion_mean'][0][0] * df_ruler_use['conversion_mean'][0][0]), 2) if dict_seg['area'][0] is not None else None
-            #     convex_hull = round(dict_seg['convex_hull'][0] / (df_ruler_use['conversion_mean'][0][0] * df_ruler_use['conversion_mean'][0][0]), 2) if dict_seg['convex_hull'][0] is not None else None
+    # def divide_values_sq(self, dict_seg, df_ruler_use):
+    #     if (df_ruler_use['conversion_mean'][0] == 0) or (df_ruler_use['conversion_mean'][0] == 'NA'):
+    #         return dict_seg
+    #     else:
+    #         # try:
+    #         if self.cfg['leafmachine']['leaf_segmentation']['calculate_elliptic_fourier_descriptors']:
+    #             efd_area = round(dict_seg['efd_area'][0] / (df_ruler_use['conversion_mean'][0] * df_ruler_use['conversion_mean'][0]), 2) if dict_seg['efd_area'][0] is not None else None
+    #         else:
+    #             efd_area = 0
+    #         area = round(dict_seg['area'][0] / (df_ruler_use['conversion_mean'][0] * df_ruler_use['conversion_mean'][0]), 2) if dict_seg['area'][0] is not None else None
+    #         convex_hull = round(dict_seg['convex_hull'][0] / (df_ruler_use['conversion_mean'][0] * df_ruler_use['conversion_mean'][0]), 2) if dict_seg['convex_hull'][0] is not None else None
+    #         # except:
+    #         #     efd_area = round(dict_seg['efd_area'][0] / (df_ruler_use['conversion_mean'][0][0] * df_ruler_use['conversion_mean'][0][0]), 2) if dict_seg['efd_area'][0] is not None else None
+    #         #     area = round(dict_seg['area'][0] / (df_ruler_use['conversion_mean'][0][0] * df_ruler_use['conversion_mean'][0][0]), 2) if dict_seg['area'][0] is not None else None
+    #         #     convex_hull = round(dict_seg['convex_hull'][0] / (df_ruler_use['conversion_mean'][0][0] * df_ruler_use['conversion_mean'][0][0]), 2) if dict_seg['convex_hull'][0] is not None else None
 
-            dict_seg['efd_area'] = [efd_area]
-            dict_seg['area'] = [area]
-            dict_seg['convex_hull'] = [convex_hull]
-            return dict_seg
+    #         dict_seg['efd_area'] = [efd_area]
+    #         dict_seg['area'] = [area]
+    #         dict_seg['convex_hull'] = [convex_hull]
+    #         return dict_seg
+
 
 def merge_csv_files(Dirs, cfg):
     run_name = Dirs.run_name
     
+    # Merge and save the CSV files for each data type
     merge_and_save_csv_files(Dirs, 'data_csv_project_batch_ruler', '_RULER', run_name)
     merge_and_save_csv_files(Dirs, 'data_csv_project_batch_measurements', '_MEASUREMENTS', run_name)
 
@@ -1306,22 +1574,66 @@ def merge_csv_files(Dirs, cfg):
     
 def merge_and_save_csv_files(Dirs, dir_attribute, output_suffix, run_name):
     try:
-        files = [f for f in os.listdir(getattr(Dirs, dir_attribute)) if f.endswith('.csv')]
+        # Get the directory path from Dirs object
+        dir_path = getattr(Dirs, dir_attribute)
+        files = [f for f in os.listdir(dir_path) if f.endswith('.csv')]
     except:
+        # Fallback to using Dirs as a direct directory if getattr fails
         files = [f for f in os.listdir(Dirs) if f.endswith('.csv')]
-
+        dir_path = Dirs
+    
     try:
-        df_list = [pd.read_csv(os.path.join(getattr(Dirs, dir_attribute), f)) for f in files]
+        # Read and concatenate all CSV files in the list
+        df_list = [pd.read_csv(os.path.join(dir_path, f)) for f in files]
     except:
+        # If reading with dir_path fails, fallback to reading from Dirs directly
         df_list = [pd.read_csv(os.path.join(Dirs, f)) for f in files]
         
+    # Merge all dataframes into a single dataframe
     df_merged = pd.concat(df_list, ignore_index=True)
     
     try:
-        df_merged.to_csv(os.path.join(getattr(Dirs, dir_attribute.replace("_batch", "").strip()), ''.join([run_name, output_suffix, '.csv'])), index=False)
+        # Save the merged dataframe to a new CSV file
+        output_dir = getattr(Dirs, dir_attribute.replace("_batch", "").strip())
+        output_path = os.path.join(output_dir, f'{run_name}{output_suffix}.csv')
+        df_merged.to_csv(output_path, index=False)
     except:
+        # Fallback option if saving to output_dir fails
         alt_run_name = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(Dirs)))))
-        df_merged.to_csv(os.path.join(Dirs, ''.join([alt_run_name, output_suffix, '.csv'])), index=False)
+        output_path = os.path.join(Dirs, f'{alt_run_name}{output_suffix}.csv')
+        df_merged.to_csv(output_path, index=False)
+
+
+# def merge_csv_files(Dirs, cfg):
+#     run_name = Dirs.run_name
+    
+#     merge_and_save_csv_files(Dirs, 'data_csv_project_batch_ruler', '_RULER', run_name)
+#     merge_and_save_csv_files(Dirs, 'data_csv_project_batch_measurements', '_MEASUREMENTS', run_name)
+
+#     if cfg['leafmachine']['leaf_segmentation']['calculate_elliptic_fourier_descriptors']:
+#         merge_and_save_csv_files(Dirs, 'data_csv_project_batch_EFD', '_EFD', run_name)
+
+#     if cfg['leafmachine']['landmark_detector']['landmark_whole_leaves'] or cfg['leafmachine']['landmark_detector']['landmark_partial_leaves']:
+#         merge_and_save_csv_files(Dirs, 'data_csv_project_batch_landmarks', '_LANDMARKS', run_name)
+    
+# def merge_and_save_csv_files(Dirs, dir_attribute, output_suffix, run_name):
+#     try:
+#         files = [f for f in os.listdir(getattr(Dirs, dir_attribute)) if f.endswith('.csv')]
+#     except:
+#         files = [f for f in os.listdir(Dirs) if f.endswith('.csv')]
+
+#     try:
+#         df_list = [pd.read_csv(os.path.join(getattr(Dirs, dir_attribute), f)) for f in files]
+#     except:
+#         df_list = [pd.read_csv(os.path.join(Dirs, f)) for f in files]
+        
+#     df_merged = pd.concat(df_list, ignore_index=True)
+    
+#     try:
+#         df_merged.to_csv(os.path.join(getattr(Dirs, dir_attribute.replace("_batch", "").strip()), ''.join([run_name, output_suffix, '.csv'])), index=False)
+#     except:
+#         alt_run_name = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(Dirs)))))
+#         df_merged.to_csv(os.path.join(Dirs, ''.join([alt_run_name, output_suffix, '.csv'])), index=False)
 
 
 if __name__ == '__main__':

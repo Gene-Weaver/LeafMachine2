@@ -1,4 +1,4 @@
-import os, math, cv2, random
+import os, math, cv2, random, warnings
 import numpy as np
 from itertools import combinations
 from PIL import Image
@@ -16,6 +16,22 @@ class LeafSkeleton:
     width: int
     height: int
     logger: object
+
+    t_base_center: list 
+    t_base_left: list 
+    t_base_right: list 
+    t_apex_center: list 
+    t_apex_left: list 
+    t_apex_right: list 
+    t_lamina_base: list 
+    t_lamina_tip: list
+    t_lobes: list 
+    t_midvein: list 
+    t_midvein_fit_points: list 
+    t_petiole: list 
+    t_width_left: list 
+    t_width_right: list 
+    t_width_infer: list  
 
     do_show_QC_images: bool = False
     do_save_QC_images: bool = False
@@ -146,7 +162,9 @@ class LeafSkeleton:
             points_arr = np.array(self.ordered_midvein)
 
             # Fit a line to the points
-            self.midvein_fit = np.polyfit(points_arr[:, 0], points_arr[:, 1], n_fit)
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', np.RankWarning)
+                self.midvein_fit = np.polyfit(points_arr[:, 0], points_arr[:, 1], n_fit)
 
             if len(self.midvein_fit) < 1:
                 self.midvein_fit = None
@@ -205,7 +223,9 @@ class LeafSkeleton:
             points_arr = np.array(self.ordered_midvein)
 
             # Fit a curve to the points
-            self.midvein_fit = np.polyfit(points_arr[:, 0], points_arr[:, 1], n_fit)
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore', np.RankWarning)
+                self.midvein_fit = np.polyfit(points_arr[:, 0], points_arr[:, 1], n_fit)
 
             # Plot a sample of points from along the curve
             max_dim = max(self.height, self.width)
@@ -508,7 +528,9 @@ class LeafSkeleton:
             self.lamina_length = self.distance(self.lamina_base, self.lamina_tip)
             ends = np.array([self.lamina_base, self.lamina_tip])
             try:
-                self.lamina_fit = np.polyfit(ends[:, 0], ends[:, 1], 1)
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', np.RankWarning)
+                    self.lamina_fit = np.polyfit(ends[:, 0], ends[:, 1], 1)
                 self.has_lamina_length = True
                 # r_base = 0
                 r_base = 16
@@ -529,7 +551,9 @@ class LeafSkeleton:
             if self.has_lamina_base and (not self.has_lamina_tip) and self.has_apex: # lamina base and apex center
                 self.lamina_length = self.distance(self.lamina_base, self.apex_center)
                 ends = np.array([self.lamina_base, self.apex_center])
-                self.lamina_fit = np.polyfit(ends[:, 0], ends[:, 1], 1)
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', np.RankWarning)
+                    self.lamina_fit = np.polyfit(ends[:, 0], ends[:, 1], 1)
                 self.has_lamina_length = True
                 if QC_or_final == 'QC':
                     cv2.line(self.image, self.lamina_base, self.apex_center, col, 2 + r_base)
@@ -538,7 +562,9 @@ class LeafSkeleton:
             elif self.has_lamina_tip and (not self.has_lamina_base) and self.has_base: # lamina tip and base center
                 self.lamina_length = self.distance(self.lamina_tip, self.base_center)
                 ends = np.array([self.lamina_tip, self.apex_center])
-                self.lamina_fit = np.polyfit(ends[:, 0], ends[:, 1], 1)
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', np.RankWarning)
+                    self.lamina_fit = np.polyfit(ends[:, 0], ends[:, 1], 1)
                 self.has_lamina_length = True
                 if QC_or_final == 'QC':
                     cv2.line(self.image, self.lamina_tip, self.apex_center, col, 2 + r_base)
@@ -547,7 +573,9 @@ class LeafSkeleton:
             elif (not self.has_lamina_tip) and (not self.has_lamina_base) and self.has_apex and self.has_base: # apex center and base center
                 self.lamina_length = self.distance(self.apex_center, self.base_center)
                 ends = np.array([self.base_center, self.apex_center])
-                self.lamina_fit = np.polyfit(ends[:, 0], ends[:, 1], 1)
+                with warnings.catch_warnings():
+                    warnings.simplefilter('ignore', np.RankWarning)
+                    self.lamina_fit = np.polyfit(ends[:, 0], ends[:, 1], 1)
                 self.has_lamina_length = True
                 if QC_or_final == 'QC':
                     cv2.line(self.image, self.base_center, self.apex_center, col, 2 + r_base)
@@ -670,6 +698,22 @@ class LeafSkeleton:
         self.add_x = int(loc.split('-')[0])
         self.add_y = int(loc.split('-')[1])
 
+        self.t_base_center = [] 
+        self.t_base_left = [] 
+        self.t_base_right = [] 
+        self.t_apex_center = [] 
+        self.t_apex_left = [] 
+        self.t_apex_right = [] 
+        self.t_lamina_base = [] 
+        self.t_lamina_tip = []
+        self.t_lobes = [] 
+        self.t_midvein = [] 
+        self.t_midvein_fit_points = [] 
+        self.t_petiole = [] 
+        self.t_width_left = [] 
+        self.t_width_right = [] 
+        self.t_width_infer = []  
+
         if self.has_base:
             self.t_base_center = [self.base_center[0] + self.add_x, self.base_center[1] + self.add_y]
             self.t_base_left = [self.base_left[0] + self.add_x, self.base_left[1] + self.add_y]
@@ -723,10 +767,11 @@ class LeafSkeleton:
         if self.width_infer is not None:
             self.t_width_infer = []
             for point in self.width_infer:
-                new_x = int(point[0]) + self.add_x
-                new_y = int(point[1]) + self.add_y
-                new_point = [new_x, new_y]
-                self.t_width_infer.append(new_point)
+                if not np.isnan(point).any():
+                    new_x = int(point[0]) + self.add_x
+                    new_y = int(point[1]) + self.add_y
+                    new_point = [new_x, new_y]
+                    self.t_width_infer.append(new_point)
 
     def create_final_image(self):
         self.is_complete_leaf = False ###########################################################################################################################################################
@@ -1099,12 +1144,20 @@ class LeafSkeleton:
             denom = perp_unit_vector[0]
         m = perp_unit_vector[1] / denom
 
+        is_nan = False
         self.width_infer = points
         # Draw line of fit
         for point in points:
-            point[0] = np.clip(point[0], 0, self.width - 1)
-            point[1] = np.clip(point[1], 0, self.height - 1)
-            cv2.circle(self.image, tuple(point.astype(int)), radius=2, color=(0, 0, 255), thickness=-1)
+            if not np.isnan(point).any():
+                point[0] = np.clip(point[0], 0, self.width - 1)
+                point[1] = np.clip(point[1], 0, self.height - 1)
+                cv2.circle(self.image, tuple(point.astype(int)), radius=2, color=(0, 0, 255), thickness=-1)
+            else:
+                is_nan = True
+        
+        if is_nan:
+            self.width_infer = None
+                
 
         return [m, b]
 
@@ -1566,11 +1619,21 @@ class LeafSkeleton:
         prev_norm = np.linalg.norm(prev_vec)
         cur_norm = np.linalg.norm(cur_vec)
         denom = (prev_norm * cur_norm)
+        
+        # Handle the case where the denominator is zero
         if denom == 0:
-            denom = 0.0000000001
+            denom = 1e-10  # Small value to avoid division by zero
+
         cos_theta = dot_product / denom
+
+        # Clamp cos_theta to the valid range for arccos
+        cos_theta = np.clip(cos_theta, -1.0, 1.0)
+
         theta = np.arccos(cos_theta)
+        
+        # Check if the angle is greater than 90 degrees (pi/2 radians)
         return abs(theta) > np.pi / 2
+
 
     '''def check_momentum_complex(self, coords, info, start_or_end):
         original_coords = coords
@@ -1783,8 +1846,9 @@ class LeafSkeleton:
         denom = (prev_norm * cur_norm)
         if denom == 0:
             denom = 0.0000000001
-        cos_theta = dot_product / denom
+        cos_theta = np.clip(dot_product / denom, -1, 1)  # Clamp the value between -1 and 1
         theta = np.arccos(cos_theta)
+
         return abs(theta) > np.pi / 2
 
 

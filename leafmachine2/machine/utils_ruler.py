@@ -1,4 +1,4 @@
-import os, cv2, yaml, math, sys, inspect, imutils, random, copy, sqlite3, glob
+import os, cv2, yaml, math, sys, inspect, imutils, random, copy, sqlite3, glob, shutil, multiprocessing
 import numpy as np
 from numpy import NAN, ndarray
 import pandas as pd
@@ -20,14 +20,16 @@ import torch
 from torchvision import *
 from sklearn.cluster import KMeans
 import statistics
-import csv
+import csv, logging
 from threading import Thread
 from queue import Queue
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
 from time import perf_counter
 from binarize_image_ML import DocEnTR
-
+from multiprocessing import Process, Queue
+from queue import Empty  # Correct import from queue
+from PIL import Image
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 parentdir2 = os.path.dirname(os.path.dirname(currentdir))
@@ -37,11 +39,14 @@ sys.path.append(currentdir)
 # from machine.general_utils import print_plain_to_console, print_blue_to_console, print_green_to_console, print_warning_to_console, print_cyan_to_console
 # from machine.general_utils import bcolors
 from leafmachine2.analysis.predict_pixel_to_metric_conversion_factor import PolynomialModel
+from leafmachine2.machine.LM2_logger import start_worker_logging, merge_worker_logs
+
+
 
 def convert_rulers_testing(dir_rulers, cfg, time_report, logger, dir_home, Project, batch, Dirs):
-    RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
+    RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg, device)
     Labels = DocEnTR()
-    model, device = Labels.load_DocEnTR_model(logger)
+    model, device = Labels.load_DocEnTR_model()
 
     acc_total = 0
     acc_error = 0
@@ -174,7 +179,7 @@ def convert_rulers_testing(dir_rulers, cfg, time_report, logger, dir_home, Proje
 def process_ruler_chunk(cfg, logger, dir_home, Project, batch, Dirs, results_dict, keys):
     RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
     Labels = DocEnTR()
-    model, device = Labels.load_DocEnTR_model(logger)
+    model, device = Labels.load_DocEnTR_model()
     
     for filename in keys:
         analysis = Project.project_data_list[batch][filename]
@@ -407,62 +412,93 @@ def calc_MP(full_image):
 #     logger.info(f"Converting Rulers in batch {batch+1} --- elapsed time: {round(t1_stop - t1_start)} seconds")
 #     return Project
 
-def convert_rulers(cfg, time_report, logger, dir_home, ProjectSQL, batch, batch_filenames, Dirs, num_workers=16):
+def convert_rulers(cfg, time_report, logger, dir_home, ProjectSQL, batch, batch_filenames, Dirs, batch_size=100):
+    num_workers = cfg['leafmachine']['project']['num_workers_ruler']
 
+    if cfg['leafmachine']['project']['device'] == 'cuda':
+        num_gpus = int(cfg['leafmachine']['project'].get('num_gpus', 1))  # Default to 1 GPU if not specified
+        device_list = [i for i in range(num_gpus)]  # List of GPU indices like [0, 1, 2, ...]
+    else:
+        device_list = ['cpu']  # Default to CPU if CUDA is not available
+    
     t1_start = perf_counter()
     logger.info(f"Converting Rulers in batch {batch+1}")
 
-    create_ruler_data_table(ProjectSQL.conn)
-
-    show_all_logs = False
-
-    # Load shared resources outside the loop
-    RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
-    Labels = DocEnTR()
-    model, device = Labels.load_DocEnTR_model(logger)
-    poly_model = PolynomialModel()
-    poly_model.load_polynomial_model()
-
-    use_CF_predictor = cfg['leafmachine']['project']['use_CF_predictor']
-    num_workers = cfg['leafmachine']['project']['num_workers_ruler']
-    
-    logger.info(f"use_CF_predictor: {use_CF_predictor}")
-
-    filenames = batch_filenames  # Using the list of filenames passed as argument
+    filenames = batch_filenames
     num_files = len(filenames)
     chunk_size = max((num_files + num_workers - 1) // num_workers, 4)
 
-    def worker(queue):
-        while True:
-            filenames_chunk = queue.get()
-            if filenames_chunk is None:  # Stop signal
-                break
-
-            for filename in filenames_chunk:
-                process_filename(filename, cfg, logger, show_all_logs, dir_home, ProjectSQL, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor)
-
-            queue.task_done()
-
-    # Setup queue and start workers
     queue = Queue()
+    result_queue = Queue()
+    status_queue = Queue()  # New status queue for heartbeat messages
     workers = []
-    for _ in range(num_workers):
-        t = Thread(target=worker, args=(queue,))
-        t.start()
-        workers.append(t)
+
+    worker_id = 0  # Unique worker ID
+
+    # Assign workers in a round-robin fashion across devices
+    for worker_id in range(num_workers):
+        device = device_list[worker_id % len(device_list)]  # Cycle through available devices
+        p = Process(target=worker, args=(queue, result_queue, status_queue, worker_id, cfg, dir_home, ProjectSQL.database, ProjectSQL.dir_images, Dirs, device))
+        p.start()
+        workers.append(p)
+        logger.info(f"Starting worker {worker_id} on device {device}")
+
+    # Start monitoring worker status in a separate process
+    monitor_process = Process(target=monitor_worker_status, args=(status_queue, num_workers))
+    monitor_process.start()
 
     # Enqueue work
     for i in range(0, num_files, chunk_size):
         queue.put(filenames[i:i + chunk_size])
 
-    # Wait for all work to be done
-    queue.join()
-
-    # Stop workers
     for _ in range(num_workers):
-        queue.put(None)
-    for t in workers:
-        t.join()
+        queue.put(None)  # send stop signal to all workers
+
+    all_results = []
+    completed_workers = 0
+    while completed_workers < num_workers:
+        try:
+            result = result_queue.get()
+            if result is None:
+                completed_workers += 1
+            else:
+                all_results.extend(result)
+
+        except Empty:  # Correct usage for handling empty queue timeout
+            logger.error("Timeout: One or more workers took too long to respond.")
+            break
+
+    # Check if any workers have hung
+    timed_out_worker = monitor_process.join()
+    if timed_out_worker is not None:
+        logger.warning(f"Worker {timed_out_worker} has timed out and will be terminated.")
+        for p in workers:
+            if p.pid == timed_out_worker:
+                p.terminate()  # Terminate the timed-out worker
+
+    # Wait for all workers to finish
+    for p in workers:
+        p.join()
+
+
+    monitor_process.terminate()  # Stop the monitor process
+
+    # After all workers are done, insert data into the database in chunks
+    conn = sqlite3.connect(ProjectSQL.database)
+    cur = conn.cursor()
+
+    # Chunk insert to avoid write conflicts
+    for i in range(0, len(all_results), batch_size):
+        batch_data = all_results[i:i + batch_size]
+        cur.executemany("""
+            INSERT INTO ruler_data (file_name, ruler_image_name, success, conversion_mean, predicted_conversion_factor_cm, pooled_sd, ruler_class, 
+                                    ruler_class_confidence, units, cross_validation_count, n_scanlines, n_data_points_in_avg, avg_tick_width, plot_points)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", batch_data)
+        conn.commit()
+
+    conn.close()
+
+    merge_worker_logs(Dirs, num_workers, main_log_name='ruler_logs', log_name_stem='worker_log_ruler')
 
     t1_stop = perf_counter()
     t_rulers = f"[Converting Rulers elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
@@ -470,131 +506,351 @@ def convert_rulers(cfg, time_report, logger, dir_home, ProjectSQL, batch, batch_
     time_report['t_rulers'] = t_rulers
     return ProjectSQL, time_report
 
-
-def create_ruler_data_table(conn):
+# Move the worker function to the top level
+def worker(queue, result_queue, status_queue, worker_id, cfg, dir_home, ProjectSQL, dir_images, Dirs, device):
     try:
-        cur = conn.cursor()
-        sql_create_ruler_data_table = """
-        CREATE TABLE IF NOT EXISTS ruler_data (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            file_name TEXT NOT NULL,
-            ruler_image_name TEXT,
-            success BOOLEAN,
-            conversion_mean REAL,
-            predicted_conversion_factor_cm REAL,
-            pooled_sd REAL,
-            ruler_class TEXT,
-            ruler_class_confidence REAL,
-            units TEXT,
-            cross_validation_count INTEGER,
-            n_scanlines INTEGER,
-            n_data_points_in_avg INTEGER,
-            avg_tick_width REAL,
-            plot_points BLOB,
-            summary_img BLOB
-        );"""
-        cur.execute(sql_create_ruler_data_table)
-        conn.commit()
-    except sqlite3.Error as e:
-        print(f"Error creating ruler_data table: {e}")
+        RulerCFG = RulerConfig(dir_home, Dirs, cfg, device)
+        Labels = DocEnTR()
+        model, __device = Labels.load_DocEnTR_model(device)  # Load model on each process
+        poly_model = PolynomialModel()
+        poly_model.load_polynomial_model()
+        wlogger, wlogger_path = start_worker_logging(worker_id, Dirs, log_name='worker_log_ruler')
 
+        use_CF_predictor = cfg['leafmachine']['project']['use_CF_predictor']
 
-def process_filename(filename, cfg, logger, show_all_logs, dir_home, ProjectSQL, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor):
-    # Create a new connection in this thread
-    conn = sqlite3.connect(ProjectSQL.database)
-    cur = conn.cursor()
+        while True:
+            filenames_chunk = queue.get()
+            if filenames_chunk is None:  # Stop signal
+                break
 
-    # Retrieve image dimensions from the images table
-    cur.execute("SELECT width, height FROM images WHERE name = ?", (filename,))
-    dimensions = cur.fetchone()
-    if not dimensions:
-        logger.error(f"No dimensions found for {filename}")
-        conn.close()
-        return
-    width, height = dimensions
+            results = []
+            for filename in filenames_chunk:
+                # Process the filename (this is the long task)
+                results.extend(process_filename(wlogger, filename, cfg, dir_home, ProjectSQL, dir_images, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor))
 
-    # Retrieve archival components from annotations_archival table
-    cur.execute("SELECT annotation FROM annotations_archival WHERE file_name = ?", (filename,))
-    archival_components = cur.fetchall()
+                # Send a heartbeat to the status queue after each filename
+                status_queue.put((worker_id, time.time()))  # Send worker id and current timestamp
 
-    # Process and structure the archival components
-    archival_data = []
-    for component in archival_components:
-        component_data = list(map(float, component[0].split(',')))
-        archival_data.append(component_data)
+            result_queue.put(results)  # Send the results back to the main process
 
-    # Mimic the structure of the previous `analysis` dictionary
-    analysis = {
-        'Detections_Archival_Components': archival_data,
-        'height': height,
-        'width': width
-    }
+    except Exception as e:
+        wlogger.error(f"Error in worker {worker_id}: {str(e)}")
 
-    if len(analysis) != 0:
-        logger.debug(filename)
+    finally:
+        result_queue.put(None)  # Signal that this worker has finished
+        wlogger.info("Clearing GPU memory in worker...")
+        del model, poly_model
+        torch.cuda.empty_cache()
 
-        # Try to load the image
+def monitor_worker_status(status_queue, worker_count, timeout=600):
+    """
+    Monitor the workers' heartbeats and terminate if any worker is unresponsive.
+    """
+    worker_last_seen = {i: time.time() for i in range(worker_count)}
+
+    while True:
         try:
-            image_path = glob.glob(os.path.join(ProjectSQL.dir_images, filename + '.*'))[0]
-            full_image = cv2.imread(image_path)
-        except:
-            raise FileNotFoundError(f"Could not load image for {filename}")
+            worker_id, heartbeat = status_queue.get(timeout=1)  # Check the status queue for updates
+            worker_last_seen[worker_id] = heartbeat  # Update the last seen time for this worker
+        except multiprocessing.queues.Empty:
+            # No heartbeats received in the last second, check if any workers have timed out
+            current_time = time.time()
+            for worker_id, last_seen in worker_last_seen.items():
+                if current_time - last_seen > timeout:
+                    return worker_id  # This worker has timed out
 
-        # Calculate MP value and predict conversion factor
-        MP_value = calc_MP(full_image)
-        predicted_conversion_factor_cm = poly_model.predict_with_polynomial_single(MP_value)
-        logger.info(f"Predicted conversion mean for MP={MP_value}: {predicted_conversion_factor_cm}")
+def process_filename(wlogger, filename, cfg, dir_home, ProjectSQL, dir_images, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor):
+    # This function no longer inserts data directly into the database.
+    # Instead, it returns the data to be inserted later by the main process.
+    
+    results = []  # Collect results here
+    
+    try:
+        # Create a new connection in this worker process
+        conn = sqlite3.connect(ProjectSQL)
+        cur = conn.cursor()
 
-        # Detect rulers
-        archival = analysis.get('Detections_Archival_Components', [])
-        has_rulers = len(archival) > 0
+        # Retrieve image dimensions from the images table
+        cur.execute("SELECT width, height FROM images WHERE name = ?", (filename,))
+        dimensions = cur.fetchone()
+        if not dimensions:
+            print(f"No dimensions found for {filename}")
+            conn.close()
+            return []
+        width, height = dimensions
 
-        if has_rulers:
-            height, width = analysis['height'], analysis['width']
-            ruler_list = [row for row in archival if row[0] == 0]
-            if len(ruler_list) < 1:
-                logger.debug('No rulers detected')
-            else:
-                for ruler in ruler_list:
-                    # Process each ruler found
-                    ruler_location = yolo_to_position_ruler(ruler, height, width)
-                    ruler_polygon = [
-                        (ruler_location[1], ruler_location[2]), 
-                        (ruler_location[3], ruler_location[2]), 
-                        (ruler_location[3], ruler_location[4]), 
-                        (ruler_location[1], ruler_location[4])
-                    ]
-                    x_coords, y_coords = zip(*ruler_polygon)
-                    min_x, min_y = min(x_coords), min(y_coords)
-                    max_x, max_y = max(x_coords), max(y_coords)
-                    ruler_cropped = full_image[min_y:max_y, min_x:max_x]
-                    loc = '-'.join(map(str, [min_x, min_y, max_x, max_y]))
-                    ruler_crop_name = '__'.join([filename, 'R', loc])
+        # Retrieve archival components from annotations_archival table
+        cur.execute("SELECT annotation FROM annotations_archival WHERE file_name = ?", (filename,))
+        archival_components = cur.fetchall()
 
-                    Ruler = setup_ruler(Labels, model, device, cfg, Dirs, logger, show_all_logs, RulerCFG, ruler_cropped, ruler_crop_name)
-                    Ruler_Info = convert_pixels_to_metric(logger, show_all_logs, RulerCFG, Ruler, ruler_crop_name, predicted_conversion_factor_cm, use_CF_predictor, Dirs)
+        # Process and structure the archival components
+        archival_data = []
+        for component in archival_components:
+            component_data = list(map(float, component[0].split(',')))
+            archival_data.append(component_data)
 
-                    # Collect ruler data
-                    try:
+        analysis = {
+            'Detections_Archival_Components': archival_data,
+            'height': height,
+            'width': width
+        }
+
+        if len(analysis) != 0:
+            print(f"Processing file: {filename}")
+
+            try:
+                image_path = glob.glob(os.path.join(dir_images, filename + '.*'))[0]
+                full_image = cv2.imread(image_path)
+            except:
+                raise FileNotFoundError(f"Could not load image for {filename}")
+
+            # Predict conversion factor using the polynomial model
+            MP_value = calc_MP(full_image)
+            predicted_conversion_factor_cm = poly_model.predict_with_polynomial_single(MP_value)
+            wlogger.info(f"Predicted conversion mean for MP={MP_value}: {predicted_conversion_factor_cm}")
+
+            archival = analysis.get('Detections_Archival_Components', [])
+            has_rulers = len(archival) > 0
+
+            if has_rulers:
+                height, width = analysis['height'], analysis['width']
+                ruler_list = [row for row in archival if row[0] == 0]
+                if len(ruler_list) < 1:
+                    wlogger.info('No rulers detected')
+                else:
+                    for ruler in ruler_list:
+                        ruler_location = yolo_to_position_ruler(ruler, height, width)
+                        ruler_polygon = [
+                            (ruler_location[1], ruler_location[2]),
+                            (ruler_location[3], ruler_location[2]),
+                            (ruler_location[3], ruler_location[4]),
+                            (ruler_location[1], ruler_location[4])
+                        ]
+                        x_coords, y_coords = zip(*ruler_polygon)
+                        min_x, min_y = min(x_coords), min(y_coords)
+                        max_x, max_y = max(x_coords), max(y_coords)
+                        ruler_cropped = full_image[min_y:max_y, min_x:max_x]
+                        loc = '-'.join(map(str, [min_x, min_y, max_x, max_y]))
+                        ruler_crop_name = '__'.join([filename, 'R', loc])
+
+                        Ruler = setup_ruler(Labels, model, device, cfg, Dirs, wlogger, False, RulerCFG, ruler_cropped, ruler_crop_name)
+                        Ruler_Info = convert_pixels_to_metric(wlogger, False, RulerCFG, Ruler, ruler_crop_name, predicted_conversion_factor_cm, use_CF_predictor, Dirs)
+
                         units_save = Ruler_Info.conversion_data_all if Ruler_Info.conversion_data_all else 0
                         plot_points = Ruler_Info.data_list if any(unit in Ruler_Info.conversion_data_all for unit in ['smallCM', 'halfCM', 'mm']) else 0
-
-                        summary_img = cv2.imencode('.jpg', Ruler_Info.summary_image)[1].tobytes() if Ruler_Info.summary_image is not None else None
                         plot_points_blob = np.array(plot_points).tobytes() if plot_points else None
 
-                        # Insert into SQL table
-                        cur.execute("""
-                        INSERT INTO ruler_data (file_name, ruler_image_name, success, conversion_mean, predicted_conversion_factor_cm, pooled_sd, ruler_class, 
-                                                ruler_class_confidence, units, cross_validation_count, n_scanlines, n_data_points_in_avg, avg_tick_width, plot_points, summary_img)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                                    (filename, ruler_crop_name, Ruler_Info.conversion_successful, Ruler_Info.conversion_mean, predicted_conversion_factor_cm,
-                                     Ruler_Info.pooled_sd, Ruler_Info.ruler_class, Ruler_Info.ruler_class_percentage, str(units_save), Ruler_Info.cross_validation_count,
-                                     Ruler_Info.conversion_mean_n, Ruler_Info.conversion_mean_n_vals, Ruler_Info.avg_width, plot_points_blob, summary_img))
+                        # Collect the result as a tuple
+                        result = (
+                            filename, ruler_crop_name, Ruler_Info.conversion_successful, Ruler_Info.conversion_mean, 
+                            predicted_conversion_factor_cm, Ruler_Info.pooled_sd, Ruler_Info.ruler_class, 
+                            Ruler_Info.ruler_class_percentage, str(units_save), Ruler_Info.cross_validation_count,
+                            Ruler_Info.conversion_mean_n, Ruler_Info.conversion_mean_n_vals, Ruler_Info.avg_width, plot_points_blob
+                        )
+                        results.append(result)
 
-                        conn.commit()
+        conn.close()
 
-                    except Exception as e:
-                        logger.error(f"Failed to process ruler data for {filename}: {str(e)}")
+    except Exception as e:
+        print(f"Failed to process {filename}: {e}")
+
+    return results  # Return the results to the worker
+############Replaced with version that has own models per process
+# def convert_rulers(cfg, time_report, logger, dir_home, ProjectSQL, batch, batch_filenames, Dirs, num_workers=16):
+
+#     t1_start = perf_counter()
+#     logger.info(f"Converting Rulers in batch {batch+1}")
+
+#     # create_ruler_data_table(ProjectSQL.conn)
+
+#     show_all_logs = False
+
+#     # Load shared resources outside the loop
+#     RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
+#     Labels = DocEnTR()
+#     model, device = Labels.load_DocEnTR_model(logger)
+#     poly_model = PolynomialModel()
+#     poly_model.load_polynomial_model()
+
+#     use_CF_predictor = cfg['leafmachine']['project']['use_CF_predictor']
+#     num_workers = cfg['leafmachine']['project']['num_workers_ruler']
+    
+#     logger.info(f"use_CF_predictor: {use_CF_predictor}")
+
+#     filenames = batch_filenames  # Using the list of filenames passed as argument
+#     num_files = len(filenames)
+#     chunk_size = max((num_files + num_workers - 1) // num_workers, 4)
+
+#     def worker(queue):
+#         while True:
+#             filenames_chunk = queue.get()
+#             if filenames_chunk is None:  # Stop signal
+#                 break
+
+#             for filename in filenames_chunk:
+#                 process_filename(filename, cfg, logger, show_all_logs, dir_home, ProjectSQL, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor)
+
+
+#     # Setup queue and start workers
+#     queue = Queue()
+#     workers = []
+#     for _ in range(num_workers):
+#         t = Thread(target=worker, args=(queue,))
+#         t.start()
+#         workers.append(t)
+
+#     # Enqueue work
+#     for i in range(0, num_files, chunk_size):
+#         queue.put(filenames[i:i + chunk_size])
+
+#     # Wait for all work to be done
+#     queue.join()
+
+#     # Stop workers
+#     for _ in range(num_workers):
+#         queue.put(None)
+#     for t in workers:
+#         t.join()
+
+#     t1_stop = perf_counter()
+#     t_rulers = f"[Converting Rulers elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
+#     logger.info(t_rulers)
+#     time_report['t_rulers'] = t_rulers
+#     return ProjectSQL, time_report
+
+
+# def create_ruler_data_table(conn):
+#     try:
+#         cur = conn.cursor()
+#         sql_create_ruler_data_table = """
+#         CREATE TABLE IF NOT EXISTS ruler_data (
+#             id INTEGER PRIMARY KEY AUTOINCREMENT,
+#             file_name TEXT NOT NULL,
+#             ruler_image_name TEXT,
+#             success BOOLEAN,
+#             conversion_mean REAL,
+#             predicted_conversion_factor_cm REAL,
+#             pooled_sd REAL,
+#             ruler_class TEXT,
+#             ruler_class_confidence REAL,
+#             units TEXT,
+#             cross_validation_count INTEGER,
+#             n_scanlines INTEGER,
+#             n_data_points_in_avg INTEGER,
+#             avg_tick_width REAL,
+#             plot_points BLOB,
+#             summary_img BLOB
+#         );"""
+#         cur.execute(sql_create_ruler_data_table)
+#         conn.commit()
+#     except sqlite3.Error as e:
+#         print(f"Error creating ruler_data table: {e}")
+
+
+##############Replaced with versio nthat has one moidel per process
+# def process_filename(filename, cfg, logger, show_all_logs, dir_home, ProjectSQL, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor):
+#     # Create a new connection in this thread
+#     conn = sqlite3.connect(ProjectSQL.database)
+#     cur = conn.cursor()
+
+#     # Retrieve image dimensions from the images table
+#     cur.execute("SELECT width, height FROM images WHERE name = ?", (filename,))
+#     dimensions = cur.fetchone()
+#     if not dimensions:
+#         logger.error(f"No dimensions found for {filename}")
+#         conn.close()
+#         return
+#     width, height = dimensions
+
+#     # Retrieve archival components from annotations_archival table
+#     cur.execute("SELECT annotation FROM annotations_archival WHERE file_name = ?", (filename,))
+#     archival_components = cur.fetchall()
+
+#     # Process and structure the archival components
+#     archival_data = []
+#     for component in archival_components:
+#         component_data = list(map(float, component[0].split(',')))
+#         archival_data.append(component_data)
+
+#     # Mimic the structure of the previous `analysis` dictionary
+#     analysis = {
+#         'Detections_Archival_Components': archival_data,
+#         'height': height,
+#         'width': width
+#     }
+
+#     if len(analysis) != 0:
+#         logger.debug(filename)
+
+#         # Try to load the image
+#         try:
+#             image_path = glob.glob(os.path.join(ProjectSQL.dir_images, filename + '.*'))[0]
+#             full_image = cv2.imread(image_path)
+#         except:
+#             raise FileNotFoundError(f"Could not load image for {filename}")
+
+#         # Calculate MP value and predict conversion factor
+#         MP_value = calc_MP(full_image)
+#         predicted_conversion_factor_cm = poly_model.predict_with_polynomial_single(MP_value)
+#         logger.info(f"Predicted conversion mean for MP={MP_value}: {predicted_conversion_factor_cm}")
+
+#         # Detect rulers
+#         archival = analysis.get('Detections_Archival_Components', [])
+#         has_rulers = len(archival) > 0
+
+#         if has_rulers:
+#             height, width = analysis['height'], analysis['width']
+#             ruler_list = [row for row in archival if row[0] == 0]
+#             if len(ruler_list) < 1:
+#                 logger.debug('No rulers detected')
+#             else:
+#                 for ruler in ruler_list:
+#                     # Process each ruler found
+#                     ruler_location = yolo_to_position_ruler(ruler, height, width)
+#                     ruler_polygon = [
+#                         (ruler_location[1], ruler_location[2]), 
+#                         (ruler_location[3], ruler_location[2]), 
+#                         (ruler_location[3], ruler_location[4]), 
+#                         (ruler_location[1], ruler_location[4])
+#                     ]
+#                     x_coords, y_coords = zip(*ruler_polygon)
+#                     min_x, min_y = min(x_coords), min(y_coords)
+#                     max_x, max_y = max(x_coords), max(y_coords)
+#                     ruler_cropped = full_image[min_y:max_y, min_x:max_x]
+#                     loc = '-'.join(map(str, [min_x, min_y, max_x, max_y]))
+#                     ruler_crop_name = '__'.join([filename, 'R', loc])
+
+#                     Ruler = setup_ruler(Labels, model, device, cfg, Dirs, logger, show_all_logs, RulerCFG, ruler_cropped, ruler_crop_name)
+#                     Ruler_Info = convert_pixels_to_metric(logger, show_all_logs, RulerCFG, Ruler, ruler_crop_name, predicted_conversion_factor_cm, use_CF_predictor, Dirs)
+
+#                     # Collect ruler data
+#                     try:
+#                         units_save = Ruler_Info.conversion_data_all if Ruler_Info.conversion_data_all else 0
+#                         plot_points = Ruler_Info.data_list if any(unit in Ruler_Info.conversion_data_all for unit in ['smallCM', 'halfCM', 'mm']) else 0
+
+#                         # summary_img = cv2.imencode('.jpg', Ruler_Info.summary_image)[1].tobytes() if Ruler_Info.summary_image is not None else None
+#                         plot_points_blob = np.array(plot_points).tobytes() if plot_points else None
+
+#                         # Insert into SQL table
+#                         # cur.execute("""
+#                         # INSERT INTO ruler_data (file_name, ruler_image_name, success, conversion_mean, predicted_conversion_factor_cm, pooled_sd, ruler_class, 
+#                         #                         ruler_class_confidence, units, cross_validation_count, n_scanlines, n_data_points_in_avg, avg_tick_width, plot_points, summary_img)
+#                         # VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+#                         #             (filename, ruler_crop_name, Ruler_Info.conversion_successful, Ruler_Info.conversion_mean, predicted_conversion_factor_cm,
+#                         #              Ruler_Info.pooled_sd, Ruler_Info.ruler_class, Ruler_Info.ruler_class_percentage, str(units_save), Ruler_Info.cross_validation_count,
+#                         #              Ruler_Info.conversion_mean_n, Ruler_Info.conversion_mean_n_vals, Ruler_Info.avg_width, plot_points_blob, summary_img))
+#                         cur.execute("""
+#                         INSERT INTO ruler_data (file_name, ruler_image_name, success, conversion_mean, predicted_conversion_factor_cm, pooled_sd, ruler_class, 
+#                                                 ruler_class_confidence, units, cross_validation_count, n_scanlines, n_data_points_in_avg, avg_tick_width, plot_points)
+#                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+#                                     (filename, ruler_crop_name, Ruler_Info.conversion_successful, Ruler_Info.conversion_mean, predicted_conversion_factor_cm,
+#                                      Ruler_Info.pooled_sd, Ruler_Info.ruler_class, Ruler_Info.ruler_class_percentage, str(units_save), Ruler_Info.cross_validation_count,
+#                                      Ruler_Info.conversion_mean_n, Ruler_Info.conversion_mean_n_vals, Ruler_Info.avg_width, plot_points_blob))
+
+#                         conn.commit()
+
+#                     except Exception as e:
+#                         logger.error(f"Failed to process ruler data for {filename}: {str(e)}")
 
 
 
@@ -1032,6 +1288,27 @@ class RulerInfo:
         elif self.is_dual:
             self.n_units = len(self.contains_unit_dual)
 
+    def remove_specks(self, image, min_size=10):
+        # Convert the image to binary (black and white)
+        binary = image.convert('L').point(lambda x: 0 if x < 128 else 255, '1')
+        
+        # Convert to numpy array
+        np_image = np.array(binary)
+        
+        # Label connected components
+        labeled_array, num_features = ndimage.label(np_image)
+        
+        # Remove objects smaller than the min_size threshold
+        for label in range(1, num_features + 1):
+            component = labeled_array == label
+            if np.sum(component) < min_size:
+                np_image[component] = 0
+        
+        # Convert back to PIL Image
+        result = Image.fromarray(np_image.astype('uint8') * 255)
+        return result
+
+
     def process_scanline_chunk(self):
         if self.show_all_logs:
             self.logger.debug(f"Starting Scanlines")
@@ -1087,12 +1364,33 @@ class RulerInfo:
         img_pad = stack_2_imgs_bi(img_pad, img_pad_skel)
 
 
+
+        # Apply despeckling based on the image resolution
+        image_resolution = h * w
+        if image_resolution > 4e7:  # If resolution is greater than 1 million pixels
+            min_size = 40  # Higher threshold for larger images
+        elif image_resolution > 1e6:  # If resolution is greater than 1 million pixels
+            min_size = 30  # Higher threshold for larger images
+        elif image_resolution > 5e5:  # If resolution is between 500k and 1 million pixels
+            min_size = 20
+        else:  # For smaller images
+            min_size = 10
+
+        img_pad_pil = Image.fromarray((img_pad * 255).astype('uint8'))
+        despeckled_img = self.remove_specks(img_pad_pil, min_size=min_size)
+
+        # Convert despeckled image back to a numpy array for further processing
+        img_pad = np.array(despeckled_img).astype(np.uint8)
+
+
+
         # img_pad_double = img_pad
         h,w = img_pad.shape
         x = np.linspace(0, w, w)
 
         
         self.Ruler.img_bi_pad = copy.deepcopy(img_pad)
+
         # self.Ruler.img_bi_pad[self.Ruler.img_bi_pad == 1] = 255
         # cv2.imshow('img', self.Ruler.img_bi_pad)
         # cv2.waitKey(0)
@@ -1131,6 +1429,7 @@ class RulerInfo:
                     plotPtsY is not None and 
                     plotPtsX is not None and 
                     distUse is not None and
+                    distUse.size > 0 and
                     npts is not None
                 ):
                     if len(plotPtsX) == len(plotPtsY):
@@ -1151,20 +1450,20 @@ class RulerInfo:
                             min_pairwise_distance_third
                             )
 
-                        mean_plus_normsd = np.mean(distUse) # + avg_width #+ (3*(np.std(distUse) / np.mean(distUse)))
+                        mean_plus_normsd = np.nanmean(distUse) # + avg_width #+ (3*(np.std(distUse) / np.nanmean(distUse)))
 
-                        sd_temp = (np.std(distUse, ddof=1) / np.mean(distUse))
+                        sd_temp = (np.std(distUse, ddof=1) / np.nanmean(distUse))
                         if sd_temp < sd_temp_hold and (npts >= 3) and sanity_check:
                             sd_temp_hold = sd_temp
                             self.avg_width = avg_width
-                            best_value = np.mean(distUse)
+                            best_value = np.nanmean(distUse)
                         # Store the scanline data if the tickmarks are regular
-                        if sanity_check and not np.isnan(np.mean(distUse)):
+                        if sanity_check and not np.isnan(np.nanmean(distUse)):
                             chunkAdd[chunkAdd >= 1] = 255
                             scanlineData = {
                                 'index': int(i),
-                                'mean': mean_plus_normsd, #np.mean(distUse),
-                                'normalizedSD': (np.std(distUse, ddof=1) / np.mean(distUse)),
+                                'mean': mean_plus_normsd, #np.nanmean(distUse),
+                                'normalizedSD': (np.std(distUse, ddof=1) / np.nanmean(distUse)),
                                 'nPeaks': npts,
                                 'sd': np.std(distUse, ddof=1),
                                 'imgChunk': chunkAdd,
@@ -1180,7 +1479,7 @@ class RulerInfo:
                             
                             data_list.append(scanlineData)
                             means_list.append([mean_plus_normsd])
-                            sd_list.append([(np.std(distUse) / np.mean(distUse))])
+                            sd_list.append([(np.std(distUse) / np.nanmean(distUse))])
                             npts_dict[str(mean_plus_normsd)] = npts
 
         if len(means_list) >= 2:
@@ -1214,7 +1513,7 @@ class RulerInfo:
 
             else:
                 # Initialize the k-means model with n_units+1 clusters
-                kmeans = KMeans(n_clusters=n_clusters, random_state=2022)
+                kmeans = KMeans(n_clusters=n_clusters, random_state=2022, n_init=10)
                 # Fit the model to the data
                 kmeans.fit(np.array(means_list).reshape(-1, 1))
                 # Get the cluster centers and labels
@@ -1232,7 +1531,7 @@ class RulerInfo:
 
 
                 # Initialize the k-means model with 2 clusters
-                kmeans = KMeans(n_clusters=2, random_state=2022)
+                kmeans = KMeans(n_clusters=2, random_state=2022, n_init=10)
                 # Fit the model to the data
                 kmeans.fit(np.array(sd_list).reshape(-1, 1))
                 # Get the cluster centers and labels
@@ -1552,7 +1851,7 @@ class RulerInfo:
                 # get average
                 self.cross_validation_count = len(list(conversion_final.keys()))
 
-                self.conversion_mean = np.mean(conversions_in_cm) #+ self.avg_width#+ np.mean(conversions_in_cm)/50 #2*self.avg_width +
+                self.conversion_mean = np.nanmean(conversions_in_cm) #+ self.avg_width#+ np.nanmean(conversions_in_cm)/50 #2*self.avg_width +
                 self.conversion_mean_n = len(conversions_in_cm)
                 
 
@@ -2331,7 +2630,7 @@ class RulerConfig:
 
     net_ruler: object = field(init=False)
 
-    def __init__(self, logger, dir_home, Dirs, cfg) -> None:
+    def __init__(self, dir_home, Dirs, cfg, device) -> None:
         self.path_to_config = dir_home
         self.cfg = cfg
 
@@ -2367,32 +2666,32 @@ class RulerConfig:
         
 
         try:
-            self.net_ruler = torch.jit.load(os.path.join(self.path_to_model,model_name), map_location='cuda:0')
+            self.net_ruler = torch.jit.load(os.path.join(self.path_to_model,model_name), map_location=f'cuda:{device}')
         except:
             self.net_ruler = torch.jit.load(os.path.join(self.path_to_model,model_name), map_location='cpu')
         self.net_ruler.eval()
         try:
-            self.net_ruler.to('cuda:0') # specify device as 'cuda:0'
+            self.net_ruler.to(f'cuda:{device}') # specify device as 'cuda:0'
         except:
             self.net_ruler.to('cpu')
         # torch.jit.save(self.net_ruler, '/home/brlab/Dropbox/LeafMachine2/leafmachine2/machine/ruler_classifier/model/ruler_classifier_38classes_v-1.pt')
         # torch.save(self.net_ruler.state_dict(), '/home/brlab/Dropbox/LeafMachine2/leafmachine2/machine/ruler_classifier/model/ruler_classifier_38classes_v-1.pt')
 
-        logger.info(f"Loaded ruler classifier network: {os.path.join(self.path_to_model,model_name)}")
+        print(f"Loaded ruler classifier network: {os.path.join(self.path_to_model,model_name)}")
         # except:
         #     logger.info("Could not load ruler classifier network")
 
         model_name_bi = self.cfg['leafmachine']['ruler_detection']['ruler_binary_detector']
         try:
-            self.net_ruler_bi = torch.jit.load(os.path.join(self.path_to_model, model_name_bi), map_location='cuda:0')
+            self.net_ruler_bi = torch.jit.load(os.path.join(self.path_to_model, model_name_bi), map_location=f'cuda:{device}')
         except:
             self.net_ruler_bi = torch.jit.load(os.path.join(self.path_to_model, model_name_bi), map_location='cpu')
         self.net_ruler_bi.eval()
         try:
-            self.net_ruler_bi.to('cuda:0') # specify device as 'cuda:0'
+            self.net_ruler_bi.to(f'cuda:{device}') # specify device as 'cuda:0'
         except:
             self.net_ruler_bi.to('cpu') # specify device as 'cuda:0'
-        logger.info(f"Loaded ruler binary classifier network: {os.path.join(self.path_to_model, model_name_bi)}")
+        print(f"Loaded ruler binary classifier network: {os.path.join(self.path_to_model, model_name_bi)}")
 
 @dataclass
 class ClassifyRulerImage:
@@ -3059,7 +3358,7 @@ def straighten_img(logger, show_all_logs, RulerCFG, Ruler, useRegulerBinary, alt
     # Grid rulers will NOT get roatate, assumption is that they are basically straight already
     if check_ruler_type(Ruler.ruler_class,'grid') == False:
         if len(angles) > 0:
-            Ruler.avg_angle = np.mean(angles)
+            Ruler.avg_angle = np.nanmean(angles)
             imgRotate = ndimage.rotate(Ruler.img,Ruler.avg_angle)
             imgRotate = make_img_hor(imgRotate)
         else:
@@ -3500,7 +3799,7 @@ def locate_ticks_centroid_inline(chunkAdd,scanSize, i, logger, max_dim):
     # Calculate the average width of the objects
     if np.any(props['axis_major_length']):
         widths = np.sqrt(props['axis_major_length'] * props['axis_minor_length'])
-        avg_width = np.mean(widths)
+        avg_width = np.nanmean(widths)
 
         centoid = props['centroid-1']
         peak_pos = np.transpose(np.array(centoid))
@@ -3524,7 +3823,7 @@ def locate_ticks_centroid_inline(chunkAdd,scanSize, i, logger, max_dim):
 
             if use_kmeans:
                 # Use k-means clustering to find the two dominant patterns
-                kmeans = KMeans(n_clusters=2, random_state=2022)
+                kmeans = KMeans(n_clusters=2, random_state=2022, n_init=10)
                 kmeans.fit(np.array(distUse).reshape(-1, 1))
                 labels = kmeans.labels_
 
@@ -3614,7 +3913,7 @@ def locate_ticks_centroid(chunkAdd,scanSize, i):
     # Calculate the average width of the objects
     if np.any(props['axis_major_length']):
         widths = np.sqrt(props['axis_major_length'] * props['axis_minor_length'])
-        avg_width = np.mean(widths)
+        avg_width = np.nanmean(widths)
 
         centoid = props['centroid-1']
         peak_pos = np.transpose(np.array(centoid))
@@ -3746,9 +4045,9 @@ def standard_deviation_of_pairwise_distance(plotPtsX, plotPtsY):
     valid_indices = np.where(np.logical_and(np.logical_not(np.isnan(x)), np.logical_not(np.isnan(y))))[0]
     x = x[valid_indices]
     y = y[valid_indices]
-    arrmean = np.mean(x)
+    arrmean = np.nanmean(x)
     x = np.asanyarray(x - arrmean)
-    return np.sqrt(np.mean(x**2))
+    return np.sqrt(np.nanmean(x**2))
 
 def sanity_check_scanlines(min_pairwise_distance, min_pairwise_distance_odd, min_pairwise_distance_even, min_pairwise_distance_third):
     if min_pairwise_distance_odd < min_pairwise_distance / 2 or min_pairwise_distance_odd > min_pairwise_distance * 2:
@@ -3832,8 +4131,8 @@ def calculate_block_conversion_factor(BlockCandidate, nBlockCheck, predicted_con
         if BlockCandidate.use_points[i]:
             X = BlockCandidate.x_points[i].values
             n_measurements = X.size
-            axis_major_length = np.mean(BlockCandidate.axis_major_length[i].values)
-            axis_minor_length = np.mean(BlockCandidate.axis_minor_length[i].values)
+            axis_major_length = np.nanmean(BlockCandidate.axis_major_length[i].values)
+            axis_minor_length = np.nanmean(BlockCandidate.axis_minor_length[i].values)
             dst_matrix = X - X[:, None]
             dst_matrix = dst_matrix[~np.eye(dst_matrix.shape[0],dtype=bool)].reshape(dst_matrix.shape[0],-1)
             dist = np.min(np.abs(dst_matrix), axis=1)
@@ -3843,7 +4142,7 @@ def calculate_block_conversion_factor(BlockCandidate, nBlockCheck, predicted_con
             # 'if factors['bigCM'] == 0:' is there to make sure that there are no carry-over values if there were 
             # 2 instances of 'bigCM' coming from determineBlockBlobType()
             if distUse.size > 0:
-                distUse_mean = np.mean(distUse)
+                distUse_mean = np.nanmean(distUse)
                 if BlockCandidate.point_types[i] == 'bigCM':
                     if ((distUse_mean >= 0.8*axis_major_length) & (distUse_mean <= 1.2*axis_major_length)):
                         if factors['bigCM'] == 0:
@@ -4144,7 +4443,7 @@ def add_unit_marker_block(BlockCandidate, multiple, is_pred1=False, is_pred2=Fal
     else:
         ind = BlockCandidate.point_types.index(BlockCandidate.conversion_location)
         X = int(round(min(BlockCandidate.x_points[ind].values)))
-        Y = int(round(np.mean(BlockCandidate.y_points[ind].values)))
+        Y = int(round(np.nanmean(BlockCandidate.y_points[ind].values)))
 
     start = X
     end = int(round(start+(CF*multiple))) + 1
@@ -4259,7 +4558,7 @@ def determine_block_blob_type(logger, show_all_logs, RulerCFG,BlockCandidate,ind
     axis_minor_length = props['axis_minor_length']
     ratio = axis_major_length/axis_minor_length
     if ((ratio.size > 1) & (ratio.size <= 10)):
-        ratioM = np.mean(ratio)
+        ratioM = np.nanmean(ratio)
         if ((ratioM >= (0.9*RATIOS['bigCM'])) & (ratioM <= (1.1*RATIOS['bigCM']))):
             use_points = True
             point_types = 'bigCM'

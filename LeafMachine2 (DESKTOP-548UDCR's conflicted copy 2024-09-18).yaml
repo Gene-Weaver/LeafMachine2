@@ -1,0 +1,184 @@
+leafmachine:
+  archival_component_detector:
+    detector_iteration: PREP_final
+    detector_type: Archival_Detector
+    detector_version: PREP_final
+    detector_weights: best.pt
+    do_save_prediction_overlay_images: true
+    ignore_objects_for_overlay: []
+    minimum_confidence_threshold: 0.5
+    ruler_binary_detector: model_scripted_resnet_720_withCompression.pt
+    ruler_detector: ruler_classifier_38classes_v-1.pt
+  armature_component_detector:
+    detector_iteration: ARM_A_1000
+    detector_type: Armature_Detector
+    detector_version: ARM_A_1000
+    detector_weights: best.pt
+    do_save_prediction_overlay_images: true
+    ignore_objects_for_overlay: []
+    minimum_confidence_threshold: 0.5
+  cropped_components:
+    include_these_objects_in_specimen_crop: ['ruler','barcode','colorcard', 'label', 'map', 'envelope', 'photo', 'attached_item', 'leaf_whole', 'leaf_partial', 'leaflet', 'seed_fruit_one', 'seed_fruit_many', 'flower_one', 'flower_many', 'bud', 'specimen', 'roots', 'wood']
+    binarize_labels: false
+    binarize_labels_skeletonize: false
+    do_save_cropped_annotations: false
+    save_cropped_annotations:
+    - label
+    save_per_annotation_class: true
+    save_per_image: false
+  data:
+    do_apply_conversion_factor: true
+    do_apply_predicted_conversion_factor_as_backup: true
+    include_darwin_core_data_from_combined_file: false
+    save_individual_csv_files_landmarks: false
+    save_individual_csv_files_measurements: false
+    save_individual_csv_files_rulers: false
+    save_individual_efd_files: false
+    save_json_measurements: false
+    save_json_rulers: false
+  do:
+    check_for_corrupt_images_make_vertical: true
+    check_for_illegal_filenames: true
+    run_leaf_processing: true
+  landmark_detector:
+    detector_iteration: Landmarks
+    detector_type: Landmark_Detector_YOLO
+    detector_version: Landmarks
+    detector_weights: best.pt
+    do_save_QC_images: true
+    do_save_final_images: true
+    do_save_prediction_overlay_images: true
+    do_show_QC_images: false
+    do_show_final_images: false
+    ignore_objects_for_overlay: []
+    landmark_partial_leaves: false
+    landmark_whole_leaves: true
+    minimum_confidence_threshold: 0.02
+    use_existing_landmark_detections: null
+  landmark_detector_armature:
+    detector_iteration: Landmarks_Arm_A_200
+    detector_type: Landmark_Detector_YOLO
+    detector_version: Landmarks_Arm_A_200
+    detector_weights: last.pt
+    do_save_QC_images: true
+    do_save_final_images: true
+    do_save_prediction_overlay_images: true
+    do_show_QC_images: true
+    do_show_final_images: true
+    ignore_objects_for_overlay: []
+    minimum_confidence_threshold: 0.06
+    upscale_factor: 10
+    use_existing_landmark_detections: null
+  leaf_segmentation:
+    calculate_elliptic_fourier_descriptors: true
+    detector_version: uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2
+    elliptic_fourier_descriptor_order: 40
+    find_minimum_bounding_box: true
+    generate_overlay: true
+    keep_only_best_one_leaf_one_petiole: true
+    minimum_confidence_threshold: 0.7
+    overlay_background_color: black
+    overlay_dpi: 300
+    overlay_line_width: 1
+    save_each_segmentation_overlay_image: true
+    save_full_image_masks_color: true
+    save_individual_overlay_images: true
+    save_keypoint_overlay: true
+    save_masks_color: true
+    save_oriented_images: true
+    save_oriented_mask: true
+    save_rgb_cropped_images: true
+    save_segmentation_overlay_images_to_pdf: true
+    save_simple_txt: true
+    segment_partial_leaves: false
+    segment_whole_leaves: true
+    segmentation_model: Group3_Dataset_100000_Iter_1176PTS_512Batch_smooth_l1_LR00025_BGR
+    use_efds_for_png_masks: false
+  logging:
+    log_level: null
+  modules:
+    armature: false
+    specimen_crop: true
+  overlay:
+    alpha_transparency_archival: 0.3
+    alpha_transparency_plant: 0.0
+    alpha_transparency_seg_partial_leaf: 0.3
+    alpha_transparency_seg_whole_leaf: 0.4
+    ignore_archival_detections_classes: []
+    ignore_landmark_classes: []
+    ignore_plant_detections_classes:
+    - leaf_whole
+    line_width_archival: 12
+    line_width_efd: 12
+    line_width_plant: 12
+    line_width_seg: 12
+    overlay_background_color: black
+    overlay_dpi: 300
+    save_overlay_to_jpgs: true
+    save_overlay_to_pdf: false
+    show_archival_detections: true
+    show_landmarks: true
+    show_plant_detections: true
+    show_segmentations: true
+  plant_component_detector:
+    detector_iteration: PLANT_LeafPriority
+    detector_type: Plant_Detector
+    detector_version: PLANT_LeafPriority
+    detector_weights: LeafPriority.pt
+    do_save_prediction_overlay_images: true
+    ignore_objects_for_overlay: []
+    minimum_confidence_threshold: 0.5
+  print:
+    optional_warnings: true
+    verbose: true
+  project:
+    GBIF_mode: all
+    accept_only_ideal_leaves: true
+    batch_size: 20000
+    censor_archival_components: true
+    dir_images_local: D:/Dropbox/LM2_Env/Image_Datasets/GBIF_DetailedSample_50Spp #G:/herbarium_CF_test #D:/D_Desktop/size_test # D:/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images_ind #/media/data/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images # /media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #D:/D_Desktop/temp_50_2 #/media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #/media/nas/GBIF_Downloads/Cornales/Cornaceae/img # /media/data/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images #/media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #  #
+    dir_images_subset: ''
+    dir_output: C:/Users/Will/Downloads/GBIF_DetailedSample_50Spp #/media/nas/TEMP_TEST  #/media/nas/test_LM2_optimized_DwC10RandImg #C:/Users/Will/Downloads #/media/nas/GBIF_Downloads/Cornales/Cornaceae #  #  #
+    hide_archival_components:
+    - ruler
+    - barcode
+    - label
+    - colorcard
+    - map
+    - photo
+    - weights
+    image_location: local
+    minimum_total_reproductive_counts: 0
+    n_images_per_species: 10
+    num_workers: 100
+    num_workers_ruler: 100
+    num_workers_seg: 100
+    num_workers_overlay: 24
+    overlay_background_color: black
+    overlay_dpi: 300
+    path_combined_csv_local: null
+    path_images_csv_local: null
+    path_occurrence_csv_local: null
+    process_subset_of_images: false
+    replacement_color: '#FFFFFF'
+    run_name: LM2
+    padding_for_crop: 150
+    orientation: '6'
+    colorspace: 'raw'
+    save_TIFF_to_original_dir: false 
+    save_TIFF_to_dir_output: false   
+    save_JPG_to_dir_output: true
+    save_XMP_to_original_dir: true
+    species_list: ''
+    use_CF_predictor: true
+    use_existing_archival_component_detections: null
+    use_existing_plant_component_detections: null
+    device: "cuda"
+  ruler_detection:
+    detect_ruler_type: true
+    minimum_confidence_threshold: 0.5
+    ruler_binary_detector: model_scripted_resnet_720_withCompression.pt
+    ruler_detector: ruler_classifier_38classes_v-1.pt
+    save_ruler_processed: false
+    save_ruler_validation: false
+    save_ruler_validation_summary: true

@@ -15,6 +15,7 @@ from sqlite3 import Error
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import asyncio, aiofiles
 import numpy as np
+from multiprocessing import Process, Queue
 
 currentdir = os.path.dirname(inspect.getfile(inspect.currentframe()))
 parentdir = os.path.dirname(currentdir)
@@ -23,6 +24,7 @@ sys.path.append(parentdir)
 from detect import run
 from landmark_processing import LeafSkeleton
 from armature_processing import ArmatureSkeleton
+from leafmachine2.machine.LM2_logger import initialize_logger_for_parallel_processes
 
 def detect_plant_components(cfg, time_report, logger, dir_home, Project, Dirs):
     t1_start = perf_counter()
@@ -38,6 +40,12 @@ def detect_plant_components(cfg, time_report, logger, dir_home, Project, Dirs):
         num_workers = 1
     else:
         num_workers = int(cfg['leafmachine']['project']['num_workers'])
+
+    if cfg['leafmachine']['project']['device'] == 'cuda':
+        num_gpus = int(cfg['leafmachine']['project'].get('num_gpus', 1))  # Default to 1 GPU if not specified
+        device_list = [i for i in range(num_gpus)]  # List of GPU indices like [0, 1, 2, ...]
+    else:
+        device_list = ['cpu']  # Default to CPU if CUDA is not available
 
     # Weights folder base
     dir_weights = os.path.join(dir_home, 'leafmachine2', 'component_detector','runs','train')
@@ -103,7 +111,7 @@ def detect_plant_components(cfg, time_report, logger, dir_home, Project, Dirs):
         #         except Exception as e:
         #             logger.error(f'Error in thread: {e}')
         #             continue
-        distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers)
+        distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers, device_list)
 
 
         t2_stop = perf_counter()
@@ -148,6 +156,12 @@ def detect_archival_components(cfg, time_report, logger, dir_home, Project, Dirs
         num_workers = 1
     else:
         num_workers = int(cfg['leafmachine']['project']['num_workers'])
+
+    if cfg['leafmachine']['project']['device'] == 'cuda':
+        num_gpus = int(cfg['leafmachine']['project'].get('num_gpus', 1))  # Default to 1 GPU if not specified
+        device_list = [i for i in range(num_gpus)]  # List of GPU indices like [0, 1, 2, ...]
+    else:
+        device_list = ['cpu']  # Default to CPU if CUDA is not available
     
     # Weights folder base
     dir_weights = os.path.join(dir_home, 'leafmachine2', 'component_detector','runs','train')
@@ -168,33 +182,11 @@ def detect_archival_components(cfg, time_report, logger, dir_home, Project, Dirs
     if dir_exisiting_labels != None:
         logger.info("Loading existing archival labels")
         fetch_labels(dir_exisiting_labels, os.path.join(Dirs.path_archival_components, 'labels'))
-        # if n_images <= 4000:
-            # logger.debug("Single-threaded create_dictionary_from_txt() n_images <= 4000")
-            # A = create_dictionary_from_txt_parallel(logger, cfg, dir_exisiting_labels, 'Detections_Archival_Components', Project)
-        ### CLASSIC
-        # A = create_dictionary_from_txt(logger, dir_exisiting_labels, 'Detections_Archival_Components', Project)
-        
-        ### SQL
         A = create_dictionary_from_txt_sql(logger, os.path.join(Dirs.path_archival_components, 'labels'), 'Detections_Archival_Components', Project, 'annotations_archival', 'dimensions_archival')
-
-        # else:
-            # logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() n_images > 4000")
-            # A = create_dictionary_from_txt_parallel(logger, cfg, dir_exisiting_labels, 'Detections_Archival_Components', Project)
 
     else:
         logger.info("Running YOLOv5 to generate archival labels")
-        # run(weights = weights,
-        #     source = Project.dir_images,
-        #     project = Dirs.path_archival_components,
-        #     name = Dirs.run_name,
-        #     imgsz = (1280, 1280),
-        #     nosave = do_save_prediction_overlay_images,
-        #     anno_type = 'Archival_Detector',
-        #     conf_thres = threshold, 
-        #     ignore_objects_for_overlay = ignore_objects,
-        #     mode = 'LM2',
-        #     LOGGER=logger)
-        # split the image paths into 4 chunks
+
         source = Project.dir_images
         project = Dirs.path_archival_components
         name = Dirs.run_name
@@ -206,36 +198,14 @@ def detect_archival_components(cfg, time_report, logger, dir_home, Project, Dirs
         mode = 'LM2'
         LOGGER = logger
 
-        # with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
-        #     futures = [executor.submit(run_in_parallel, weights, source, project, name, imgsz, nosave, anno_type,
-        #                             conf_thres, 10, ignore_objects_for_overlay, mode, LOGGER, i, num_workers) for i in
-        #             range(num_workers)]
-        #     for future in concurrent.futures.as_completed(futures):
-        #         try:
-        #             _ = future.result()
-        #         except Exception as e:
-        #             logger.error(f'Error in thread: {e}')
-        #             continue
-        distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers)
+        distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers, device_list)
 
 
         t2_stop = perf_counter()
         logger.info(f"[Archival components detection elapsed time] {round(t2_stop - t1_start)} seconds")
         logger.info(f"Threads [{num_workers}]")
 
-        # if n_images <= 4000:
-            # logger.debug("Single-threaded create_dictionary_from_txt() n_images <= 4000")
-        
-        ### CLASSIC
-        # A = create_dictionary_from_txt(logger, os.path.join(Dirs.path_archival_components, 'labels'), 'Detections_Archival_Components', Project)
-        
-        ### SQL
         A = create_dictionary_from_txt_sql(logger, os.path.join(Dirs.path_archival_components, 'labels'), 'Detections_Archival_Components', Project, 'annotations_archival', 'dimensions_archival')
-        # else:
-            # logger.debug(f"Multi-threaded with ({str(cfg['leafmachine']['project']['num_workers'])}) threads create_dictionary_from_txt() n_images > 4000")
-            # A = create_dictionary_from_txt_parallel(logger, cfg, os.path.join(Dirs.path_archival_components, 'labels'), 'Detections_Archival_Components', Project)
-    
-    # dict_to_json(Project.project_data, Dirs.path_archival_components, 'Detections_Archival_Components.json')
 
     t1_stop = perf_counter()
     t_acd = f"[Processing archival components elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
@@ -256,6 +226,12 @@ def detect_armature_components(cfg, logger, dir_home, Project, Dirs):
         num_workers = 1
     else:
         num_workers = int(cfg['leafmachine']['project']['num_workers'])
+
+    if cfg['leafmachine']['project']['device'] == 'cuda':
+        num_gpus = int(cfg['leafmachine']['project'].get('num_gpus', 1))  # Default to 1 GPU if not specified
+        device_list = [i for i in range(num_gpus)]  # List of GPU indices like [0, 1, 2, ...]
+    else:
+        device_list = ['cpu']  # Default to CPU if CUDA is not available
 
     # Weights folder base
     dir_weights = os.path.join(dir_home, 'leafmachine2', 'component_detector','runs','train')
@@ -295,7 +271,7 @@ def detect_armature_components(cfg, logger, dir_home, Project, Dirs):
     #         except Exception as e:
     #             logger.error(f'Error in thread: {e}')
     #             continue
-    distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers)
+    distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers, device_list)
 
     t2_stop = perf_counter()
     logger.info(f"[Plant components detection elapsed time] {round(t2_stop - t1_start)} seconds")
@@ -317,20 +293,24 @@ def detect_armature_components(cfg, logger, dir_home, Project, Dirs):
 
 
 ''' RUN IN PARALLEL'''
-def distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers):
+def distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers, device_list):
     num_files = len(os.listdir(source))
-    LOGGER.info(f"The number of worker threads: ({num_workers}), number of files ({num_files}).")
+    LOGGER.info(f"The number of worker processes: ({num_workers}), number of files ({num_files}).")
 
     files = [os.path.join(source, f) for f in os.listdir(source) if f.lower().endswith('.jpg')]
     chunk_size = (num_files + num_workers - 1) // num_workers  # Ensuring each worker has something to do, ceiling division
 
     queue = Queue()
-    # Start worker threads
+
+    # Start worker processes instead of threads
     workers = []
-    for _ in range(num_workers):
-        t = Thread(target=worker_object_detector, args=(queue, weights, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER))
-        t.start()
-        workers.append(t)
+    for i in range(num_workers):
+        # Assign the device for this worker (round-robin distribution across device_list)
+        device = device_list[i % len(device_list)]
+
+        p = Process(target=worker_object_detector, args=(queue, weights, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, device))
+        p.start()
+        workers.append(p)
 
     # Enqueue sublists of files
     for i in range(num_workers):
@@ -339,21 +319,22 @@ def distribute_workloads(weights, source, project, name, imgsz, nosave, anno_typ
         sub_source = files[start:end]
         queue.put(sub_source)
 
-    # Block until all tasks are done
-    queue.join()
-
-    # Stop workers
+    # Stop workers by sending 'None' signals
     for _ in range(num_workers):
         queue.put(None)  # send as many None as the number of workers to stop them
-    for t in workers:
-        t.join()
-        
-def worker_object_detector(queue, weights, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER):
+
+    # Wait for all workers to finish processing
+    for p in workers:
+        p.join()  # Wait for each worker to finish
+
+def worker_object_detector(queue, weights, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, device):
     while True:
         sub_source = queue.get()
         if sub_source is None:
             break  # None is the signal to stop processing
+        
         try:
+            # Run the detection on the subset of files
             run(weights=weights,
                 source=sub_source,
                 project=project,
@@ -364,10 +345,18 @@ def worker_object_detector(queue, weights, project, name, imgsz, nosave, anno_ty
                 conf_thres=conf_thres,
                 ignore_objects_for_overlay=ignore_objects_for_overlay,
                 mode=mode,
-                LOGGER=LOGGER)
+                device=device,
+                )
+
+            # Explicitly clear GPU memory after processing each chunk
+            print("Clearing VRAM...")
+            torch.cuda.empty_cache()  # Clear PyTorch's cached VRAM
+
         except Exception as e:
-            LOGGER.error(f'Error in processing: {e}')
-        queue.task_done()
+            print(f'Error in processing: {e}')
+        finally:
+            # Ensure VRAM is cleared in case of exception
+            torch.cuda.empty_cache()
 
 
 
@@ -560,80 +549,196 @@ def create_dictionary_from_txt_parallel(logger, cfg, dir_components, component, 
 
 
 
+def process_file_batch(files, dir_components, component, dir_images):
+    """Process each file and return the data to be inserted in the database later."""
+    annotations_data = []
+    dimensions_data = []
 
+    for file in files:
+        file_name = str(file.split('.')[0])
+        annotations = []
 
-def create_annotations_table(conn, table_name):
-    try:
-        sql_create_annotations_table = f"""CREATE TABLE IF NOT EXISTS {table_name} (
-                                            id INTEGER PRIMARY KEY,
-                                            file_name TEXT NOT NULL,
-                                            component TEXT NOT NULL,
-                                            annotation TEXT NOT NULL
-                                         );"""
-        cur = conn.cursor()
-        cur.execute(sql_create_annotations_table)
+        # Load annotations from the .txt file
+        with open(os.path.join(dir_components, file), "r") as f:
+            annotations = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
+
+        # Collect annotations data for batch insertion later
+        annotation_inserts = [(file_name, component, ','.join(map(str, annotation))) for annotation in annotations]
+        annotations_data.extend(annotation_inserts)
+
+        # Process image dimensions
+        try:
+            image_path = glob.glob(os.path.join(dir_images, file_name + '.*'))[0]
+            name_ext = os.path.basename(image_path)
+            with Image.open(image_path) as im:
+                _, ext = os.path.splitext(name_ext)
+                if ext not in ['.jpg']:
+                    im = im.convert('RGB')
+                    im.save(os.path.join(dir_images, file_name) + '.jpg', quality=100)
+                width, height = im.size
+        except Exception as e:
+            print(f"Unable to get image dimensions for {file_name}. Error: {e}")
+            width, height = None, None
+
+        # Collect image dimension data
+        if width and height:
+            dimensions_data.append((file_name, width, height))
+
+    return annotations_data, dimensions_data
+
+def insert_data_in_batches(conn, cur, data, query, batch_size):
+    """Insert data into the database in chunks."""
+    for i in range(0, len(data), batch_size):
+        chunk = data[i:i + batch_size]
+        cur.executemany(query, chunk)
         conn.commit()
-    except Error as e:
-        print(e)
-
-def create_image_dimensions_table(conn, table_name):
-    try:
-        sql_create_dimensions_table = f"""CREATE TABLE IF NOT EXISTS {table_name} (
-                                            id INTEGER PRIMARY KEY,
-                                            file_name TEXT NOT NULL,
-                                            width INTEGER,
-                                            height INTEGER
-                                         );"""
-        cur = conn.cursor()
-        cur.execute(sql_create_dimensions_table)
-        conn.commit()
-    except Error as e:
-        print(e)
 
 def create_dictionary_from_txt_sql(logger, dir_components, component, ProjectSQL, annotations_table, dimensions_table):
-    conn = ProjectSQL.conn
+    files = [file for file in os.listdir(dir_components) if file.endswith(".txt")]
 
-    # Ensure tables exist
-    create_annotations_table(conn, annotations_table)
-    create_image_dimensions_table(conn, dimensions_table)
+    # Batch the files into smaller groups for better performance
+    batch_size = 1000  # Adjust this for performance
+    file_batches = [files[i:i + batch_size] for i in range(0, len(files), batch_size)]
 
-    for file in tqdm(os.listdir(dir_components), desc="Loading Annotations", colour='green'):
-        if file.endswith(".txt"):
-            file_name = str(file.split('.')[0])
-            annotations = []
-            with open(os.path.join(dir_components, file), "r") as f:
-                annotations = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
+    dir_images = ProjectSQL.dir_images  # Use file path for passing to subprocesses
 
-            # Insert annotations into the database
-            for annotation in annotations:
-                annotation_str = ','.join(map(str, annotation))
-                sql = f'''INSERT INTO {annotations_table}(file_name, component, annotation)
-                         VALUES(?, ?, ?)'''
-                cur = conn.cursor()
-                cur.execute(sql, (file_name, component, annotation_str))
-            conn.commit()
+    # Accumulate data from workers
+    all_annotations = []
+    all_dimensions = []
 
-            try:
-                image_path = glob.glob(os.path.join(ProjectSQL.dir_images, file_name + '.*'))[0]
-                name_ext = os.path.basename(image_path)
-                with Image.open(image_path) as im:
-                    _, ext = os.path.splitext(name_ext)
-                    if ext not in ['.jpg']:
-                        im = im.convert('RGB')
-                        im.save(os.path.join(ProjectSQL.dir_images, file_name) + '.jpg', quality=100)
-                    width, height = im.size
-            except Exception as e:
-                logger.info(f"Unable to get image dimensions. Error: {e}")
-                width, height = None, None
+    # Use ProcessPoolExecutor for parallelism
+    with concurrent.futures.ProcessPoolExecutor(max_workers=24) as executor:
+        futures = [
+            executor.submit(process_file_batch, batch, dir_components, component, dir_images)
+            for batch in file_batches
+        ]
 
-            if width and height:
-                # Insert image dimensions into the database
-                sql = f'''INSERT INTO {dimensions_table}(file_name, width, height)
-                         VALUES(?, ?, ?)'''
-                cur.execute(sql, (file_name, width, height))
-                conn.commit()
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Loading Annotations", colour='green'):
+            annotations_data, dimensions_data = future.result()  # Get the results from workers
+            all_annotations.extend(annotations_data)  # Collect all annotations
+            all_dimensions.extend(dimensions_data)    # Collect all dimensions
 
-    return None  # No longer returning Project.project_data since data is in SQL now
+    # Insert into the database in batches after all workers are done
+    conn = sqlite3.connect(ProjectSQL.database)
+    cur = conn.cursor()
+
+    # Insert annotations in chunks of 'batch_size'
+    insert_data_in_batches(
+        conn, cur, all_annotations,
+        f'''INSERT INTO {annotations_table}(file_name, component, annotation) VALUES(?, ?, ?)''', batch_size
+    )
+
+    # Insert dimensions in chunks of 'batch_size'
+    insert_data_in_batches(
+        conn, cur, all_dimensions,
+        f'''INSERT INTO {dimensions_table}(file_name, width, height) VALUES(?, ?, ?)''', batch_size
+    )
+
+    cur.close()
+    conn.close()
+
+    return None
+"""
+def process_file_batch_sql(files, dir_components, component, ProjectSQL, dir_images, annotations_table, dimensions_table):
+    conn = sqlite3.connect(ProjectSQL)
+    cur = conn.cursor()
+
+    for file in files:
+        file_name = str(file.split('.')[0])
+        annotations = []
+
+        # Load annotations from the .txt file
+        with open(os.path.join(dir_components, file), "r") as f:
+            annotations = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
+
+        # Batch insert annotations into the database
+        annotation_inserts = [(file_name, component, ','.join(map(str, annotation))) for annotation in annotations]
+        cur.executemany(f'''INSERT INTO {annotations_table}(file_name, component, annotation)
+                            VALUES(?, ?, ?)''', annotation_inserts)
+
+        # Process image dimensions
+        try:
+            image_path = glob.glob(os.path.join(dir_images, file_name + '.*'))[0]
+            name_ext = os.path.basename(image_path)
+            with Image.open(image_path) as im:
+                _, ext = os.path.splitext(name_ext)
+                if ext not in ['.jpg']:
+                    im = im.convert('RGB')
+                    im.save(os.path.join(dir_images, file_name) + '.jpg', quality=100)
+                width, height = im.size
+        except Exception as e:
+            print(f"Unable to get image dimensions for {file_name}. Error: {e}")
+            width, height = None, None
+
+        if width and height:
+            cur.execute(f'''INSERT INTO {dimensions_table}(file_name, width, height)
+                            VALUES(?, ?, ?)''', (file_name, width, height))
+
+    conn.commit()
+    cur.close()
+    conn.close()
+
+def create_dictionary_from_txt_sql(logger, dir_components, component, ProjectSQL, annotations_table, dimensions_table):
+    files = [file for file in os.listdir(dir_components) if file.endswith(".txt")]
+
+    # Batch the files into smaller groups for better performance
+    batch_size = 100  # Adjust this for performance; larger sizes reduce the number of DB commits
+    file_batches = [files[i:i + batch_size] for i in range(0, len(files), batch_size)]
+
+    dir_images = ProjectSQL.dir_images  # Use file path for passing to subprocesses
+
+    # Use ProcessPoolExecutor for parallelism
+    with concurrent.futures.ProcessPoolExecutor(max_workers=24) as executor:
+        futures = [
+            executor.submit(process_file_batch_sql, batch, dir_components, component, ProjectSQL.database, dir_images, annotations_table, dimensions_table)
+            for batch in file_batches
+        ]
+
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Loading Annotations", colour='green'):
+            future.result()  # Catch exceptions from workers
+
+    return None
+"""
+# def create_dictionary_from_txt_sql(logger, dir_components, component, ProjectSQL, annotations_table, dimensions_table):
+#     conn = ProjectSQL.conn
+
+#     for file in tqdm(os.listdir(dir_components), desc="Loading Annotations", colour='green'):
+#         if file.endswith(".txt"):
+#             file_name = str(file.split('.')[0])
+#             annotations = []
+#             with open(os.path.join(dir_components, file), "r") as f:
+#                 annotations = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
+
+#             # Insert annotations into the database
+#             for annotation in annotations:
+#                 annotation_str = ','.join(map(str, annotation))
+#                 sql = f'''INSERT INTO {annotations_table}(file_name, component, annotation)
+#                          VALUES(?, ?, ?)'''
+#                 cur = conn.cursor()
+#                 cur.execute(sql, (file_name, component, annotation_str))
+#             conn.commit()
+
+#             try:
+#                 image_path = glob.glob(os.path.join(ProjectSQL.dir_images, file_name + '.*'))[0]
+#                 name_ext = os.path.basename(image_path)
+#                 with Image.open(image_path) as im:
+#                     _, ext = os.path.splitext(name_ext)
+#                     if ext not in ['.jpg']:
+#                         im = im.convert('RGB')
+#                         im.save(os.path.join(ProjectSQL.dir_images, file_name) + '.jpg', quality=100)
+#                     width, height = im.size
+#             except Exception as e:
+#                 logger.info(f"Unable to get image dimensions. Error: {e}")
+#                 width, height = None, None
+
+#             if width and height:
+#                 # Insert image dimensions into the database
+#                 sql = f'''INSERT INTO {dimensions_table}(file_name, width, height)
+#                          VALUES(?, ?, ?)'''
+#                 cur.execute(sql, (file_name, width, height))
+#                 conn.commit()
+
+#     return None  # No longer returning Project.project_data since data is in SQL now
 
 
 
@@ -677,50 +782,50 @@ def create_dictionary_from_txt(logger, dir_components, component, Project):
     # for key, value in dict_labels.items():
     #     print(f'{key}  --> {value}')
     return Project.project_data
-def create_dictionary_from_txt_SQL(logger, dir_components, component, Project):
-    for file in tqdm(os.listdir(dir_components), desc="Loading Annotations", colour='green'):
-        if file.endswith(".txt"):
-            file_name = str(file.split('.')[0])
-            annotations = []
-            with open(os.path.join(dir_components, file), "r") as f:
-                annotations = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
+# def create_dictionary_from_txt_SQL_OLD(logger, dir_components, component, Project):
+#     for file in tqdm(os.listdir(dir_components), desc="Loading Annotations", colour='green'):
+#         if file.endswith(".txt"):
+#             file_name = str(file.split('.')[0])
+#             annotations = []
+#             with open(os.path.join(dir_components, file), "r") as f:
+#                 annotations = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
 
-            try:
-                image_path = glob.glob(os.path.join(Project.dir_images, file_name + '.*'))[0]
-                name_ext = os.path.basename(image_path)
-                with Image.open(image_path) as im:
-                    _, ext = os.path.splitext(name_ext)
-                    if ext not in ['.jpg']:
-                        im = im.convert('RGB')
-                        im.save(os.path.join(Project.dir_images, file_name) + '.jpg', quality=100)
-                        image_path = os.path.join(Project.dir_images, file_name) + '.jpg'
-                    width, height = im.size
-            except Exception as e:
-                logger.info(f"Unable to get image dimensions for {file_name}. Error: {e}")
-                width, height = None, None
+#             try:
+#                 image_path = glob.glob(os.path.join(Project.dir_images, file_name + '.*'))[0]
+#                 name_ext = os.path.basename(image_path)
+#                 with Image.open(image_path) as im:
+#                     _, ext = os.path.splitext(name_ext)
+#                     if ext not in ['.jpg']:
+#                         im = im.convert('RGB')
+#                         im.save(os.path.join(Project.dir_images, file_name) + '.jpg', quality=100)
+#                         image_path = os.path.join(Project.dir_images, file_name) + '.jpg'
+#                     width, height = im.size
+#             except Exception as e:
+#                 logger.info(f"Unable to get image dimensions for {file_name}. Error: {e}")
+#                 width, height = None, None
 
-            # Insert the annotations into the archival_components table
-            try:
-                cur = Project.conn.cursor()
+#             # Insert the annotations into the archival_components table
+#             try:
+#                 cur = Project.conn.cursor()
                 
-                if component == "Detections_Archival_Components":
-                    cur.execute('''INSERT INTO archival_components (image_name, component, annotations)
-                                VALUES (?, ?, ?)''', (file_name, component, str(annotations)))
+#                 if component == "Detections_Archival_Components":
+#                     cur.execute('''INSERT INTO archival_components (image_name, component, annotations)
+#                                 VALUES (?, ?, ?)''', (file_name, component, str(annotations)))
                     
-                elif component == "Detections_Plant_Components":
-                    cur.execute('''INSERT INTO plant_components (image_name, component, annotations)
-                                VALUES (?, ?, ?)''', (file_name, component, str(annotations)))
-                else:
-                    raise
+#                 elif component == "Detections_Plant_Components":
+#                     cur.execute('''INSERT INTO plant_components (image_name, component, annotations)
+#                                 VALUES (?, ?, ?)''', (file_name, component, str(annotations)))
+#                 else:
+#                     raise
 
-                if width and height:
-                    cur.execute('''UPDATE images SET width = ?, height = ? WHERE name = ?''',
-                                (width, height, file_name))
-                Project.conn.commit()
-            except Error as e:
-                logger.info(f"Error inserting annotations for {file_name} into database: {e}")
+#                 if width and height:
+#                     cur.execute('''UPDATE images SET width = ?, height = ? WHERE name = ?''',
+#                                 (width, height, file_name))
+#                 Project.conn.commit()
+#             except Error as e:
+#                 logger.info(f"Error inserting annotations for {file_name} into database: {e}")
     
-    return "Annotations added to the database"
+#     return "Annotations added to the database"
 
 
 
@@ -900,6 +1005,13 @@ def run_armature(cfg, logger, dir_home, Project, batch, n_batches, Dirs, leaf_ty
 
 def run_landmarks(cfg, logger, show_all_logs, dir_home, ProjectSQL, batch, n_batches, Batch_Names, Dirs, leaf_type, segmentation_complete):
     use_existing_landmark_detections = cfg['leafmachine']['landmark_detector']['use_existing_landmark_detections']
+
+    if cfg['leafmachine']['project']['device'] == 'cuda':
+        num_gpus = int(cfg['leafmachine']['project'].get('num_gpus', 1))  # Default to 1 GPU if not specified
+        device_list = [i for i in range(num_gpus)]  # List of GPU indices like [0, 1, 2, ...]
+    else:
+        device_list = ['cpu']  # Default to CPU if CUDA is not available
+        
     conn = sqlite3.connect(ProjectSQL.database)
     cur = conn.cursor()
 
@@ -951,50 +1063,12 @@ def run_landmarks(cfg, logger, show_all_logs, dir_home, ProjectSQL, batch, n_bat
             mode = 'Landmark'
             LOGGER = logger
 
-            lock = Lock()
+            distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects, mode, LOGGER, num_workers, device_list)
+            dimensions_dict = get_cropped_dimensions(dir_leaves)
+            add_landmarks_to_sql(cfg, logger, show_all_logs, Dirs, leaf_type, os.path.join(dir_overlay, 'labels'), dimensions_dict, dir_leaves, ProjectSQL.database)
 
-            with ThreadPoolExecutor(max_workers=num_workers) as executor:
-                futures = [
-                    executor.submit(
-                        run_in_parallel, weights, source, project, name, imgsz, nosave, anno_type,
-                        conf_thres, line_thickness, ignore_objects, mode, LOGGER, show_all_logs, i, num_workers
-                    ) for i in range(num_workers)
-                ]
-                for future in futures:
-                    try:
-                        future.result()
-                    except Exception as e:
-                        logger.error(f'Error in thread: {e}')
-                        continue
-
-            with lock:
-                if has_images:
-                    dimensions_dict = get_cropped_dimensions(dir_leaves)
-                    add_landmarks_to_sql(cur, cfg, logger, show_all_logs, Dirs, leaf_type, os.path.join(dir_overlay, 'labels'), dimensions_dict, dir_leaves, batch, n_batches)
-                else:
-                    # TODO: Handle case with no images
-                    pass
     else:
         logger.error('LOADING existing ANNOTATIONS IS NOT SUPPORTED YET')
-        # logger.info('Loading existing landmark annotations')
-        # dir_temp = os.path.join(use_existing_landmark_detections, f'batch_{batch+1}', 'labels')
-        # dimensions_dict = get_cropped_dimensions(dir_temp)
-        # add_landmarks_to_sql(cur, cfg, logger, show_all_logs, Dirs, leaf_type, use_existing_landmark_detections, dimensions_dict, dir_temp, batch, n_batches)
-
-    '''in the non-sql version this cropped the leaves to a temp folder that we then delete'''
-    # # delete the temp dir
-    # try:
-    #     shutil.rmtree(dir_temp)
-    # except:
-    #     try:
-    #         time.sleep(5)
-    #         shutil.rmtree(dir_temp)
-    #     except:
-    #         try:
-    #             time.sleep(5)
-    #             shutil.rmtree(dir_temp)
-    #         except:
-    #             pass
 
     torch.cuda.empty_cache()
     conn.close()
@@ -1017,114 +1091,369 @@ def convert_ndarray_to_list(d):
     else:
         return d
 
-def add_landmarks_to_sql(cur, cfg, logger, show_all_logs, Dirs, leaf_type, dir_labels, dimensions_dict, dir_temp, batch, n_batches):
-    dpi = cfg['leafmachine']['overlay']['overlay_dpi']
-    conn = cur.connection  # Ensure you have the connection object
-    fig = plt.figure(figsize=(8.27, 11.69), dpi=dpi)  # A4 size, 300 dpi
-    row, col = 0, 0
 
-    for file in os.listdir(dir_labels):
+
+def add_landmarks_to_sql(cfg, logger, show_all_logs, Dirs, leaf_type, dir_labels, dimensions_dict, dir_temp, ProjectSQL):
+    dpi = cfg['leafmachine']['overlay']['overlay_dpi']
+    fig = plt.figure(figsize=(8.27, 11.69), dpi=dpi)  # A4 size, 300 dpi
+
+    files = [file for file in os.listdir(dir_labels) if file.endswith(".txt")]
+    batch_size = 100  # Same batch size as the other function for performance
+
+    # Split files into batches
+    file_batches = [files[i:i + batch_size] for i in range(0, len(files), batch_size)]
+
+    # Accumulate all processed data from each batch
+    all_landmark_data = []
+
+    # Use ProcessPoolExecutor to parallelize batch processing
+    with concurrent.futures.ProcessPoolExecutor(max_workers=24) as executor:
+        futures = [
+            executor.submit(process_landmark_file_batch, batch, cfg, show_all_logs, Dirs, leaf_type, dir_labels, dimensions_dict, dir_temp)
+            for batch in file_batches
+        ]
+
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Processing Landmarks", colour='blue'):
+            batch_landmark_data = future.result()  # Collect batch results
+            all_landmark_data.extend(batch_landmark_data)  # Accumulate all results
+
+    # Insert data into the database in chunks
+    conn = sqlite3.connect(ProjectSQL)
+    cur = conn.cursor()
+
+    # Insert all landmark data in batches
+    insert_data_in_batches(
+        conn, cur, all_landmark_data,
+        f"""INSERT INTO {leaf_type} 
+        (file_name, crop_name, all_points, height, width, 
+        apex_center, apex_left, apex_right, apex_angle_degrees, apex_angle_type,
+        base_center, base_left, base_right, base_angle_degrees, base_angle_type,
+        lamina_tip, lamina_base, lamina_length, 
+        lamina_fit, lamina_width, width_left, width_right, 
+        lobe_count, lobes, 
+        midvein_fit, midvein_fit_points, ordered_midvein, ordered_midvein_length, has_midvein,
+        ordered_petiole, ordered_petiole_length, has_ordered_petiole, 
+        is_split, has_apex, has_base, 
+        has_lamina_tip, has_lamina_base, has_lamina_length, 
+        has_width, has_lobes, is_complete_leaf, is_leaf_no_width,
+        t_base_center, t_base_left, t_base_right, 
+        t_apex_center, t_apex_left, t_apex_right, 
+        t_lamina_base, t_lamina_tip, t_lobes, 
+        t_midvein, t_midvein_fit_points, t_petiole, 
+        t_width_left, t_width_right, t_width_infer)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?)
+    """,
+        batch_size
+    )
+
+    cur.close()
+    conn.close()
+
+    return None
+
+def process_landmark_file_batch(files, cfg, show_all_logs, Dirs, leaf_type, dir_labels, dimensions_dict, dir_temp):
+    """Process a batch of files and return the data to be inserted in the database."""
+    batch_data = []
+
+    # Reinitialize the logger inside the process if necessary
+    logger = initialize_logger_for_parallel_processes('LANDMARKS', 
+                           suppress_warnings=["torch.meshgrid"],
+                           suppress_loggers=['Checkpointer', 'ultralytics', 'detectron2', 'yolo'])
+
+    for file in files:
         file_name = str(file.split('.')[0])
         file_name_parent = file_name.split('__')[0]
 
-        # Fetch image dimensions from the provided dictionary
         if file_name in dimensions_dict:
             height, width = dimensions_dict[file_name]
         else:
-            height, width = None, None  # Handle missing dimensions gracefully
+            height, width = None, None  # Handle missing dimensions
 
-        if file.endswith(".txt"):
-            with open(os.path.join(dir_labels, file), "r") as f:
-                all_points = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
+        with open(os.path.join(dir_labels, file), "r") as f:
+            all_points = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
 
-                # Create LeafSkeleton object
-                Leaf_Skeleton = LeafSkeleton(cfg, logger, show_all_logs, Dirs, leaf_type, all_points, height, width, dir_temp, file_name)
+        # Create LeafSkeleton object
+        Leaf_Skeleton = LeafSkeleton(cfg, logger, show_all_logs, Dirs, leaf_type, all_points, height, width, dir_temp, file_name)
 
-                # Convert numpy objects to JSON serializable formats
-                apex_center_serializable = convert_ndarray_to_list(Leaf_Skeleton.apex_center)
-                base_center_serializable = convert_ndarray_to_list(Leaf_Skeleton.base_center)
-                lamina_tip_serializable = convert_ndarray_to_list(Leaf_Skeleton.lamina_tip)
-                lamina_base_serializable = convert_ndarray_to_list(Leaf_Skeleton.lamina_base)
-                lamina_fit_serializable = convert_ndarray_to_list(Leaf_Skeleton.lamina_fit)
-                width_left_serializable = convert_ndarray_to_list(Leaf_Skeleton.width_left)
-                width_right_serializable = convert_ndarray_to_list(Leaf_Skeleton.width_right)
-                lobes_serializable = convert_ndarray_to_list(Leaf_Skeleton.lobes)
-                midvein_fit_serializable = convert_ndarray_to_list(Leaf_Skeleton.midvein_fit)
-                midvein_fit_points_serializable = convert_ndarray_to_list(Leaf_Skeleton.midvein_fit_points)
-                ordered_midvein_serializable = convert_ndarray_to_list(Leaf_Skeleton.ordered_midvein)
-                ordered_petiole_serializable = convert_ndarray_to_list(Leaf_Skeleton.ordered_petiole)
+        # Convert numpy objects to JSON serializable formats
+        apex_center_serializable = convert_ndarray_to_list(Leaf_Skeleton.apex_center)
+        apex_left_serializable = convert_ndarray_to_list(Leaf_Skeleton.apex_left)
+        apex_right_serializable = convert_ndarray_to_list(Leaf_Skeleton.apex_right)
+        base_center_serializable = convert_ndarray_to_list(Leaf_Skeleton.base_center)
+        base_left_serializable = convert_ndarray_to_list(Leaf_Skeleton.base_left)
+        base_right_serializable = convert_ndarray_to_list(Leaf_Skeleton.base_right)
+        lamina_tip_serializable = convert_ndarray_to_list(Leaf_Skeleton.lamina_tip)
+        lamina_base_serializable = convert_ndarray_to_list(Leaf_Skeleton.lamina_base)
+        lamina_fit_serializable = convert_ndarray_to_list(Leaf_Skeleton.lamina_fit)
+        width_left_serializable = convert_ndarray_to_list(Leaf_Skeleton.width_left)
+        width_right_serializable = convert_ndarray_to_list(Leaf_Skeleton.width_right)
+        lobes_serializable = convert_ndarray_to_list(Leaf_Skeleton.lobes)
+        midvein_fit_serializable = convert_ndarray_to_list(Leaf_Skeleton.midvein_fit)
+        midvein_fit_points_serializable = convert_ndarray_to_list(Leaf_Skeleton.midvein_fit_points)
+        ordered_midvein_serializable = convert_ndarray_to_list(Leaf_Skeleton.ordered_midvein)
+        ordered_petiole_serializable = convert_ndarray_to_list(Leaf_Skeleton.ordered_petiole)
 
-                # Ensure that `None` values are replaced with a default value
-                values = [
-                    file_name_parent, 
-                    json.dumps(convert_ndarray_to_list(Leaf_Skeleton.all_points)) or '[]',
-                    height if height is not None else None,
-                    width if width is not None else None,
-                    json.dumps(apex_center_serializable) if apex_center_serializable is not None else None,
-                    Leaf_Skeleton.apex_angle_degrees if Leaf_Skeleton.apex_angle_degrees is not None else None,
-                    json.dumps(base_center_serializable) if base_center_serializable is not None else None,
-                    Leaf_Skeleton.base_angle_degrees if Leaf_Skeleton.base_angle_degrees is not None else None,
-                    json.dumps(lamina_tip_serializable) if lamina_tip_serializable is not None else None,
-                    json.dumps(lamina_base_serializable) if lamina_base_serializable is not None else None,
-                    Leaf_Skeleton.lamina_length if Leaf_Skeleton.lamina_length is not None else None,
-                    json.dumps(lamina_fit_serializable) if lamina_fit_serializable is not None else None,
-                    Leaf_Skeleton.lamina_width if Leaf_Skeleton.lamina_width is not None else None,
-                    json.dumps(width_left_serializable) if width_left_serializable is not None else None,
-                    json.dumps(width_right_serializable) if width_right_serializable is not None else None,
-                    Leaf_Skeleton.lobe_count if Leaf_Skeleton.lobe_count is not None else None,
-                    json.dumps(lobes_serializable) if lobes_serializable is not None else None,
-                    json.dumps(midvein_fit_serializable) if midvein_fit_serializable is not None else None,
-                    json.dumps(midvein_fit_points_serializable) if midvein_fit_points_serializable is not None else None,
-                    json.dumps(ordered_midvein_serializable) if ordered_midvein_serializable is not None else None,
-                    Leaf_Skeleton.ordered_midvein_length if Leaf_Skeleton.ordered_midvein_length is not None else None,
-                    Leaf_Skeleton.has_midvein if Leaf_Skeleton.has_midvein is not None else None,
-                    json.dumps(ordered_petiole_serializable) if ordered_petiole_serializable is not None else None,
-                    Leaf_Skeleton.ordered_petiole_length if Leaf_Skeleton.ordered_petiole_length is not None else None,
-                    Leaf_Skeleton.has_ordered_petiole if Leaf_Skeleton.has_ordered_petiole is not None else None,
-                    Leaf_Skeleton.is_split if Leaf_Skeleton.is_split is not None else None,
-                    Leaf_Skeleton.has_apex if Leaf_Skeleton.has_apex is not None else None,
-                    Leaf_Skeleton.has_base if Leaf_Skeleton.has_base is not None else None,
-                    Leaf_Skeleton.has_lamina_tip if Leaf_Skeleton.has_lamina_tip is not None else None,
-                    Leaf_Skeleton.has_lamina_base if Leaf_Skeleton.has_lamina_base is not None else None,
-                    Leaf_Skeleton.has_lamina_length if Leaf_Skeleton.has_lamina_length is not None else None,
-                    Leaf_Skeleton.has_width if Leaf_Skeleton.has_width is not None else None,
-                    Leaf_Skeleton.has_lobes if Leaf_Skeleton.has_lobes is not None else None,
-                    Leaf_Skeleton.is_complete_leaf if Leaf_Skeleton.is_complete_leaf is not None else None,
-                    Leaf_Skeleton.is_leaf_no_width if Leaf_Skeleton.is_leaf_no_width is not None else None
-                ]
+        # Add translated t_* points
+        t_base_center_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_base_center)
+        t_base_left_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_base_left)
+        t_base_right_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_base_right)
+        t_apex_center_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_apex_center)
+        t_apex_left_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_apex_left)
+        t_apex_right_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_apex_right)
+        t_lamina_base_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_lamina_base)
+        t_lamina_tip_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_lamina_tip)
+        t_lobes_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_lobes)
+        t_midvein_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_midvein)
+        t_midvein_fit_points_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_midvein_fit_points)
+        t_petiole_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_petiole)
+        t_width_left_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_width_left)
+        t_width_right_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_width_right)
+        t_width_infer_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_width_infer)
 
-                # Insert data into the database
-                cur.execute(f"""
-                    INSERT INTO {leaf_type} 
-                    (file_name, all_points, height, width, 
-                    apex_center, apex_angle_degrees, 
-                    base_center, base_angle_degrees, 
-                    lamina_tip, lamina_base, lamina_length, 
-                    lamina_fit, lamina_width, width_left, width_right, 
-                    lobe_count, lobes, 
-                    midvein_fit, midvein_fit_points, ordered_midvein, ordered_midvein_length, has_midvein,
-                    ordered_petiole, ordered_petiole_length, has_ordered_petiole, 
-                    is_split, has_apex, has_base, 
-                    has_lamina_tip, has_lamina_base, has_lamina_length, 
-                    has_width, has_lobes, is_complete_leaf, is_leaf_no_width)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, values)
+        values = [
+            file_name_parent, 
+            file_name, 
+            json.dumps(convert_ndarray_to_list(Leaf_Skeleton.all_points)) or '[]',
+            height if height is not None else None,
+            width if width is not None else None,
+            json.dumps(apex_center_serializable) if apex_center_serializable is not None else None,
+            json.dumps(apex_left_serializable) if apex_left_serializable is not None else None,
+            json.dumps(apex_right_serializable) if apex_right_serializable is not None else None,
+            Leaf_Skeleton.apex_angle_degrees if Leaf_Skeleton.apex_angle_degrees is not None else None,
+            Leaf_Skeleton.apex_angle_type if Leaf_Skeleton.apex_angle_type is not None else None,
+            json.dumps(base_center_serializable) if base_center_serializable is not None else None,
+            json.dumps(base_left_serializable) if base_left_serializable is not None else None,
+            json.dumps(base_right_serializable) if base_right_serializable is not None else None,
+            Leaf_Skeleton.base_angle_degrees if Leaf_Skeleton.base_angle_degrees is not None else None,
+            Leaf_Skeleton.base_angle_type if Leaf_Skeleton.base_angle_type is not None else None,
+            json.dumps(lamina_tip_serializable) if lamina_tip_serializable is not None else None,
+            json.dumps(lamina_base_serializable) if lamina_base_serializable is not None else None,
+            Leaf_Skeleton.lamina_length if Leaf_Skeleton.lamina_length is not None else None,
+            json.dumps(lamina_fit_serializable) if lamina_fit_serializable is not None else None,
+            Leaf_Skeleton.lamina_width if Leaf_Skeleton.lamina_width is not None else None,
+            json.dumps(width_left_serializable) if width_left_serializable is not None else None,
+            json.dumps(width_right_serializable) if width_right_serializable is not None else None,
+            Leaf_Skeleton.lobe_count if Leaf_Skeleton.lobe_count is not None else None,
+            json.dumps(lobes_serializable) if lobes_serializable is not None else None,
+            json.dumps(midvein_fit_serializable) if midvein_fit_serializable is not None else None,
+            json.dumps(midvein_fit_points_serializable) if midvein_fit_points_serializable is not None else None,
+            json.dumps(ordered_midvein_serializable) if ordered_midvein_serializable is not None else None,
+            Leaf_Skeleton.ordered_midvein_length if Leaf_Skeleton.ordered_midvein_length is not None else None,
+            Leaf_Skeleton.has_midvein if Leaf_Skeleton.has_midvein is not None else None,
+            json.dumps(ordered_petiole_serializable) if ordered_petiole_serializable is not None else None,
+            Leaf_Skeleton.ordered_petiole_length if Leaf_Skeleton.ordered_petiole_length is not None else None,
+            Leaf_Skeleton.has_ordered_petiole if Leaf_Skeleton.has_ordered_petiole is not None else None,
+            Leaf_Skeleton.is_split if Leaf_Skeleton.is_split is not None else None,
+            Leaf_Skeleton.has_apex if Leaf_Skeleton.has_apex is not None else None,
+            Leaf_Skeleton.has_base if Leaf_Skeleton.has_base is not None else None,
+            Leaf_Skeleton.has_lamina_tip if Leaf_Skeleton.has_lamina_tip is not None else None,
+            Leaf_Skeleton.has_lamina_base if Leaf_Skeleton.has_lamina_base is not None else None,
+            Leaf_Skeleton.has_lamina_length if Leaf_Skeleton.has_lamina_length is not None else None,
+            Leaf_Skeleton.has_width if Leaf_Skeleton.has_width is not None else None,
+            Leaf_Skeleton.has_lobes if Leaf_Skeleton.has_lobes is not None else None,
+            Leaf_Skeleton.is_complete_leaf if Leaf_Skeleton.is_complete_leaf is not None else None,
+            Leaf_Skeleton.is_leaf_no_width if Leaf_Skeleton.is_leaf_no_width is not None else None,
+            json.dumps(t_base_center_serializable) if t_base_center_serializable is not None else None,
+            json.dumps(t_base_left_serializable) if t_base_left_serializable is not None else None,
+            json.dumps(t_base_right_serializable) if t_base_right_serializable is not None else None,
+            json.dumps(t_apex_center_serializable) if t_apex_center_serializable is not None else None,
+            json.dumps(t_apex_left_serializable) if t_apex_left_serializable is not None else None,
+            json.dumps(t_apex_right_serializable) if t_apex_right_serializable is not None else None,
+            json.dumps(t_lamina_base_serializable) if t_lamina_base_serializable is not None else None,
+            json.dumps(t_lamina_tip_serializable) if t_lamina_tip_serializable is not None else None,
+            json.dumps(t_lobes_serializable) if t_lobes_serializable is not None else None,
+            json.dumps(t_midvein_serializable) if t_midvein_serializable is not None else None,
+            json.dumps(t_midvein_fit_points_serializable) if t_midvein_fit_points_serializable is not None else None,
+            json.dumps(t_petiole_serializable) if t_petiole_serializable is not None else None,
+            json.dumps(t_width_left_serializable) if t_width_left_serializable is not None else None,
+            json.dumps(t_width_right_serializable) if t_width_right_serializable is not None else None,
+            json.dumps(t_width_infer_serializable) if t_width_infer_serializable is not None else None,
+        ]
+        batch_data.append(values)
 
-                # Visualize the results (optional)
-                # final_add = cv2.cvtColor(Leaf_Skeleton.get_final(), cv2.COLOR_BGR2RGB)
-                # ax = fig.add_subplot(5, 3, row * 3 + col + 1)
-                # ax.imshow(final_add)
-                # ax.axis('off')
+    return batch_data
 
-                # col += 1
-                # if col == 3:
-                #     col = 0
-                #     row += 1
-                # if row == 5:
-                #     row = 0
-                #     fig = plt.figure(figsize=(8.27, 11.69), dpi=300)  # Create a new page
 
-    conn.commit()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# def add_landmarks_to_sql(cfg, logger, show_all_logs, Dirs, leaf_type, dir_labels, dimensions_dict, dir_temp, batch, n_batches):
+#     dpi = cfg['leafmachine']['overlay']['overlay_dpi']
+#     fig = plt.figure(figsize=(8.27, 11.69), dpi=dpi)  # A4 size, 300 dpi
+#     row, col = 0, 0
+
+#     for file in os.listdir(dir_labels):
+#         file_name = str(file.split('.')[0])
+#         file_name_parent = file_name.split('__')[0]
+
+#         # Fetch image dimensions from the provided dictionary
+#         if file_name in dimensions_dict:
+#             height, width = dimensions_dict[file_name]
+#         else:
+#             height, width = None, None  # Handle missing dimensions gracefully
+
+#         if file.endswith(".txt"):
+#             with open(os.path.join(dir_labels, file), "r") as f:
+#                 all_points = [[int(line.split()[0])] + list(map(float, line.split()[1:])) for line in f]
+
+#                 # Create LeafSkeleton object
+#                 Leaf_Skeleton = LeafSkeleton(cfg, logger, show_all_logs, Dirs, leaf_type, all_points, height, width, dir_temp, file_name)
+
+#                 # Convert numpy objects to JSON serializable formats
+#                 apex_center_serializable = convert_ndarray_to_list(Leaf_Skeleton.apex_center)
+#                 apex_left_serializable = convert_ndarray_to_list(Leaf_Skeleton.apex_left)
+#                 apex_right_serializable = convert_ndarray_to_list(Leaf_Skeleton.apex_right)
+#                 base_center_serializable = convert_ndarray_to_list(Leaf_Skeleton.base_center)
+#                 base_left_serializable = convert_ndarray_to_list(Leaf_Skeleton.base_left)
+#                 base_right_serializable = convert_ndarray_to_list(Leaf_Skeleton.base_right)
+#                 lamina_tip_serializable = convert_ndarray_to_list(Leaf_Skeleton.lamina_tip)
+#                 lamina_base_serializable = convert_ndarray_to_list(Leaf_Skeleton.lamina_base)
+#                 lamina_fit_serializable = convert_ndarray_to_list(Leaf_Skeleton.lamina_fit)
+#                 width_left_serializable = convert_ndarray_to_list(Leaf_Skeleton.width_left)
+#                 width_right_serializable = convert_ndarray_to_list(Leaf_Skeleton.width_right)
+#                 lobes_serializable = convert_ndarray_to_list(Leaf_Skeleton.lobes)
+#                 midvein_fit_serializable = convert_ndarray_to_list(Leaf_Skeleton.midvein_fit)
+#                 midvein_fit_points_serializable = convert_ndarray_to_list(Leaf_Skeleton.midvein_fit_points)
+#                 ordered_midvein_serializable = convert_ndarray_to_list(Leaf_Skeleton.ordered_midvein)
+#                 ordered_petiole_serializable = convert_ndarray_to_list(Leaf_Skeleton.ordered_petiole)
+
+#                 # Add translated t_* points
+#                 t_base_center_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_base_center)
+#                 t_base_left_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_base_left)
+#                 t_base_right_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_base_right)
+#                 t_apex_center_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_apex_center)
+#                 t_apex_left_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_apex_left)
+#                 t_apex_right_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_apex_right)
+#                 t_lamina_base_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_lamina_base)
+#                 t_lamina_tip_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_lamina_tip)
+#                 t_lobes_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_lobes)
+#                 t_midvein_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_midvein)
+#                 t_midvein_fit_points_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_midvein_fit_points)
+#                 t_petiole_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_petiole)
+#                 t_width_left_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_width_left)
+#                 t_width_right_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_width_right)
+#                 t_width_infer_serializable = convert_ndarray_to_list(Leaf_Skeleton.t_width_infer)
+
+
+#                 # Ensure that `None` values are replaced with a default value
+#                 values = [
+#                     file_name_parent, 
+#                     file_name, 
+#                     json.dumps(convert_ndarray_to_list(Leaf_Skeleton.all_points)) or '[]',
+#                     height if height is not None else None,
+#                     width if width is not None else None,
+#                     json.dumps(apex_center_serializable) if apex_center_serializable is not None else None,
+#                     json.dumps(apex_left_serializable) if apex_left_serializable is not None else None,
+#                     json.dumps(apex_right_serializable) if apex_right_serializable is not None else None,
+#                     Leaf_Skeleton.apex_angle_degrees if Leaf_Skeleton.apex_angle_degrees is not None else None,
+#                     Leaf_Skeleton.apex_angle_type if Leaf_Skeleton.apex_angle_type is not None else None,
+#                     json.dumps(base_center_serializable) if base_center_serializable is not None else None,
+#                     json.dumps(base_left_serializable) if base_left_serializable is not None else None,
+#                     json.dumps(base_right_serializable) if base_right_serializable is not None else None,
+#                     Leaf_Skeleton.base_angle_degrees if Leaf_Skeleton.base_angle_degrees is not None else None,
+#                     Leaf_Skeleton.base_angle_type if Leaf_Skeleton.base_angle_type is not None else None,
+#                     json.dumps(lamina_tip_serializable) if lamina_tip_serializable is not None else None,
+#                     json.dumps(lamina_base_serializable) if lamina_base_serializable is not None else None,
+#                     Leaf_Skeleton.lamina_length if Leaf_Skeleton.lamina_length is not None else None,
+#                     json.dumps(lamina_fit_serializable) if lamina_fit_serializable is not None else None,
+#                     Leaf_Skeleton.lamina_width if Leaf_Skeleton.lamina_width is not None else None,
+#                     json.dumps(width_left_serializable) if width_left_serializable is not None else None,
+#                     json.dumps(width_right_serializable) if width_right_serializable is not None else None,
+#                     Leaf_Skeleton.lobe_count if Leaf_Skeleton.lobe_count is not None else None,
+#                     json.dumps(lobes_serializable) if lobes_serializable is not None else None,
+#                     json.dumps(midvein_fit_serializable) if midvein_fit_serializable is not None else None,
+#                     json.dumps(midvein_fit_points_serializable) if midvein_fit_points_serializable is not None else None,
+#                     json.dumps(ordered_midvein_serializable) if ordered_midvein_serializable is not None else None,
+#                     Leaf_Skeleton.ordered_midvein_length if Leaf_Skeleton.ordered_midvein_length is not None else None,
+#                     Leaf_Skeleton.has_midvein if Leaf_Skeleton.has_midvein is not None else None,
+#                     json.dumps(ordered_petiole_serializable) if ordered_petiole_serializable is not None else None,
+#                     Leaf_Skeleton.ordered_petiole_length if Leaf_Skeleton.ordered_petiole_length is not None else None,
+#                     Leaf_Skeleton.has_ordered_petiole if Leaf_Skeleton.has_ordered_petiole is not None else None,
+#                     Leaf_Skeleton.is_split if Leaf_Skeleton.is_split is not None else None,
+#                     Leaf_Skeleton.has_apex if Leaf_Skeleton.has_apex is not None else None,
+#                     Leaf_Skeleton.has_base if Leaf_Skeleton.has_base is not None else None,
+#                     Leaf_Skeleton.has_lamina_tip if Leaf_Skeleton.has_lamina_tip is not None else None,
+#                     Leaf_Skeleton.has_lamina_base if Leaf_Skeleton.has_lamina_base is not None else None,
+#                     Leaf_Skeleton.has_lamina_length if Leaf_Skeleton.has_lamina_length is not None else None,
+#                     Leaf_Skeleton.has_width if Leaf_Skeleton.has_width is not None else None,
+#                     Leaf_Skeleton.has_lobes if Leaf_Skeleton.has_lobes is not None else None,
+#                     Leaf_Skeleton.is_complete_leaf if Leaf_Skeleton.is_complete_leaf is not None else None,
+#                     Leaf_Skeleton.is_leaf_no_width if Leaf_Skeleton.is_leaf_no_width is not None else None,
+#                     json.dumps(t_base_center_serializable) if t_base_center_serializable is not None else None,
+#                     json.dumps(t_base_left_serializable) if t_base_left_serializable is not None else None,
+#                     json.dumps(t_base_right_serializable) if t_base_right_serializable is not None else None,
+#                     json.dumps(t_apex_center_serializable) if t_apex_center_serializable is not None else None,
+#                     json.dumps(t_apex_left_serializable) if t_apex_left_serializable is not None else None,
+#                     json.dumps(t_apex_right_serializable) if t_apex_right_serializable is not None else None,
+#                     json.dumps(t_lamina_base_serializable) if t_lamina_base_serializable is not None else None,
+#                     json.dumps(t_lamina_tip_serializable) if t_lamina_tip_serializable is not None else None,
+#                     json.dumps(t_lobes_serializable) if t_lobes_serializable is not None else None,
+#                     json.dumps(t_midvein_serializable) if t_midvein_serializable is not None else None,
+#                     json.dumps(t_midvein_fit_points_serializable) if t_midvein_fit_points_serializable is not None else None,
+#                     json.dumps(t_petiole_serializable) if t_petiole_serializable is not None else None,
+#                     json.dumps(t_width_left_serializable) if t_width_left_serializable is not None else None,
+#                     json.dumps(t_width_right_serializable) if t_width_right_serializable is not None else None,
+#                     json.dumps(t_width_infer_serializable) if t_width_infer_serializable is not None else None,
+#                 ]
+
+#                 # Insert data into the database
+#                 # Insert data into the database
+#                 cur.execute(f"""
+#                     INSERT INTO {leaf_type} 
+#                     (file_name, crop_name, all_points, height, width, 
+#                     apex_center, apex_left, apex_right, apex_angle_degrees, apex_angle_type,
+#                     base_center, base_left, base_right, base_angle_degrees, base_angle_type,
+#                     lamina_tip, lamina_base, lamina_length, 
+#                     lamina_fit, lamina_width, width_left, width_right, 
+#                     lobe_count, lobes, 
+#                     midvein_fit, midvein_fit_points, ordered_midvein, ordered_midvein_length, has_midvein,
+#                     ordered_petiole, ordered_petiole_length, has_ordered_petiole, 
+#                     is_split, has_apex, has_base, 
+#                     has_lamina_tip, has_lamina_base, has_lamina_length, 
+#                     has_width, has_lobes, is_complete_leaf, is_leaf_no_width,
+#                     t_base_center, t_base_left, t_base_right, 
+#                     t_apex_center, t_apex_left, t_apex_right, 
+#                     t_lamina_base, t_lamina_tip, t_lobes, 
+#                     t_midvein, t_midvein_fit_points, t_petiole, 
+#                     t_width_left, t_width_right, t_width_infer)
+#                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+#                             ?, ?, ?, ?, ?, 
+#                             ?, ?, ?, ?, ?, 
+#                             ?, ?, ?, ?, ?, 
+#                             ?, ?, ?, ?, ?, 
+#                             ?, ?, ?, ?, ?, 
+#                             ?, ?, ?, ?, ?, 
+#                             ?, ?, ?, ?, ?, 
+#                             ?, ?, ?, ?, ?, 
+#                             ?, ?, ?, ?, ?)
+#                 """, values)
+
+#     conn.commit()
 
 
 

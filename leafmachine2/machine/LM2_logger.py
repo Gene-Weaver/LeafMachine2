@@ -1,4 +1,4 @@
-import logging, os, psutil, torch, platform, cpuinfo, yaml #py-cpuinfo
+import logging, os, psutil, torch, platform, cpuinfo, yaml, warnings, shutil #py-cpuinfo
 from leafmachine2.machine.general_utils import get_datetime
 
 def start_logging(Dirs, cfg):
@@ -95,6 +95,96 @@ def find_cpu_info():
             return ' / '.join(cpu_info)
         except:
             return "CPU: UNKNOWN"
+        
+def initialize_logger_for_parallel_processes(logger_name, log_to_file=None, suppress_warnings=None, suppress_loggers=None):
+    """
+    Initialize and return a logger with the given name.
+
+    Parameters:
+        logger_name (str): Name of the logger.
+        log_to_file (str or None): Path to a file to log to. If None, logs will only appear in the console.
+        suppress_warnings (str or list of str or None): Messages or warning types to suppress.
+        suppress_loggers (list of str or None): Specific loggers to suppress by name.
+
+    Returns:
+        logging.Logger: Configured logger instance.
+    """
+    # Initialize the logger
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.ERROR)
+    
+    # Set up log format
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    # Configure stream handler (console output)
+    handler = logging.StreamHandler()
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    
+    # If log_to_file is provided, add a file handler
+    if log_to_file:
+        file_handler = logging.FileHandler(log_to_file)
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+    
+    # Suppress specific warnings if provided
+    if suppress_warnings:
+        if isinstance(suppress_warnings, str):
+            warnings.filterwarnings("ignore", message=suppress_warnings)
+        elif isinstance(suppress_warnings, list):
+            for warning in suppress_warnings:
+                warnings.filterwarnings("ignore", message=warning)
+    
+    # Suppress specific loggers if provided
+    if suppress_loggers:
+        for suppressed_logger_name in suppress_loggers:
+            suppressed_logger = logging.getLogger(suppressed_logger_name)
+            suppressed_logger.setLevel(logging.ERROR)
+            # Optionally, you can also disable propagation if needed
+            suppressed_logger.propagate = False
+
+    return logger
+
+def start_worker_logging(worker_id, Dirs, log_name):
+    # Create a unique log file for each worker
+    worker_log_path = os.path.join(Dirs.path_log, f'{log_name}_{worker_id}.log')
+
+    # Create logger for the worker
+    worker_logger = logging.getLogger(f'Worker_{worker_id}')
+    worker_logger.setLevel(logging.DEBUG)
+
+    # Create file handler for worker log file
+    fh = logging.FileHandler(worker_log_path)
+    fh.setLevel(logging.DEBUG)
+
+    # Create console handler (optional, can remove if console logging is not needed)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+
+    # Create formatter
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+
+    # Add formatter to handlers
+    fh.setFormatter(formatter)
+    ch.setFormatter(formatter)
+
+    # Add handlers to logger
+    worker_logger.addHandler(fh)
+    worker_logger.addHandler(ch)
+
+    return worker_logger, worker_log_path
+
+def merge_worker_logs(Dirs, num_workers, main_log_name, log_name_stem):
+    # Merge worker logs into the main log file
+    main_log_path = os.path.join(Dirs.path_log, f'{main_log_name}.log')
+
+    with open(main_log_path, 'a') as main_log_file:
+        for worker_id in range(num_workers):
+            worker_log_path = os.path.join(Dirs.path_log, f'{log_name_stem}_{worker_id}.log')
+            if os.path.exists(worker_log_path):
+                with open(worker_log_path, 'r') as worker_log_file:
+                    shutil.copyfileobj(worker_log_file, main_log_file)  # Append worker log to the main log
+                os.remove(worker_log_path)  # Optionally delete the worker log file after merging
 
 def LM2_banner():
         logo = """
