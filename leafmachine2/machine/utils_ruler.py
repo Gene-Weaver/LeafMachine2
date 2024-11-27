@@ -464,7 +464,7 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
     for t in workers:
         t.join()
 
-    merge_worker_logs(Dirs, num_workers, main_log_name='ruler_logs', log_name_stem='worker_log_ruler')
+    # merge_worker_logs(Dirs, num_workers, main_log_name='ruler_logs', log_name_stem='worker_log_ruler')
 
     t1_stop = perf_counter()
     t_rulers = f"[Converting Rulers elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
@@ -842,6 +842,8 @@ class RulerInfo:
         self.show_all_logs = show_all_logs
         self.Ruler = Ruler            
         self.ruler_class = self.Ruler.ruler_class
+
+        self.conversion_successful=False
 
         ### FIXES
         if self.ruler_class == 'tick_black_4thcm':
