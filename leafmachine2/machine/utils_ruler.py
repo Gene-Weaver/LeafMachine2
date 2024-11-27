@@ -845,7 +845,8 @@ class RulerInfo:
 
         self.conversion_successful=False
         self.pooled_sd = -999
-
+        self.conversion_mean_n_vals = -999
+        
         ### FIXES
         if self.ruler_class == 'tick_black_4thcm':
             self.ruler_class = 'tick_black_cm_halfcm_4thcm'
