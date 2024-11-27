@@ -1,4 +1,4 @@
-import logging, os, psutil, torch, platform, cpuinfo, yaml #py-cpuinfo
+import logging, os, psutil, torch, platform, cpuinfo, yaml,shutil #py-cpuinfo
 from leafmachine2.machine.general_utils import get_datetime
 
 def start_logging(Dirs, cfg):
@@ -74,6 +74,49 @@ def start_logging(Dirs, cfg):
 
 
     return logger
+
+
+def start_worker_logging(worker_id, Dirs, log_name):
+    # Create a unique log file for each worker
+    worker_log_path = os.path.join(Dirs.path_log, f'{log_name}_{worker_id}.log')
+
+    # Create logger for the worker
+    worker_logger = logging.getLogger(f'Worker_{worker_id}')
+    worker_logger.setLevel(logging.DEBUG)
+
+    # Create file handler for worker log file
+    fh = logging.FileHandler(worker_log_path)
+    fh.setLevel(logging.DEBUG)
+
+    # Create console handler (optional, can remove if console logging is not needed)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+
+    # Create formatter
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
+
+    # Add formatter to handlers
+    fh.setFormatter(formatter)
+    ch.setFormatter(formatter)
+
+    # Add handlers to logger
+    worker_logger.addHandler(fh)
+    worker_logger.addHandler(ch)
+
+    return worker_logger, worker_log_path
+
+def merge_worker_logs(Dirs, num_workers, main_log_name, log_name_stem):
+    # Merge worker logs into the main log file
+    main_log_path = os.path.join(Dirs.path_log, f'{main_log_name}.log')
+
+    with open(main_log_path, 'a') as main_log_file:
+        for worker_id in range(num_workers):
+            worker_log_path = os.path.join(Dirs.path_log, f'{log_name_stem}_{worker_id}.log')
+            if os.path.exists(worker_log_path):
+                with open(worker_log_path, 'r') as worker_log_file:
+                    shutil.copyfileobj(worker_log_file, main_log_file)  # Append worker log to the main log
+                os.remove(worker_log_path)  # Optionally delete the worker log file after merging
+
 
 def find_cpu_info():
     cpu_info = []

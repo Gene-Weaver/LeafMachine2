@@ -39,6 +39,12 @@ def detect_plant_components(cfg, time_report, logger, dir_home, Project, Dirs):
     else:
         num_workers = int(cfg['leafmachine']['project']['num_workers'])
 
+    if cfg['leafmachine']['project']['device'] == 'cuda':
+        num_gpus = int(cfg['leafmachine']['project'].get('num_gpus', 1))  # Default to 1 GPU if not specified
+        device_list = [i for i in range(num_gpus)]  # List of GPU indices like [0, 1, 2, ...]
+    else:
+        device_list = ['cpu']  # Default to CPU if CUDA is not available
+
     # Weights folder base
     dir_weights = os.path.join(dir_home, 'leafmachine2', 'component_detector','runs','train')
     
@@ -98,7 +104,7 @@ def detect_plant_components(cfg, time_report, logger, dir_home, Project, Dirs):
         #         except Exception as e:
         #             logger.error(f'Error in thread: {e}')
         #             continue
-        distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers)
+        distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers, device_list)
 
 
         t2_stop = perf_counter()
@@ -137,6 +143,12 @@ def detect_archival_components(cfg, time_report, logger, dir_home, Project, Dirs
         num_workers = 1
     else:
         num_workers = int(cfg['leafmachine']['project']['num_workers'])
+
+    if cfg['leafmachine']['project']['device'] == 'cuda':
+        num_gpus = int(cfg['leafmachine']['project'].get('num_gpus', 1))  # Default to 1 GPU if not specified
+        device_list = [i for i in range(num_gpus)]  # List of GPU indices like [0, 1, 2, ...]
+    else:
+        device_list = ['cpu']  # Default to CPU if CUDA is not available
     
     # Weights folder base
     dir_weights = os.path.join(dir_home, 'leafmachine2', 'component_detector','runs','train')
@@ -200,7 +212,7 @@ def detect_archival_components(cfg, time_report, logger, dir_home, Project, Dirs
         #         except Exception as e:
         #             logger.error(f'Error in thread: {e}')
         #             continue
-        distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers)
+        distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers, device_list)
 
 
         t2_stop = perf_counter()
@@ -235,6 +247,12 @@ def detect_armature_components(cfg, logger, dir_home, Project, Dirs):
         num_workers = 1
     else:
         num_workers = int(cfg['leafmachine']['project']['num_workers'])
+
+    if cfg['leafmachine']['project']['device'] == 'cuda':
+        num_gpus = int(cfg['leafmachine']['project'].get('num_gpus', 1))  # Default to 1 GPU if not specified
+        device_list = [i for i in range(num_gpus)]  # List of GPU indices like [0, 1, 2, ...]
+    else:
+        device_list = ['cpu']  # Default to CPU if CUDA is not available
 
     # Weights folder base
     dir_weights = os.path.join(dir_home, 'leafmachine2', 'component_detector','runs','train')
@@ -274,7 +292,7 @@ def detect_armature_components(cfg, logger, dir_home, Project, Dirs):
     #         except Exception as e:
     #             logger.error(f'Error in thread: {e}')
     #             continue
-    distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers)
+    distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers, device_list)
 
     t2_stop = perf_counter()
     logger.info(f"[Plant components detection elapsed time] {round(t2_stop - t1_start)} seconds")
@@ -296,7 +314,7 @@ def detect_armature_components(cfg, logger, dir_home, Project, Dirs):
 
 
 ''' RUN IN PARALLEL'''
-def distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers):
+def distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers, device_list):
     num_files = len(os.listdir(source))
     LOGGER.info(f"The number of worker threads: ({num_workers}), number of files ({num_files}).")
 
@@ -307,7 +325,9 @@ def distribute_workloads(weights, source, project, name, imgsz, nosave, anno_typ
     # Start worker threads
     workers = []
     for _ in range(num_workers):
-        t = Thread(target=worker_object_detector, args=(queue, weights, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER))
+        # Assign the device for this worker (round-robin distribution across device_list)
+        device = device_list[i % len(device_list)]
+        t = Thread(target=worker_object_detector, args=(queue, weights, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, device, LOGGER))
         t.start()
         workers.append(t)
 
@@ -327,7 +347,7 @@ def distribute_workloads(weights, source, project, name, imgsz, nosave, anno_typ
     for t in workers:
         t.join()
         
-def worker_object_detector(queue, weights, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER):
+def worker_object_detector(queue, weights, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, device, LOGGER):
     while True:
         sub_source = queue.get()
         if sub_source is None:
@@ -343,6 +363,7 @@ def worker_object_detector(queue, weights, project, name, imgsz, nosave, anno_ty
                 conf_thres=conf_thres,
                 ignore_objects_for_overlay=ignore_objects_for_overlay,
                 mode=mode,
+                device=device,
                 LOGGER=LOGGER)
         except Exception as e:
             LOGGER.error(f'Error in processing: {e}')
@@ -350,7 +371,7 @@ def worker_object_detector(queue, weights, project, name, imgsz, nosave, anno_ty
 
 
 
-def run_in_parallel(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, line_thickness, ignore_objects_for_overlay, mode, LOGGER, show_all_logs, chunk, n_workers):
+def run_in_parallel(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, line_thickness, ignore_objects_for_overlay, mode, LOGGER, show_all_logs, chunk, n_workers, device):
     num_files = len(os.listdir(source))
     LOGGER.info(f"The number of worker threads: ({n_workers}), number of files ({num_files}).")
 
@@ -370,6 +391,7 @@ def run_in_parallel(weights, source, project, name, imgsz, nosave, anno_type, co
         conf_thres=conf_thres,
         ignore_objects_for_overlay=ignore_objects_for_overlay,
         mode=mode,
+        device=device,
         LOGGER=LOGGER)
 
 ''' RUN IN PARALLEL'''
@@ -810,6 +832,12 @@ def run_landmarks(cfg, logger, show_all_logs, dir_home, Project, batch, n_batche
 
         # Weights folder base
         dir_weights = os.path.join(dir_home, 'leafmachine2', 'component_detector','runs','train')
+
+        if cfg['leafmachine']['project']['device'] == 'cuda'
+            num_gpus = int(cfg['leafmachine']['project'].get('num_gpus', 1))  # Default to 1 GPU if not specified
+            device_list = [i for i in range(num_gpus)]  # List of GPU indices like [0, 1, 2, ...]
+        else:
+            device_list = ['cpu']  # Default to CPU if CUDA is not available
         
         # Detection threshold
         threshold = cfg['leafmachine']['landmark_detector']['minimum_confidence_threshold']
@@ -858,7 +886,7 @@ def run_landmarks(cfg, logger, show_all_logs, dir_home, Project, batch, n_batche
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
                 futures = [executor.submit(run_in_parallel, weights, source, project, name, imgsz, nosave, anno_type,
-                                        conf_thres, line_thickness, ignore_objects_for_overlay, mode, LOGGER, show_all_logs, i, num_workers) for i in
+                                        conf_thres, line_thickness, ignore_objects_for_overlay, mode, LOGGER, show_all_logs, i, num_workers, device_list[i % len(device_list)]) for i in
                         range(num_workers)]
                 for future in concurrent.futures.as_completed(futures):
                     try:

@@ -42,6 +42,12 @@ def segment_leaves(cfg, time_report, logger, dir_home, Project, batch, n_batches
     else:
         num_workers = int(cfg['leafmachine']['project']['num_workers_seg'])
 
+    if cfg['leafmachine']['project']['device'] == 'cuda':
+        num_gpus = int(cfg['leafmachine']['project'].get('num_gpus', 1))  # Default to 1 GPU if not specified
+        device_list = [f'cuda:{i}' for i in range(num_gpus)]
+    else:
+        device_list = ['cpu']  # Default to CPU if CUDA is not available
+
     # See convert_index_to_class(ind) for list of ind -> cls
     Project.project_data_list[batch] = unpack_class_from_components(Project.project_data_list[batch], 0, 'Whole_Leaf_BBoxes_YOLO', 'Whole_Leaf_BBoxes', Project)
     Project.project_data_list[batch] = unpack_class_from_components(Project.project_data_list[batch], 1, 'Partial_Leaf_BBoxes_YOLO', 'Partial_Leaf_BBoxes', Project)
@@ -109,13 +115,13 @@ def segment_leaves(cfg, time_report, logger, dir_home, Project, batch, n_batches
                                                                                                 cfg, 
                                                                                                 Project, 
                                                                                                 Dirs, 
-                                                                                                batch, n_batches, num_workers)#, start+1, end)
+                                                                                                batch, n_batches, num_workers,device_list)#, start+1, end)
         segment_whole_leaves_props.update(segment_whole_leaves_props_batch)
         segment_whole_leaves_overlay.update(segment_whole_leaves_overlay_batch)
 
     if cfg['leafmachine']['leaf_segmentation']['segment_partial_leaves']:
         logger.info(f'Segmenting partial leaves')
-        segment_partial_leaves_props_batch, segment_partial_leaves_overlay_batch = segment_images_parallel(logger, dir_home, Project.project_data_list[batch], 1, "Segmentation_Partial_Leaf", "Partial_Leaf_Cropped", cfg, Project, Dirs, batch, n_batches, num_workers)#, start+1, end)
+        segment_partial_leaves_props_batch, segment_partial_leaves_overlay_batch = segment_images_parallel(logger, dir_home, Project.project_data_list[batch], 1, "Segmentation_Partial_Leaf", "Partial_Leaf_Cropped", cfg, Project, Dirs, batch, n_batches, num_workers,device_list)#, start+1, end)
         segment_partial_leaves_props.update(segment_partial_leaves_props_batch)
         segment_partial_leaves_overlay.update(segment_partial_leaves_overlay_batch)
     
@@ -143,7 +149,7 @@ def segment_leaves(cfg, time_report, logger, dir_home, Project, batch, n_batches
 
 
 ''' SEGMENT PARALLEL'''
-def segment_images_parallel(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dict_from, cfg, Project, Dirs, batch, n_batches, num_workers):
+def segment_images_parallel(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dict_from, cfg, Project, Dirs, batch, n_batches, num_workers,device_list):
     
     
     seg_overlay = {}
@@ -156,7 +162,8 @@ def segment_images_parallel(logger, dir_home, dict_objects, leaf_type, dict_name
         futures = []
         for i in range(num_workers):
             dict_objects_chunk = dict(list(dict_objects.items())[i::num_workers])
-            futures.append(executor.submit(segment_images, logger, dir_home, dict_objects_chunk, leaf_type, dict_name_seg, dict_from, cfg, Project, Dirs, batch, n_batches, lock))
+            device = device_list[i % len(device_list)]
+            futures.append(executor.submit(segment_images, logger, dir_home, dict_objects_chunk, leaf_type, dict_name_seg, dict_from, cfg, Project, Dirs, batch, n_batches, device, lock))
 
         for future in concurrent.futures.as_completed(futures):
             dict_objects, seg_overlay_chunk = future.result()
@@ -225,10 +232,11 @@ def determine_conversion_factor(dict_objects, filename):
 
 
 
-def segment_images(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dict_from, cfg, Project, Dirs, batch, n_batches, lock):#, start, end):
+def segment_images(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dict_from, cfg, Project, Dirs, batch, n_batches, device, lock):#, start, end):
     # Run the leaf instance segmentation operations
+    torch.cuda.empty_cache()
     dir_seg_model = os.path.join(dir_home, 'leafmachine2', 'segmentation', 'models',cfg['leafmachine']['leaf_segmentation']['segmentation_model'])
-    Instance_Detector = Detector_LM2(logger, dir_seg_model, cfg['leafmachine']['leaf_segmentation']['minimum_confidence_threshold'], leaf_type)
+    Instance_Detector = Detector_LM2(logger, dir_seg_model, cfg['leafmachine']['leaf_segmentation']['minimum_confidence_threshold'], leaf_type, device)
     # Instance_Detector_Partial = Detector_LM2(logger, dir_seg_model, cfg['leafmachine']['leaf_segmentation']['minimum_confidence_threshold'], 1)
 
 
@@ -254,7 +262,7 @@ def segment_images(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dic
     }
 
     # Initialize PosePredictor
-    Pose_Predictor = PosePredictor(weights, Dirs.dir_oriented_images, Dirs.dir_keypoint_overlay, 
+    Pose_Predictor = PosePredictor(weights, Dirs.dir_oriented_images, Dirs.dir_keypoint_overlay, device=device,
                                    save_oriented_images=save_oriented_images, save_keypoint_overlay=save_keypoint_overlay, 
                                    overrides=overrides)
     

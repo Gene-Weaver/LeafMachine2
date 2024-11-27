@@ -1,4 +1,4 @@
-import os, yaml, platform
+import os, yaml, platform, torch
 
 def get_default_download_folder():
     system_platform = platform.system()  # Gets the system platform, e.g., 'Linux', 'Windows', 'Darwin'
@@ -16,6 +16,12 @@ def get_default_download_folder():
         default_output_folder = "set/path/to/downloads/folder"
         print("Please manually set the output folder")
     return default_output_folder
+
+def get_num_gpus():
+    """Returns the number of available GPUs in the system."""
+    if torch.cuda.is_available():
+        return torch.cuda.device_count()
+    return 0
 
 def build_LM2_config():
     dir_home = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -43,6 +49,11 @@ def build_LM2_config():
     }
 
     default_output_folder = get_default_download_folder()
+
+    num_gpus = get_num_gpus()
+    
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     project_section = {
         'dir_output': default_output_folder,
         # 'dir_output': 'D:/D_Desktop/LM2', 
@@ -74,6 +85,9 @@ def build_LM2_config():
         'censor_archival_components': True,
         'hide_archival_components': ['ruler', 'barcode', 'label', 'colorcard', 'map', 'photo', 'weights',],
         'replacement_color': '#FFFFFF',
+
+        'device': device,
+        'num_gpus': num_gpus,
     }
 
     cropped_components_section = {

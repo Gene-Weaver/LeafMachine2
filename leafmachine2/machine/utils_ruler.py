@@ -37,6 +37,7 @@ sys.path.append(currentdir)
 # from machine.general_utils import print_plain_to_console, print_blue_to_console, print_green_to_console, print_warning_to_console, print_cyan_to_console
 # from machine.general_utils import bcolors
 from leafmachine2.analysis.predict_pixel_to_metric_conversion_factor import PolynomialModel
+from leafmachine2.machine.LM2_logger import start_worker_logging, merge_worker_logs
 
 def convert_rulers_testing(dir_rulers, cfg, time_report, logger, dir_home, Project, batch, Dirs):
     RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
@@ -412,12 +413,14 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
 
     show_all_logs = False
 
+    device_list = [0] if cfg['leafmachine']['project']['device'] == 'cuda' else ['cpu']
+
     # Load shared resources outside the loop
-    RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
-    Labels = DocEnTR()
-    model, device = Labels.load_DocEnTR_model(logger)
-    poly_model = PolynomialModel()
-    poly_model.load_polynomial_model()
+    # RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
+    # Labels = DocEnTR()
+    # model, _ = Labels.load_DocEnTR_model(logger)
+    # poly_model = PolynomialModel()
+    # poly_model.load_polynomial_model()
 
     use_CF_predictor = cfg['leafmachine']['project']['use_CF_predictor']
     num_workers = cfg['leafmachine']['project']['num_workers_ruler']
@@ -428,22 +431,23 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
     num_files = len(filenames)
     chunk_size = max((num_files + num_workers - 1) // num_workers, 4)
 
-    def worker(queue):
+    def worker(queue, device, worker_id):
         while True:
             filenames_chunk = queue.get()
             if filenames_chunk is None:  # Stop signal
                 break
 
             for filename in filenames_chunk:
-                process_filename(filename, cfg, logger, show_all_logs, dir_home, Project, batch, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor)
+                process_filename(worker_id, filename, cfg, logger, show_all_logs, dir_home, Project, batch, Dirs, device, use_CF_predictor)
 
             queue.task_done()
 
     # Setup queue and start workers
     queue = Queue()
     workers = []
-    for _ in range(num_workers):
-        t = Thread(target=worker, args=(queue,))
+    for worker_id in range(num_workers):
+        device = device_list[worker_id % len(device_list)]
+        t = Thread(target=worker, args=(queue,device,worker_id,))
         t.start()
         workers.append(t)
 
@@ -460,18 +464,27 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
     for t in workers:
         t.join()
 
+    merge_worker_logs(Dirs, num_workers, main_log_name='ruler_logs', log_name_stem='worker_log_ruler')
+    
     t1_stop = perf_counter()
     t_rulers = f"[Converting Rulers elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
     logger.info(t_rulers)
     time_report['t_rulers'] = t_rulers
     return Project, time_report
 
-def process_filename(filename, cfg, logger, show_all_logs, dir_home, Project, batch, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor):
+def process_filename(worker_id, filename, cfg, logger, show_all_logs, dir_home, Project, batch, Dirs, device, use_CF_predictor):
     analysis = Project.project_data_list[batch][filename]
+    RulerCFG = RulerConfig(dir_home, Dirs, cfg, device)
+    Labels = DocEnTR()
+    model, __device = Labels.load_DocEnTR_model(device)
+    poly_model = PolynomialModel()
+    poly_model.load_polynomial_model()
+    wlogger, wlogger_path = start_worker_logging(worker_id, Dirs, log_name='worker_log_ruler')
+
     if len(analysis) != 0:
         Project.project_data_list[batch][filename]['Ruler_Info'] = []
         Project.project_data_list[batch][filename]['Ruler_Data'] = []
-        logger.debug(filename)
+        wlogger.debug(filename)
 
         # Attempt to load the image
         try:
@@ -482,7 +495,7 @@ def process_filename(filename, cfg, logger, show_all_logs, dir_home, Project, ba
         # Calculate MP value and predict conversion factor
         MP_value = calc_MP(full_image)
         predicted_conversion_factor_cm = poly_model.predict_with_polynomial_single(MP_value)
-        logger.info(f"Predicted conversion mean for MP={MP_value}: {predicted_conversion_factor_cm}")
+        wlogger.info(f"Predicted conversion mean for MP={MP_value}: {predicted_conversion_factor_cm}")
 
         # Detect rulers
         archival = analysis.get('Detections_Archival_Components', [])
@@ -492,7 +505,7 @@ def process_filename(filename, cfg, logger, show_all_logs, dir_home, Project, ba
             height, width = analysis['height'], analysis['width']
             ruler_list = [row for row in archival if row[0] == 0]
             if len(ruler_list) < 1:
-                logger.debug('No rulers detected')
+                wlogger.debug('No rulers detected')
             else:
                 for ruler in ruler_list:
                     # Process each ruler found
@@ -510,8 +523,8 @@ def process_filename(filename, cfg, logger, show_all_logs, dir_home, Project, ba
                     loc = '-'.join(map(str, [min_x, min_y, max_x, max_y]))
                     ruler_crop_name = '__'.join([filename, 'R', loc])
 
-                    Ruler = setup_ruler(Labels, model, device, cfg, Dirs, logger, show_all_logs, RulerCFG, ruler_cropped, ruler_crop_name)
-                    Ruler_Info = convert_pixels_to_metric(logger, show_all_logs, RulerCFG, Ruler, ruler_crop_name, predicted_conversion_factor_cm, use_CF_predictor, Dirs)
+                    Ruler = setup_ruler(Labels, model, device, cfg, Dirs, wlogger, show_all_logs, RulerCFG, ruler_cropped, ruler_crop_name)
+                    Ruler_Info = convert_pixels_to_metric(wlogger, show_all_logs, RulerCFG, Ruler, ruler_crop_name, predicted_conversion_factor_cm, use_CF_predictor, Dirs)
 
                     # Collect and log ruler data
                     if any(unit in Ruler_Info.conversion_data_all for unit in ['smallCM', 'halfCM', 'mm']):
@@ -539,7 +552,7 @@ def process_filename(filename, cfg, logger, show_all_logs, dir_home, Project, ba
                             'summary_img': Ruler_Info.summary_image
                         })
                     except Exception as e:
-                        logger.error(f"Error while saving ruler info: {e}")
+                        wlogger.error(f"Error while saving ruler info: {e}")
                         Project.project_data_list[batch][filename]['Ruler_Info'].append({
                             'ruler_image_name': ruler_crop_name,
                             'success': False,
@@ -556,7 +569,7 @@ def process_filename(filename, cfg, logger, show_all_logs, dir_home, Project, ba
                             'plot_points': 0,
                             'summary_img': ruler_cropped  # storing the cropped image in case of failure
                         })
-                        logger.error(f"Failed to process ruler data for {filename}: {str(e)}")
+                        wlogger.error(f"Failed to process ruler data for {filename}: {str(e)}")
 
 
 
