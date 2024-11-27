@@ -2276,31 +2276,16 @@ def detect_bi_sweep(RulerCFG, ruler_bi):
         pass
     return pred_class, pred_class_orig, percentage1
 
-@dataclass
 class RulerConfig:
 
-    path_to_config: str = field(init=False)
-    path_to_model: str = field(init=False)
-    path_to_class_names: str = field(init=False)
-
-    cfg: str = field(init=False)
-
-    path_ruler_output_parent: str = field(init=False)
-    dir_ruler_validation: str = field(init=False)
-    dir_ruler_validation_summary: str = field(init=False)
-    dir_ruler_processed: str = field(init=False)
-    dir_ruler_data: str = field(init=False)
-
-    net_ruler: object = field(init=False)
-
     def __init__(self, logger, dir_home, Dirs, cfg, device) -> None:
-        print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-        print(dir_home)
-        print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-        print(Dirs)
-        print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
-        print(Dirs.dir_home)
-        print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+        # print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+        # print(dir_home)
+        # print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+        # print(Dirs)
+        # print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+        # print(Dirs.dir_home)
+        # print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
         self.path_to_config = dir_home
         self.cfg = cfg
         
