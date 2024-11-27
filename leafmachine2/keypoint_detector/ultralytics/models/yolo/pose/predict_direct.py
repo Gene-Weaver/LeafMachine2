@@ -22,8 +22,8 @@ from ultralytics.utils import DEFAULT_CFG, LOGGER, MACOS, WINDOWS, callbacks, co
 from ultralytics.utils.checks import check_imgsz, check_imshow
 from ultralytics.utils.files import increment_path
 from ultralytics.utils.torch_utils import select_device, smart_inference_mode
-from gtda.homology import VietorisRipsPersistence
-from gtda.plotting import plot_diagram
+# from gtda.homology import VietorisRipsPersistence
+# from gtda.plotting import plot_diagram
 
 currentdir = os.path.dirname(inspect.getfile(inspect.currentframe()))
 parentdir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(currentdir))))))
