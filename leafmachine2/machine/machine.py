@@ -35,7 +35,8 @@ from leafmachine2.machine.utils_censor_components import censor_archival_compone
 def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
     time_report = {}
     t_overall = perf_counter()
-
+    print("XXXXXXXX")
+    print(dir_home)
     # Load config file
     report_config(dir_home, cfg_file_path, system='LeafMachine2')
     if progress_report:
