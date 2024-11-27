@@ -137,6 +137,9 @@ For more information about virtual environments, please see [Creation of virtual
     <pre><code class="language-python">pip install "pycocotools>=2.0.5" "opencv-contrib-python>=4.7.0.68"</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
 5. LeafMachine2 algorithms require PyTorch version 1.11 for CUDA version 11.3+. If your computer does not have a GPU, then use the CPU version and the CUDA version is not applicable. PyTorch is large and will take a bit to install.
+    - WITH CPU ONLY (all Mac computers) if you install with CPU only, use the `test_cpu_only.py` test file.
+    <pre><code class="language-python">pip3 install torch torchvision torchaudio</code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
     - WITH GPU 
     <pre><code class="language-python">pip install "torch==1.11.0+cu113" "torchvision==0.12.0+cu113" "torchaudio==0.11.0" --extra-index-url https://download.pytorch.org/whl/cu113</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>
@@ -249,6 +252,11 @@ If you plan on changing lots of settings, we recommend running LeafMachine2 in d
     - You should see some blue text, and then a lot of information in the console. 
     - If the run completes (usually after ~5 minutes) and you see a :grinning: then you should be all set!
     - Otherwise, double check that you followed each step and reach out by submitting an inquiry in the form at [LeafMachine.org](https://LeafMachine.org/)
+
+    * Note: If you installed with CPU only, then use the following test file instead:
+    <pre><code class="language-python">python test_cpu_only.py</code></pre>
+    <button class="btn" data-clipboard-target="#code-snippet"></button>
+    
 5. LM2 downloads the required ML models in a zipped folder and then unpacks the models, moving them to the correct places. If this process is stopped prematurely for any reason, then you need to add the flag `--redownload`. LM2 looks to see if the `version.yml` is present. If it is, then it will not restart the unpacking process. So `--redownload` deletes everything in `LeafMachine2/bin` so that the process can start fresh. 
     <pre><code class="language-python">python test.py --redownload</code></pre>
     <button class="btn" data-clipboard-target="#code-snippet"></button>

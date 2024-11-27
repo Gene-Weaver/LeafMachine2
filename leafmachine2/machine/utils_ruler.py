@@ -465,7 +465,7 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
         t.join()
 
     merge_worker_logs(Dirs, num_workers, main_log_name='ruler_logs', log_name_stem='worker_log_ruler')
-    
+
     t1_stop = perf_counter()
     t_rulers = f"[Converting Rulers elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
     logger.info(t_rulers)
@@ -2293,7 +2293,7 @@ class RulerConfig:
 
     net_ruler: object = field(init=False)
 
-    def __init__(self, logger, dir_home, Dirs, cfg) -> None:
+    def __init__(self, logger, dir_home, Dirs, cfg, device) -> None:
         self.path_to_config = dir_home
         self.cfg = cfg
 
@@ -2329,12 +2329,12 @@ class RulerConfig:
         
 
         try:
-            self.net_ruler = torch.jit.load(os.path.join(self.path_to_model,model_name), map_location='cuda:0')
+            self.net_ruler = torch.jit.load(os.path.join(self.path_to_model,model_name), map_location=f'cuda:{device}')
         except:
             self.net_ruler = torch.jit.load(os.path.join(self.path_to_model,model_name), map_location='cpu')
         self.net_ruler.eval()
         try:
-            self.net_ruler.to('cuda:0') # specify device as 'cuda:0'
+            self.net_ruler.to(f'cuda:{device}') # specify device as 'cuda:0'
         except:
             self.net_ruler.to('cpu')
         # torch.jit.save(self.net_ruler, '/home/brlab/Dropbox/LeafMachine2/leafmachine2/machine/ruler_classifier/model/ruler_classifier_38classes_v-1.pt')
