@@ -29,7 +29,7 @@ leafmachine:
         # If providing occ and img, then a combined will be generated
         # If providing combined, then set images and occ to null
         dir_images_local: ['demo', 'demo_images'] # str | full path 
-        device: "cuda"
+        device: "cpu"
         
         path_combined_csv_local: null # str | full path 
         path_occurrence_csv_local: null # 'D:\Dropbox\LM2_Env\Image_Datasets\SET_Acacia\armature_occurrence.csv'  # str | full path 
