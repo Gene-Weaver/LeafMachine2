@@ -2294,6 +2294,7 @@ class RulerConfig:
             self.path_to_class_names = os.path.join(dir_home, 'leafmachine2','machine','ruler_classifier','ruler_classes.txt')
             self.path_to_class_names_bi = os.path.join(dir_home, 'leafmachine2','machine','ruler_classifier','binary_classes.txt')
         except:
+            print("Fallback")
             self.path_to_model = os.path.join(Dirs.dir_home,'leafmachine2','machine','ruler_classifier','model')
             self.path_to_class_names = os.path.join(Dirs.dir_home, 'leafmachine2','machine','ruler_classifier','ruler_classes.txt')
             self.path_to_class_names_bi = os.path.join(Dirs.dir_home, 'leafmachine2','machine','ruler_classifier','binary_classes.txt')
@@ -2304,7 +2305,7 @@ class RulerConfig:
         self.dir_ruler_processed =  Dirs.ruler_processed
         self.dir_ruler_data =  Dirs.ruler_data
 
-        # if self.cfg['leafmachine']['ruler_detection']['detect_ruler_type']:
+        # if self.cfg['leafmachine']['ruler_detection']['detect`_ruler_type']:
         # try:
         # os.environ['CUDA_VISIBLE_DEVICES'] = '0' # use only GPU 0
         # os.environ['CUDA_LAUNCH_BLOCKING'] = '1'

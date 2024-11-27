@@ -223,18 +223,16 @@ class DocEnTR:
 
                 cv2.imwrite(output_path, clean_image)
 
-    def load_DocEnTR_model(self, logger):
+    def load_DocEnTR_model(self, device):
         # binarize_labels_skeletonize = cfg['leafmachine']['cropped_components']['binarize_labels_skeletonize']
 
         model_chosen = 'small_256_8__epoch-10.pt'
 
-        logger.info(f'Loading DocEnTr model: {model_chosen}')
+        print(f'Loading DocEnTr model: {model_chosen}')
 
         dir_root = os.path.dirname(os.path.dirname(__file__))
 
         # output_dir = dir_component
-
-        device = torch.device(f'cuda:0' if torch.cuda.is_available() else 'cpu')
 
         SPLITSIZE = self.SPLITSIZE
         SETTING = self.SETTING

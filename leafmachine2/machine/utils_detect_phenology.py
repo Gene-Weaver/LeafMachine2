@@ -1,5 +1,7 @@
 import os, glob, csv
 from time import perf_counter
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 class PhenologyDetector:
     def __init__(self, cfg, base_dir):

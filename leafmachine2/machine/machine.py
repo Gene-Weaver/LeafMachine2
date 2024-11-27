@@ -4,6 +4,8 @@ LeafMachine2 Processes
 import os, inspect, sys, logging, gc
 from time import perf_counter
 from memory_profiler import profile
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
