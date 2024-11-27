@@ -52,7 +52,7 @@ def build_LM2_config():
 
     num_gpus = get_num_gpus()
     
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = str(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
 
     project_section = {
         'dir_output': default_output_folder,
