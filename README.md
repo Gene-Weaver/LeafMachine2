@@ -49,7 +49,8 @@ Table of Contents
 * November 27, 2024
     * Added instrutions for installing/running CPU-only mode
     * All Mac users should install using CPU only
-    * AMD Radeon GPUs are NOT supported, but it is possible if you want to modify the pytorch installation 
+    * I have not validated this with M-chip Macs. If it is working, please let me know
+    * AMD Radeon GPUs are NOT supported, but it is possible if you want to modify the pytorch installation yourself. I don't have access to any AMD GPUs for testing
     * To test in CPU only mode, run the `test_cpu_only.py` file
 
 * August 14, 2024
