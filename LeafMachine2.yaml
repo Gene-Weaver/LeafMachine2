@@ -4,7 +4,7 @@ leafmachine:
     detector_type: Archival_Detector
     detector_version: PREP_final
     detector_weights: best.pt
-    do_save_prediction_overlay_images: false
+    do_save_prediction_overlay_images: true
     ignore_objects_for_overlay: []
     minimum_confidence_threshold: 0.5
     ruler_binary_detector: model_scripted_resnet_720_withCompression.pt
@@ -18,12 +18,31 @@ leafmachine:
     ignore_objects_for_overlay: []
     minimum_confidence_threshold: 0.5
   cropped_components:
-    include_these_objects_in_specimen_crop: ['ruler','barcode','colorcard', 'label', 'map', 'envelope', 'photo', 'attached_item', 'leaf_whole', 'leaf_partial', 'leaflet', 'seed_fruit_one', 'seed_fruit_many', 'flower_one', 'flower_many', 'bud', 'specimen', 'roots', 'wood']
     binarize_labels: false
     binarize_labels_skeletonize: false
     do_save_cropped_annotations: false
-    save_cropped_annotations:
+    include_these_objects_in_specimen_crop:
     - ruler
+    - barcode
+    - colorcard
+    - label
+    - map
+    - envelope
+    - photo
+    - attached_item
+    - leaf_whole
+    - leaf_partial
+    - leaflet
+    - seed_fruit_one
+    - seed_fruit_many
+    - flower_one
+    - flower_many
+    - bud
+    - specimen
+    - roots
+    - wood
+    save_cropped_annotations:
+    - label
     save_per_annotation_class: true
     save_per_image: false
   data:
@@ -45,9 +64,9 @@ leafmachine:
     detector_type: Landmark_Detector_YOLO
     detector_version: Landmarks
     detector_weights: best.pt
-    do_save_QC_images: false # 
-    do_save_final_images: false # 
-    do_save_prediction_overlay_images: false # 
+    do_save_QC_images: true
+    do_save_final_images: true
+    do_save_prediction_overlay_images: true
     do_show_QC_images: false
     do_show_final_images: false
     ignore_objects_for_overlay: []
@@ -74,21 +93,21 @@ leafmachine:
     detector_version: uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2
     elliptic_fourier_descriptor_order: 40
     find_minimum_bounding_box: true
-    generate_overlay: false # DEPRECATED
+    generate_overlay: true
     keep_only_best_one_leaf_one_petiole: true
     minimum_confidence_threshold: 0.7
     overlay_background_color: black
     overlay_dpi: 300
     overlay_line_width: 1
-    save_each_segmentation_overlay_image: false # useful
-    save_full_image_masks_color: false # useful
-    save_individual_overlay_images: false # useful
-    save_keypoint_overlay: false # useful
-    save_masks_color: false # useful
-    save_oriented_images: true # useful
-    save_oriented_mask: true # useful
-    save_rgb_cropped_images: true # useful
-    save_segmentation_overlay_images_to_pdf: false # DEPRECATED
+    save_each_segmentation_overlay_image: true
+    save_full_image_masks_color: true
+    save_individual_overlay_images: true
+    save_keypoint_overlay: true
+    save_masks_color: true
+    save_oriented_images: true
+    save_oriented_mask: true
+    save_rgb_cropped_images: true
+    save_segmentation_overlay_images_to_pdf: true
     save_simple_txt: true
     segment_partial_leaves: false
     segment_whole_leaves: true
@@ -98,7 +117,7 @@ leafmachine:
     log_level: null
   modules:
     armature: false
-    specimen_crop: true
+    specimen_crop: false
   overlay:
     alpha_transparency_archival: 0.3
     alpha_transparency_plant: 0.0
@@ -125,7 +144,7 @@ leafmachine:
     detector_type: Plant_Detector
     detector_version: PLANT_LeafPriority
     detector_weights: LeafPriority.pt
-    do_save_prediction_overlay_images: false
+    do_save_prediction_overlay_images: true
     ignore_objects_for_overlay: []
     minimum_confidence_threshold: 0.5
   print:
@@ -134,11 +153,13 @@ leafmachine:
   project:
     GBIF_mode: all
     accept_only_ideal_leaves: true
-    batch_size: 25000
-    censor_archival_components: true # Betulaceae/img_1 failed, DB Locked in SEG & 4
-    dir_images_local: /media/nas/GBIF_Downloads/Fagales/Betulaceae/img_4 #G:/Thais/final_dataset #/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/img # /media/nas/GBIF_Downloads/Cornales/Cornaceae/img #D:/Dropbox/LM2_Env/Image_Datasets/GBIF_DetailedSample_50Spp #/media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg # /media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #G:/herbarium_CF_test #D:/D_Desktop/size_test # D:/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images_ind #/media/data/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images # D:/D_Desktop/temp_50_2 #/media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #/media/nas/GBIF_Downloads/Cornales/Cornaceae/img # /media/data/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images #/media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #  #
+    batch_size: 100
+    censor_archival_components: true
+    colorspace: raw
+    device: cuda
+    dir_images_local: D:\D_Desktop\temp_50
     dir_images_subset: ''
-    dir_output: /media/nas/GBIF_Downloads/Fagales/Betulaceae/LM2_4 #G:/Thais #/media/nas/GBIF_Downloads/Magnoliales/Annonaceae #/media/nas/GBIF_Downloads/Cornales/Cornaceae # C:/Users/Will/Downloads/GBIF_DetailedSample_50Spp #/media/nas/TEMP_TEST  # C:/Users/Will/Downloads/herbarium_CF_test #/media/nas/test_LM2_optimized_DwC10RandImg #C:/Users/Will/Downloads #/media/nas/GBIF_Downloads/Cornales/Cornaceae #  #  #
+    dir_output: C:\Users\Will\Downloads
     hide_archival_components:
     - ruler
     - barcode
@@ -150,31 +171,30 @@ leafmachine:
     image_location: local
     minimum_total_reproductive_counts: 0
     n_images_per_species: 10
-    num_workers: 100
-    num_workers_ruler: 100
-    num_workers_seg: 100
-    num_workers_overlay: 24
     num_gpus: 1
+    num_workers: 4
+    num_workers_cropping: 12
+    num_workers_overlay: 12
+    num_workers_ruler: 4
+    num_workers_seg: 4
+    orientation: '6'
     overlay_background_color: black
     overlay_dpi: 300
+    padding_for_crop: 150
     path_combined_csv_local: null
     path_images_csv_local: null
     path_occurrence_csv_local: null
     process_subset_of_images: false
-    replacement_color: '#FFFFFF'
-    run_name: LM2  #LM2
-    padding_for_crop: 150
-    orientation: '6'
-    colorspace: 'raw'
-    save_TIFF_to_original_dir: false 
-    save_TIFF_to_dir_output: false   
+    replacement_color: '#e800ff'
+    run_name: test_temp_50
     save_JPG_to_dir_output: true
+    save_TIFF_to_dir_output: false
+    save_TIFF_to_original_dir: false
     save_XMP_to_original_dir: true
     species_list: ''
     use_CF_predictor: true
     use_existing_archival_component_detections: null
     use_existing_plant_component_detections: null
-    device: "cuda"
   ruler_detection:
     detect_ruler_type: true
     minimum_confidence_threshold: 0.5
@@ -182,4 +202,4 @@ leafmachine:
     ruler_detector: ruler_classifier_38classes_v-1.pt
     save_ruler_processed: false
     save_ruler_validation: false
-    save_ruler_validation_summary: false
+    save_ruler_validation_summary: true

@@ -551,7 +551,7 @@ def segment_images_batch(cfg, dir_home, ProjectSQL, dir_images, filenames, leaf_
     }
 
     # Initialize PosePredictor (also loaded once per process)
-    Pose_Predictor = PosePredictor(weights, Dirs.dir_oriented_images, Dirs.dir_keypoint_overlay, 
+    Pose_Predictor = PosePredictor(weights, Dirs.dir_oriented_images, Dirs.dir_keypoint_overlay, device=device,
                                    save_oriented_images=save_oriented_images, save_keypoint_overlay=save_keypoint_overlay, 
                                    overrides=overrides)
 
