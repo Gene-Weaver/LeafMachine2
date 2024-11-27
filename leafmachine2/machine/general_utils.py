@@ -69,7 +69,7 @@ def check_num_workers(cfg, dir_images):
         # Set worker limits based on binned GPU memory
         if binned_memory >= 32:
             max_num_workers = 24
-            max_num_workers_ruler = 32
+            max_num_workers_ruler = 20
             max_num_workers_seg = 16
         elif binned_memory >= 24:
             max_num_workers = 12
@@ -77,15 +77,15 @@ def check_num_workers(cfg, dir_images):
             max_num_workers_seg = 8
         elif binned_memory >= 16:
             max_num_workers = 10
-            max_num_workers_ruler = 12
+            max_num_workers_ruler = 10
             max_num_workers_seg = 6
         elif binned_memory >= 12:
             max_num_workers = 8
-            max_num_workers_ruler = 10
+            max_num_workers_ruler = 8
             max_num_workers_seg = 5
         elif binned_memory >= 8:
             max_num_workers = 6
-            max_num_workers_ruler = 8
+            max_num_workers_ruler = 6
             max_num_workers_seg = 4
         elif binned_memory >= 4:
             max_num_workers = 4

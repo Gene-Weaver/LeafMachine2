@@ -1,0 +1,161 @@
+domain,url,status,error,ind
+mediaphoto.mnhn.fr,http://mediaphoto.mnhn.fr/media/1464697254825qlL2eKSm0jTcUyFp,200,Downloaded image. Final - 200 Initial - ,0
+images.collections.yale.edu,"https://images.collections.yale.edu/iiif/2/ypm:1891c3fc-8b2b-4526-92de-71964a3a10e8/full/!1920,1920/0/default.jpg",200,Downloaded image. Final - 200 Initial - ,1
+d2seqvvyy3b8p2.cloudfront.net,http://d2seqvvyy3b8p2.cloudfront.net/c5767cf6e526d30f8c74f7773caf779e.jpg,200,Downloaded image. Final - 200 Initial - ,2
+image.bgbm.org,https://image.bgbm.org/images/internal/HerbarThumbs/B100591454_1700,False,An unexpected error occurred,3
+herbarium.bgbm.org,https://herbarium.bgbm.org/data/iiif/B100591454/manifest.json,200,Downloaded image. Final - 200 Initial - ,4
+data.nhm.ac.uk,https://data.nhm.ac.uk/media/7c049cf4-834b-4f5a-a9ed-f802c6751f11,200,Downloaded image. Final - 200 Initial - ,5
+iiif.rbge.org.uk,"https://iiif.rbge.org.uk/herb/iiif/E00718581/full/300,/0/default.jpg",200,Downloaded image. Final - 200 Initial - ,6
+www.unimus.no,https://www.unimus.no/felles/bilder/web_hent_bilde.php?id=12862340&type=jpeg,200,Downloaded image. Final - 200 Initial - ,7
+object.jacq.org,https://object.jacq.org/europeana/WU/59632.jpg,200,Downloaded image. Final - 200 Initial - ,8
+ww2.bgbm.org,http://ww2.bgbm.org/herbarium/images/FieldMuseum/14230.jpg,200,Downloaded image. Final - 200 Initial - ,9
+fm-digital-assets.fieldmuseum.org,http://fm-digital-assets.fieldmuseum.org/172/438/ANNO_xylo_arom_pan_1516752.jpg,200,Downloaded image. Final - 200 Initial - ,10
+services.jacq.org,https://services.jacq.org/jacq-services/rest/images/europeana/563732?withredirect=1,404,Error 404,11
+images.mobot.org,http://images.mobot.org/tropicosimages3/detailimages/TropicosImages2/100143000/32DAA9DE-7C98-497D-BA39-DC9AAC06AE2D.jpg,200,Downloaded image. Final - 200 Initial - ,12
+specify-attachments.science.ku.dk,https://specify-attachments.science.ku.dk/static/NHMD_Botany/originals/C10005569.tif,200,Downloaded image. Final - 200 Initial - ,13
+cyberfloralouisiana.com,https://cyberfloralouisiana.com/images/LSUCollections/Vascular/LSU/00/021/LSU00021513_L.JPG,200,Downloaded image. Final - 200 Initial - ,14
+n2t.net,http://n2t.net/ark:/65665/m34d948274-6bb5-4744-a94f-b162fba6108f,200,Downloaded image. Final - 200 Initial - ,15
+jbrj-public-img.s3-sa-east-1.amazonaws.com,http://jbrj-public-img.s3-sa-east-1.amazonaws.com/JPG/rb/1/5/44/67/01054467.jpg,200,Downloaded image. Final - 200 Initial - ,16
+ibss-images.calacademy.org:80,http://ibss-images.calacademy.org:80/static/botany/originals/2c/f3/2cf31c1f-4b78-49cc-9e89-0dfdfe7daf00.jpg,200,Downloaded image. Final - 200 Initial - ,17
+cdn.floridamuseum.ufl.edu,https://cdn.floridamuseum.ufl.edu/Herbarium/f70820b0-3860-4106-8eee-502f4fab54f7,200,Downloaded image. Final - 200 Initial - ,18
+cdn.plantatlas.org,https://cdn.plantatlas.org/img/specimens/USF/100807.jpg,200,Downloaded image. Final - 200 Initial - ,19
+pictures.snsb.info,http://pictures.snsb.info/GOETvplantscoll/web/GOET0001/GOET000116_20071120_092634.jpg,200,Downloaded image. Final - 200 Initial - ,20
+plant.depo.msu.ru,https://plant.depo.msu.ru/open/public/item/MW0586650/img/0.jpg?gbif,200,Downloaded image. Final - 200 Initial - ,21
+www.herbariumhamburgense.de,http://www.herbariumhamburgense.de/herbarsheets/disk_batch01/medium/HBG-502503.jpg,500,Failed to extract image from dynamic page.,22
+colecciones.humboldt.org.co,http://colecciones.humboldt.org.co/rec/imagenes/FMB/FMB-20673/FMB-20673.JPG,200,Downloaded image. Final - 200 Initial - ,23
+oxalis.br.fgov.be,https://oxalis.br.fgov.be/images/BR0/000/005/028/856/BR0000005028856.jpg,200,Downloaded image. Final - 200 Initial - ,24
+iiif-manifest.oxalis.br.fgov.be,https://iiif-manifest.oxalis.br.fgov.be/specimen/BR0000005028856/manifest,200,Downloaded image. Final - 200 Initial - ,25
+www.ibb.csic.es,http://www.ibb.csic.es/herbari/JPEG/BC872578.jpg,200,Downloaded image. Final - 200 Initial - ,26
+api.idigbio.org,https://api.idigbio.org/v2/media/8666acc04bb498dde4de72e643e5cb63,200,Downloaded image. Final - 200 Initial - ,27
+sernecportal.org,https://sernecportal.org/imglib/seinet/sernec/USCH/USCH0002/USCH0002113.JPG,200,Downloaded image. Final - 200 Initial - ,28
+sweetgum.nybg.org,http://sweetgum.nybg.org/images3/2166/693/01147863.jpg,200,Downloaded image. Final - 200 Initial - ,29
+assets.rjb.csic.es,https://assets.rjb.csic.es/fileget?coll=Plantas+Vasculares&type=O&filename=sp68579878566600827698.att.jpg&downloadname=MA-01-00215561,False,"Max retries exceeded, could not download the image.",30
+quod.lib.umich.edu,https://quod.lib.umich.edu/cgi/i/image/api/image/herb00ic:1115433:MICH-V-1115433/full/res:0/0/native.jpg,200,Downloaded image. Final - 200 Initial - ,31
+mam.ansp.org,http://mam.ansp.org/image/CHRB/Fullsize/0001/CHRB0001268.jpg,200,Downloaded image. Final - 200 Initial - ,32
+data.huh.harvard.edu,http://data.huh.harvard.edu/009c77a9-0446-4f0a-86e7-f983d74c76aa/image,200,Downloaded image. Final - 200 Initial - ,33
+rdu.unc.edu.ar,https://rdu.unc.edu.ar/bitstream/handle/11086/22322/CORD00002686.jpg,200,Downloaded image. Final - 200 Initial - ,34
+s3.msi.umn.edu,https://s3.msi.umn.edu/mbaenrms3fs/images/MIN_Plants/01299/1299419_lg.jpg,200,Downloaded image. Final - 200 Initial - ,35
+cch2.org,https://cch2.org/imglib/cch2/CHSC_VascularPlants/CHSC005/CHSC005404_lg.jpg,200,Downloaded image. Final - 200 Initial - ,36
+images.ala.org.au,https://images.ala.org.au/image/proxyImageThumbnailLarge?imageId=26d1be60-4108-4295-96f5-d291f8795b4b,200,Downloaded image. Final - 200 Initial - ,37
+medialib.naturalis.nl,https://medialib.naturalis.nl/file/id/AMD.21979/format/large,200,Downloaded image. Final - 200 Initial - ,38
+nansh.org,http://nansh.org/imglib/storage/vt/vplants/UVMVT172/UVMVT172635_lg.jpg,200,Downloaded image. Final - 200 Initial - ,39
+botanydb.colorado.edu,https://botanydb.colorado.edu/COLO_V/00834/00834697.jpg,200,Downloaded image. Final - 200 Initial - ,40
+www.digitalis.uzh.ch,https://www.digitalis.uzh.ch/media/specimen/34/Z-000034546.jpg,200,Downloaded image. Final - 200 Initial - ,41
+coicatalogue.uc.pt,https://coicatalogue.uc.pt/JPG/?image=COI00067912.jpg,200,Downloaded image. Final - 200 Initial - ,42
+live.staticflickr.com,https://live.staticflickr.com/65535/48262272132_6514409def_o_d.jpg,200,Downloaded image. Final - 200 Initial - ,43
+was.tacc.utexas.edu,http://was.tacc.utexas.edu/fileget?coll=TEX-LL&type=O&filename=sp61272530015854353499.att.jpg,200,Downloaded image. Final - 200 Initial - ,44
+imagens4.jbrj.gov.br,http://imagens4.jbrj.gov.br/fsi/server?type=image&source=smnh/Tipos_do_Brasil/S-R-6890.jpg,False,"Max retries exceeded, could not download the image.",45
+imagens1.jbrj.gov.br,http://imagens1.jbrj.gov.br/fsi/server?type=image&source=hvpr/mnhn/tipos4-Paris/P00123747.jpg,False,"Max retries exceeded, could not download the image.",46
+www.jacq.org,http://www.jacq.org/image.php?filename=113465&method=europeana,200,Downloaded image. Final - 200 Initial - ,47
+bisque.cyverse.org,https://bisque.cyverse.org/image_service/image/00-XciZf4wsmySSkRKQDY6ZuM/resize:4000/format:jpeg,False,"Max retries exceeded, could not download the image.",48
+dbs.kaum.kagoshima-u.ac.jp,https://dbs.kaum.kagoshima-u.ac.jp/musedb/s_plant/picture/KAG002749/KAG002749.jpg,200,Downloaded image. Final - 200 Initial - ,49
+midwestherbaria.org,https://midwestherbaria.org/imglib/storage/cinc/aquatic/CINC-V-0001/CINC-V-0001528_lg.jpg,200,Downloaded image. Final - 200 Initial - ,50
+image.laji.fi,https://image.laji.fi/MM.293315/TFA.157212.jpg,200,Downloaded image. Final - 200 Initial - ,51
+id.digitarium.fi,https://id.digitarium.fi/api/C.14649/Preview001.jpg,200,Downloaded image. Final - 200 Initial - ,52
+ia801503.us.archive.org,https://ia801503.us.archive.org/15/items/bbs-dataset202201/BBS0000925.jpg,False,"Max retries exceeded, could not download the image.",53
+128.171.206.220,http://128.171.206.220/HAW06017.JPG,False,"Max retries exceeded, could not download the image.",54
+www.soroherbaria.org,https://www.soroherbaria.org/imglib/seinet/soro/CS/0019/195109_lg.jpg,200,Downloaded image. Final - 200 Initial - ,55
+oregonflora.org,https://oregonflora.org/dbimages/OFPimages/OFPImages_big/2017/OSC0000007.jpg,200,Downloaded image. Final - 200 Initial - ,56
+data.cyverse.org,https://data.cyverse.org/dav-anon/iplant/projects/magnoliagrandiFLORA/images/MISS_2018_5/MISS0076264/MISS0076264.JPG,200,Downloaded image. Final - 200 Initial - ,57
+web.corral.tacc.utexas.edu,https://web.corral.tacc.utexas.edu/brit/BRIT/BRIT0014000/BRIT14626.jpg,200,Downloaded image. Final - 200 Initial - ,58
+www.ifpindia.org,http://www.ifpindia.org/hifp/images/HIFP_001458.JPG,200,Downloaded image. Final - 200 Initial - ,59
+riha.african-herbaria.org,http://riha.african-herbaria.org/img/parts/UCJ/UCJ001132.jpg,200,Downloaded image. Final - 200 Initial - ,60
+plantdata.bio.cmich.edu,http://plantdata.bio.cmich.edu/images/specimens/GVSC001075/GVSC001075.JPG,200,Downloaded image. Final - 200 Initial - ,61
+ia802608.us.archive.org,https://ia802608.us.archive.org/13/items/JBGP-HERBARIO_VIRTUAL/JBGP-002378.jpg,False,"Max retries exceeded, could not download the image.",62
+ia904700.us.archive.org,https://ia904700.us.archive.org/8/items/bbs-historical-collection/BBS0040035.jpg,False,"Max retries exceeded, could not download the image.",63
+photos.gbif.fr,http://photos.gbif.fr/mnhn_nice/aquarelles_animaux_marins_et_plantes/2005-0-4483.jpg,200,Downloaded image. Final - 200 Initial - ,64
+cdm16111.contentdm.oclc.org,https://cdm16111.contentdm.oclc.org/digital/iiif/p15135coll5/13789/full/full/270/default.jpg,200,Downloaded image. Final - 200 Initial - ,65
+neherbaria.org,https://neherbaria.org/imglib/cnh/StateUniversityofNewYorkatOswego_OSW/OSW0000/OSW0000874_lg.jpg,200,Downloaded image. Final - 200 Initial - ,66
+media.tepapa.govt.nz,https://media.tepapa.govt.nz/collection/691800/preview,200,Downloaded image. Final - 200 Initial - ,67
+mam.business-services.upenn.edu,https://mam.business-services.upenn.edu/DOV/0056/DOV0056816.jpg,200,Downloaded image. Final - 200 Initial - ,68
+maerua.iict.pt,http://maerua.iict.pt/colecoes/images/LISC000049.jpg,False,"Max retries exceeded, could not download the image.",69
+archive.biodiversity.ca,http://archive.biodiversity.ca/herbarium/hsheet1/13460.jpg,False,"Max retries exceeded, could not download the image.",70
+calphotos.berkeley.edu,http://calphotos.berkeley.edu/imgs/512x768/0000_0000/1102/0024.jpeg,200,Downloaded image. Final - 200 Initial - ,71
+media.canadensys.net,http://media.canadensys.net/mt-specimens/large/MT00216162.jpg,200,Downloaded image. Final - 200 Initial - ,72
+arbmis.arcosnetwork.org,http://arbmis.arcosnetwork.org/media_images/BID/LWI117652232.jpg,500,Failed to extract image from dynamic page.,73
+rb.jbrj.gov.br,http://rb.jbrj.gov.br/v2/templaterb2.php?colbot=RB&codtestemunho=43021&arquivo=00043021.jpg,500,Failed to extract image from dynamic page.,74
+ecbot.science.kew.org,https://ecbot.science.kew.org/ecbotimg/main/EBC_41040.jpg,200,Downloaded image. Final - 200 Initial - ,75
+swbiodiversity.org,https://swbiodiversity.org/imglib/seinet/swnode/UNM_VascularPlants/UNM0138/UNM0138332.jpg,200,Downloaded image. Final - 200 Initial - ,76
+files.plutof.ut.ee,https://files.plutof.ut.ee/public/large/B1/94/B194B1AA7B04E707A0C9BBC0D4906F6ABC9FD31748CF215E0743E7888973201A.jpg,404,Error 404,77
+odu-herbarium-project.s3.amazonaws.com,https://odu-herbarium-project.s3.amazonaws.com/ODU00002884.jpg,200,Downloaded image. Final - 200 Initial - ,78
+procyon.acadiau.ca,"http://procyon.acadiau.ca/ecsmith/cgi-bin/image.cgi?CBU2992,jpeg",False,"Max retries exceeded, could not download the image.",79
+intermountainbiota.org,https://intermountainbiota.org/imglib/h_seinet/intermt/UTC/UTC00261/UTC00261386_lg.jpg,200,Downloaded image. Final - 200 Initial - ,80
+openherbarium.org,https://openherbarium.org/imglib/openherbarium/QarshiBotanicalGarden_QARSHI/QBG00000/IMG_20230105_165325_249_1673238769_lg.jpg,200,Downloaded image. Final - 200 Initial - ,81
+ia601503.us.archive.org,https://ia601503.us.archive.org/15/items/bbs-dataset202201/BBS0001043.jpg,False,"Max retries exceeded, could not download the image.",82
+images.chrb.njaes.rutgers.edu,https://images.chrb.njaes.rutgers.edu/2022_10_04/CHRB0001299.jpg,200,Downloaded image. Final - 200 Initial - ,83
+imagens2.jbrj.gov.br,http://imagens2.jbrj.gov.br/fsi/server?type=image&source=ian/SiBBR_Agosto_2016/IAN151635a.JPG,False,"Max retries exceeded, could not download the image.",84
+herbarium.berry.edu,https://herbarium.berry.edu/BCH-000988.jpg,200,Downloaded image. Final - 200 Initial - ,85
+digitallibrary.uleth.ca,https://digitallibrary.uleth.ca/digital/api/singleitem/image/herbarium/16143/default.jpg,200,Downloaded image. Final - 200 Initial - ,86
+www.uc.edu,https://www.uc.edu/fulfordherbarium/images/Vascular/fullSize/2024ii/CINC-V-0003551.jpg,200,Downloaded image. Final - 200 Initial - ,87
+mycoportal.org,https://mycoportal.org/cup/mycology/CUP-045/CUP-045317_lg.jpg,200,Downloaded image. Final - 200 Initial - ,88
+img.cyverse.org,https://img.cyverse.org/resize?width=4000&url=https://data.cyverse.org/dav-anon/iplant/projects/sernec/USCH/Bones/SERNEC/JPG/2023/2023_04_17/USCH0077825.JPG,200,Downloaded image. Final - 200 Initial - ,89
+digitallibrary.vassar.edu,https://digitallibrary.vassar.edu/sites/default/files/2022-06/87267-Service%20File.jpg,200,Downloaded image. Final - 200 Initial - ,90
+arctos.database.museum,http://arctos.database.museum/media/10701383?open,200,Downloaded image. Final - 200 Initial - 401,91
+beaty.b-cdn.net,https://beaty.b-cdn.net/V250282.jpg,200,Downloaded image. Final - 200 Initial - ,92
+ncmns-cams.s3.amazonaws.com,https://ncmns-cams.s3.amazonaws.com/Collections/herbarium/NCSM001716.JPG,200,Downloaded image. Final - 200 Initial - ,93
+herb.csbg.nsc.ru:8081,http://herb.csbg.nsc.ru:8081/backend/herbarium/view/41628,200,Downloaded image. Final - 200 Initial - ,94
+archimg.mnhn.lu,https://archimg.mnhn.lu/Collections/Herbarium_jpg/LUX019036.jpg,200,Downloaded image. Final - 200 Initial - ,95
+altb.asu.ru,http://altb.asu.ru/photo_altb/1100000105.jpg,200,Downloaded image. Final - 200 Initial - ,96
+media.qfa.herbier.ulaval.ca,http://media.qfa.herbier.ulaval.ca/QFA0506472.jpg,False,"Max retries exceeded, could not download the image.",97
+data.brin.go.id,https://data.brin.go.id/api/access/datafile/163902,200,Downloaded image. Final - 200 Initial - ,98
+data.landcareresearch.co.nz,http://data.landcareresearch.co.nz/Image/PFE/NZVH,200,Downloaded image. Final - 200 Initial - ,99
+ipt.nature.ca,http://ipt.nature.ca/multimedia/412/202/CAN10183856_2024-05-01.jpg,200,Downloaded image. Final - 200 Initial - ,100
+www.eiu.edu,https://www.eiu.edu/booth/herbarium/jpg/202002/EIU077695.jpg,200,Downloaded image. Final - 200 Initial - ,101
+library.eiu.edu,https://library.eiu.edu/keepUpload/herbarium/jpg/EIU007593.jpg,404,Error 404,102
+biodiversidad.gt,https://biodiversidad.gt/imglib/guatemala/USAC_USCG/00009/USCG9604_1679622048_lg.jpg,200,Downloaded image. Final - 200 Initial - ,103
+soroherbaria.org,https://soroherbaria.org/imglib/seinet/soro/GREE_GREE/00008/08881_lg.jpg,200,Downloaded image. Final - 200 Initial - ,104
+www.zobodat.at,https://www.zobodat.at/bilder/belege/00021309.jpg,200,Downloaded image. Final - 200 Initial - ,105
+sesam.senckenberg.de,http://sesam.senckenberg.de/pictures/originale/32/43912.jpg,200,Downloaded image. Final - 200 Initial - ,106
+www.nansh.org,https://www.nansh.org/imglib/seinet/nansh/VT/UVMVT292/UVMVT292932_1612198798_lg.jpg,200,Downloaded image. Final - 200 Initial - ,107
+193.144.34.193,http://193.144.34.193/imsrv/santimagethumb.php?id=4692,200,Error cannot identify image file <_io.BytesIO object at 0x000001D4E61A0950>,108
+resolver.bibliothek.uni-regensburg.de,http://resolver.bibliothek.uni-regensburg.de/get/file/FILE_UBR_7816,200,Downloaded image. Final - 200 Initial - ,109
+sdplantatlas.org,https://sdplantatlas.org/HiResDisplay/HiResZoomDisplay.aspx?H=280778,200,Downloaded image. Extracted HIGHRES url from dynamic image viewer.,110
+mcgillherbarium.com,https://mcgillherbarium.com/img/53280.jpg,200,Downloaded image. Final - 200 Initial - ,111
+www.herbarium-erlangense.nat.uni-erlangen.de,http://www.herbarium-erlangense.nat.uni-erlangen.de/datenbank/bild/226/22687-large.jpg,404,Error 404,112
+pm.nm.cz,http://pm.nm.cz/OpenUpData/Botanika/Fotky/NAKI_Typy_eSbirky/PR_25282.jpg,False,An unexpected error occurred,113
+www.intermountainbiota.org,https://www.intermountainbiota.org/imglib/seinet/intermt/WS/00391/WS003157_1678149224_lg.jpg,200,Downloaded image. Final - 200 Initial - ,114
+bajaflora.org,https://bajaflora.org/HiResDisplay/HiResZoomDisplay.aspx?H=268674,200,Downloaded image. Extracted HIGHRES url from dynamic image viewer.,115
+hoppe.bibliothek.uni-regensburg.de,http://hoppe.bibliothek.uni-regensburg.de/files/FeB/neue_Bilder/presentation/1561.jpg,200,Downloaded image. Final - 200 Initial - ,116
+mnhn.picturae.com,http://mnhn.picturae.com/MNHN/2016/05/27/CP1_20160527_BATCH_0001/jpg/BESA016780.jpg,False,An unexpected error occurred,117
+dataflos.sav.sk:8080,http://dataflos.sav.sk:8080/scans/nabelek/jpeg/SAV0003518.jpg,200,Downloaded image. Final - 200 Initial - ,118
+digibug.ugr.es,https://digibug.ugr.es/bitstream/handle/10481/60464/GDA28737.jpg?sequence=1&isAllowed=y,200,Downloaded image. Final - 200 Initial - ,119
+portal.neherbaria.org,https://portal.neherbaria.org/imglib/cnh/VT/UVMVT097/UVMVT097411_1532026871_lg.jpg,404,Error 404,120
+floragridmap.uz,https://floragridmap.uz/uploads/original_scans/jpg/collections/TASH003104.jpg,200,Downloaded image. Final - 200 Initial - ,121
+herbariumle.ru,https://herbariumle.ru/data/upload/db_le_herbarium/THUMB/0081/0081953.jpg,200,Downloaded image. Final - 200 Initial - ,122
+herbarium.cc.umanitoba.ca,http://herbarium.cc.umanitoba.ca/Lonicera%20villosa/36086.jpg,200,Downloaded image. Final - 200 Initial - ,123
+collections.lib.utah.edu,https://collections.lib.utah.edu/file?id=2385071,200,Downloaded image. Final - 200 Initial - ,124
+rhoenmuseum-fladungen.sesam.senckenberg.de,http://rhoenmuseum-fladungen.sesam.senckenberg.de/pictures/originale/632/13934.jpg,200,Downloaded image. Final - 200 Initial - ,125
+serv.biokic.asu.edu,https://serv.biokic.asu.edu/imglib/seinet/ASU/ASU0128/ASU0128968_lg.jpg,200,Downloaded image. Final - 200 Initial - ,126
+gwdu64.gwdg.de,https://gwdu64.gwdg.de/images/forster/overview/259_Prodr_Nr_366_b_1.jpg,200,Downloaded image. Final - 200 Initial - ,127
+ph.ansp.org,http://ph.ansp.org/image/Spermatophyte/Fullsize/00762/PH00762308.jpg,200,Downloaded image. Final - 200 Initial - ,128
+www.ucm.es,https://www.ucm.es/herbariomacb/file/macb008928/?ver,200,Downloaded image. Final - 200 Initial - ,129
+colecciones.uv.es,https://colecciones.uv.es/files/large/d895869ec9bc65f5d2f516a8277e2828f5f0602e.jpg,200,Downloaded image. Final - 200 Initial - ,130
+storage.gbif-no.sigma2.no,https://storage.gbif-no.sigma2.no/ipt-ukraine-img/2758ae0b-88ac-4e59-8fa8-7f2890317ca0/108000.JPG,200,Downloaded image. Final - 200 Initial - ,131
+herbarium.bio.vsu.ru,http://herbarium.bio.vsu.ru/data/upload/db_vor_herbarium/BIG/0008/0008938.jpg,200,Downloaded image. Final - 200 Initial - ,132
+usuherbarium.usu.edu,http://usuherbarium.usu.edu/UTCimages/270/UTC00267599.jpg,False,"Max retries exceeded, could not download the image.",133
+www.ngbif.org.ng,http://www.ngbif.org.ng/pp/FHI0040052.jpg,False,An unexpected error occurred,134
+farm2.staticflickr.com,https://farm2.staticflickr.com/1917/43623953290_74d929cf04_o_d.jpg,200,Downloaded image. Final - 200 Initial - ,135
+specify-att.isa.ulisboa.pt,https://specify-att.isa.ulisboa.pt/static/originals/sp67499002176161458909.att.jpg,200,Downloaded image. Final - 200 Initial - ,136
+biimages.biodiversity.ku.edu,http://biimages.biodiversity.ku.edu/static/VascularPlant/originals/2015_02_05-KANU00327293.jpg,200,Downloaded image. Final - 200 Initial - ,137
+lod.ansp.org,http://lod.ansp.org/images/Botany/FULLSIZE/PH/00133/PH00133935.jpg,404,Error 404,138
+farm5.staticflickr.com,https://farm5.staticflickr.com/4870/45842461624_7c6e5b21b3_o_d.jpg,200,Downloaded image. Final - 200 Initial - ,139
+farm8.staticflickr.com,https://farm8.staticflickr.com/7838/32692916738_44f1560dd5_o_d.jpg,200,Downloaded image. Final - 200 Initial - ,140
+media.api.aucklandmuseum.com,http://media.api.aucklandmuseum.com/id/media/v/552436?rendering=original.jpg,200,Downloaded image. Final - 200 Initial - ,141
+bry.byu.edu,http://bry.byu.edu/Herbarium/imgbry/01/0127/BRYV0127951_lg.jpg,200,Downloaded image. Final - 200 Initial - ,142
+jbrj-public.s3-sa-east-1.amazonaws.com,http://jbrj-public.s3-sa-east-1.amazonaws.com/fsi/server?type=image&source=DZI/alcb/alcb/0/7/27/48/alcb00072748.dzi,403,Error cannot identify image file <_io.BytesIO object at 0x000001D4EAD57330>,143
+www.sernecportal.org,https://www.sernecportal.org/imglib/seinet/sernec/LFCC/LFCC-0007/LFCC-0007872.jpg,200,Downloaded image. Final - 200 Initial - ,144
+bol.mortonarb.org,http://bol.mortonarb.org/MORTON2022/image/0050849MOR.jpg,200,Downloaded image. Final - 200 Initial - ,145
+www.aubot.dk,http://www.aubot.dk/specimenimages/typeimages_1/MORA-Jaramillo7055-1.jpg,200,Downloaded image. Final - 200 Initial - ,146
+ipt.upsl.edu.pl,https://ipt.upsl.edu.pl/images/SLTC022213.jpg,False,"Max retries exceeded, could not download the image.",147
+ngcpr.org,https://ngcpr.org/magnify/smImg/FicusExasperataNgcpr01325.jpg,200,Downloaded image. Final - 200 Initial - ,148
+drive.google.com,https://drive.google.com/file/d/1y5_7YT1oQaB_UCuCcTbFbVIv2yjqq5UD/view?usp=sharing,200,Downloaded image. Final - 200 Initial - ,149
+portal.torcherbaria.org,https://portal.torcherbaria.org/imglib/seinet/torch/BRIT/202006/Crabweed4_1591575789_lg.jpeg,200,Downloaded image. Final - 200 Initial - ,150
+www.inaturalist.org,https://www.inaturalist.org/observations/110821555,200,Downloaded image. Extracted canvas LOWRES url from dynamic image viewer.,151
+biorepo.neonscience.org,https://biorepo.neonscience.org/imglib/neon/NEON_TPLC-HV/B00000084/B00000084052_lg.jpg,200,Downloaded image. Final - 200 Initial - ,152
+s3.us-east-2.amazonaws.com,https://s3.us-east-2.amazonaws.com/natureatlas.org/specimens/439823.jpg,200,Downloaded image. Final - 200 Initial - ,153
+herbarium.bioenv.gu.se,http://herbarium.bioenv.gu.se/web/images/GB-0048196.jpg,False,"Max retries exceeded, could not download the image.",154
+ngpherbaria.org,https://ngpherbaria.org/imglib/seinet/ngph/BHSC/BHSC0040/BHSC0040386_1612645603_lg.jpg,200,Downloaded image. Final - 200 Initial - ,155
+s3.hpc.ut.ee,https://s3.hpc.ut.ee/plutof-public/large/190ddc54-bd6f-477d-afb5-5316e8099654.jpg,200,Downloaded image. Final - 200 Initial - ,156
+jbrj-public.s3.amazonaws.com,http://jbrj-public.s3.amazonaws.com/fsi/server?type=image&source=DZI/alcb/alcb/0/3/35/57/alcb00033557.dzi,403,Error cannot identify image file <_io.BytesIO object at 0x000001D4EAD2E160>,157
+hosting03.snu.ac.kr,http://hosting03.snu.ac.kr/~quercus1/E/Taquet/Moraceae/Taquet%205974%20Morus%20bombycis%20E.JPG,200,Downloaded image. Final - 200 Initial - ,158
+s3.amazonaws.com,https://s3.amazonaws.com/huhwebimages/94E694A0B87F4E4/type/full/34604.jpg,200,Downloaded image. Final - 200 Initial - ,159

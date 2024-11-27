@@ -1,6 +1,12 @@
 # Ultralytics YOLO 🚀, AGPL-3.0 license
 import os, cv2, sys, inspect, logging
 import numpy as np
+currentdir = os.path.dirname(inspect.getfile(inspect.currentframe()))
+parentdir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(currentdir))))))
+parentdir2 = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(currentdir))))
+sys.path.append(parentdir2)
+sys.path.append(currentdir)
+sys.path.append(parentdir)
 from ultralytics.engine.results import Results
 from ultralytics.models.yolo.detect.predict import DetectionPredictor
 from ultralytics.utils import DEFAULT_CFG, LOGGER, ops
@@ -25,11 +31,7 @@ from ultralytics.utils.torch_utils import select_device, smart_inference_mode
 # from gtda.homology import VietorisRipsPersistence
 # from gtda.plotting import plot_diagram
 
-currentdir = os.path.dirname(inspect.getfile(inspect.currentframe()))
-parentdir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(currentdir))))))
-sys.path.append(currentdir)
-# from detect import run
-sys.path.append(parentdir)
+
 # from machine.general_utils import Print_Verbose
 # from leafmachine2.segmentation.detectron2.segment_leaves import keep_rows, get_string_indices, get_largest_polygon
 # from leafmachine2.segmentation.detectron2.detector import Detector_LM2
@@ -797,11 +799,18 @@ class PosePredictor(DetectionPredictor):
             res = Results(orig_img, path=img_path, names=self.model.names, boxes=pred[:, :6], keypoints=pred_kpts)
             pred_kpts_np = res.keypoints.xy.cpu().numpy()[0]
 
-            angle, tip, base, keypoint_measurements = self.calc_angle(pred_kpts_np, img_rgb)
+            # angle, tip, base, keypoint_measurements = self.calc_angle(pred_kpts_np, img_rgb)
+            # Before calling calc_angle, check if pred_kpts_np has enough keypoints
+            if pred_kpts_np is None or len(pred_kpts_np) < 10:  # Assuming at least 29 keypoints are needed
+                # Skip calling calc_angle and return default null values
+                angle, tip, base, keypoint_measurements = None, None, None, None
+            else:
+                # Safe to call calc_angle since pred_kpts_np has enough keypoints
+                angle, tip, base, keypoint_measurements = self.calc_angle(pred_kpts_np, img_rgb)
 
-            self.rotate_image(-angle, orig_img, file_key)
-
-            self.visualize_keypoints(orig_img, pred_kpts_np, file_key)
+                # Continue with the rest of the processing, using None where necessary if keypoints are invalid
+                self.rotate_image(-angle if angle is not None else 0, orig_img, file_key)
+                self.visualize_keypoints(orig_img, pred_kpts_np, file_key)
 
             results['img_name'] = file_key
             results['img_path'] = img_path
@@ -1006,22 +1015,25 @@ if __name__ == '__main__':
     # Define the paths
     # img_path = "D:/Dropbox/LM2_Env/Image_Datasets/GroundTruth_KEYPOINTS/GroundTruth_POINTS_V2/images/test"
     # img_path = "D:/Dropbox/PH/image_tests/LM2_viburnum_2000_NY/Plant_Components/Leaves_Whole"
-    img_path = "D:/Dropbox/PH/image_tests/LM2_viburnum/Cropped_Images/By_Class/leaf_whole"
+    # img_path = "D:/Dropbox/PH/image_tests/LM2_viburnum/Cropped_Images/By_Class/leaf_whole"
     # img_path = "D:/Dropbox/LM2_Env/Image_Datasets/SET_Diospyros/images_tiny"
+    img_path = "D:/Dropbox/LM2_Env/Image_Datasets/Thais_Petiole_Width/POINTS_Petiole_Width/cropped_leaves/leaf"
+
+
     # model_path = "D:/Dropbox/LeafMachine2/leafmachine2/keypoint_detector/ultralytics/models/yolo/pose/trained_models/best_1280_sigma20.pt"
     model_path = "D:/Dropbox/LeafMachine2/KP_2024/uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2/weights/best.pt"
     
     # save_dir = "D:/Dropbox/LeafMachine2/KP_2024/OUTPUT2_uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2"
     # save_dir = "D:/Dropbox/PH/image_tests/LM2_viburnum_2000_NY/Key_Points"
-    dir_oriented_images = "D:/Dropbox/PH/image_tests/LM2_viburnum/Key_PointsTEST"
-    dir_keypoint_overlay = "D:/Dropbox/PH/image_tests/LM2_viburnum/Key_Points_PtsTEST"
+    dir_oriented_images = "D:/Dropbox/LM2_Env/Image_Datasets/Thais_Petiole_Width/POINTS_Petiole_Width/cropped_leaves/oriented_leaves"
+    dir_keypoint_overlay = "D:/Dropbox/LM2_Env/Image_Datasets/Thais_Petiole_Width/POINTS_Petiole_Width/cropped_leaves/keypoint_overlay"
 
     # save_dir_seg = "D:/Dropbox/LeafMachine2/KP_2024/OUTPUT8_uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2_SEG"
     # save_dir_seg = "D:/Dropbox/PH/image_tests/LM2_viburnum_2000_NY/Key_Points_SEG"
-    dir_segment_oriented = "D:/Dropbox/PH/image_tests/LM2_viburnum/Key_Points_SEGTEST"
+    dir_segment_oriented = "D:/Dropbox/LM2_Env/Image_Datasets/Thais_Petiole_Width/POINTS_Petiole_Width/cropped_leaves/oriented_masks"
     # save_dir_overlay = "D:/Dropbox/LeafMachine2/KP_2024/OUTPUT8_uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2_OVERLAY"
     # save_dir_overlay = "D:/Dropbox/PH/image_tests/LM2_viburnum_2000_NY/Key_Points_OVERLAY"
-    dir_segment_oriented_overlay = "D:/Dropbox/PH/image_tests/LM2_viburnum/Key_Points_OVERLAYTEST"
+    # dir_segment_oriented_overlay = "D:/Dropbox/PH/image_tests/LM2_viburnum/Key_Points_OVERLAYTEST"
 
 
     if not os.path.exists(img_path):
@@ -1044,9 +1056,9 @@ if __name__ == '__main__':
         print(f"Creating {dir_segment_oriented}")
         os.makedirs(dir_segment_oriented, exist_ok=True)
     
-    if not os.path.exists(dir_segment_oriented_overlay):
-        print(f"Creating {dir_segment_oriented_overlay}")
-        os.makedirs(dir_segment_oriented_overlay, exist_ok=True)
+    # if not os.path.exists(dir_segment_oriented_overlay):
+        # print(f"Creating {dir_segment_oriented_overlay}")
+        # os.makedirs(dir_segment_oriented_overlay, exist_ok=True)
     
     # Create dictionary for overrides
     overrides = {

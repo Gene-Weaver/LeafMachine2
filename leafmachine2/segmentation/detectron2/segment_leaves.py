@@ -18,6 +18,7 @@ from scipy.ndimage import binary_erosion, rotate
 from tqdm import tqdm
 import multiprocessing
 from queue import Empty
+from shapely.geometry import LineString
 
 currentdir = os.path.dirname(inspect.getfile(inspect.currentframe()))
 parentdir1 = os.path.dirname(os.path.dirname(currentdir))
@@ -41,6 +42,8 @@ def segment_leaves(cfg, time_report, logger, dir_home, ProjectSQL, batch, n_batc
 
     # Number of worker processes for reading and processing data
     num_workers = int(cfg['leafmachine']['project'].get('num_workers_seg', 1))
+    print(f"Using {num_workers} workers for processing.", flush=True)
+
     if cfg['leafmachine']['project']['device'] == 'cuda':
         num_gpus = int(cfg['leafmachine']['project'].get('num_gpus', 1))  # Default to 1 GPU if not specified
         device_list = [f'cuda:{i}' for i in range(num_gpus)]
@@ -53,55 +56,76 @@ def segment_leaves(cfg, time_report, logger, dir_home, ProjectSQL, batch, n_batc
 
     # Create a manager for shared state
     manager = multiprocessing.Manager()
-    manager = multiprocessing.Manager()
+    queue_unpack = manager.Queue()
+    queue_bbox = manager.Queue()
 
-    for cls in range(0, 2):
+    cls = 0 ################################################################ NOTE will ONLY do whole leaves
+    # Start the SQL writer process for phase 1 (bounding boxes)
+    sql_writer_process = multiprocessing.Process(target=sql_writer, args=(ProjectSQL.database, queue_unpack, dict_name_location[cls], None))  # None for cropped data in this phase
+    sql_writer_process.start()
+    print(f"SQL writer process for bounding boxes started for class {cls}.", flush=True)
+    
+    # Start the SQL writer process for phase 2 (cropping images)
+    sql_writer_process2 = multiprocessing.Process(target=sql_writer, args=(ProjectSQL.database, queue_bbox, None, dict_name_cropped[cls]))  # None for bounding boxes in this phase
+    sql_writer_process2.start()
+    print(f"SQL writer process for cropping started for class {cls}.", flush=True)
+
+    for cls in range(0, 1):
         # Phase 1: Unpack and insert bounding box data
-        queue = manager.Queue()
-
-        # Start the SQL writer process for phase 1 (bounding boxes)
-        sql_writer_process = multiprocessing.Process(target=sql_writer, args=(ProjectSQL.database, queue, dict_name_location[cls], None))  # None for cropped data in this phase
-        sql_writer_process.start()
-
+        
         # Use ProcessPoolExecutor for parallel workers (unpacking bounding boxes)
-        with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
-            futures = [
-                executor.submit(unpack_worker, ProjectSQL.database, ProjectSQL.dir_images, filename, cls, 
-                                dict_name_yolo[cls], dict_name_location[cls], dict_name_cropped[cls], Dirs, queue)
-                for filename in batch_filenames
-            ]
+        try:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+                futures = [
+                    executor.submit(unpack_worker, ProjectSQL.database, ProjectSQL.dir_images, filename, cls, 
+                                    dict_name_yolo[cls], dict_name_location[cls], dict_name_cropped[cls], Dirs, queue_unpack)
+                    for filename in batch_filenames
+                ]
 
-            # Wait for all workers to complete
-            for future in concurrent.futures.as_completed(futures):
-                future.result()  # Check for exceptions
+                # Wait for all workers to complete
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        future.result()  # Check for exceptions
+                        print(f"Unpack worker completed for class {cls}.", flush=True)
+                    except Exception as e:
+                        print(f"Error in unpack worker: {e}", flush=True)
 
-        # Send stop signal to the SQL writer for bounding boxes
-        queue.put(('STOP', None))
-        sql_writer_process.join()
+            # Send stop signal to the SQL writer for bounding boxes
+            queue_unpack.put(('STOP', None))
+            sql_writer_process.join()
+            print(f"SQL writer process for bounding boxes joined for class {cls}.", flush=True)
+        except:
+            queue_unpack.put(('STOP', None))
+            sql_writer_process.join()
+            print(f"SQL writer process for bounding boxes joined for class {cls}.", flush=True)
 
         # Phase 2: After bounding boxes are inserted, crop images based on bounding boxes
-        queue = manager.Queue()
-
-        # Start the SQL writer process for phase 2 (cropping images)
-        sql_writer_process2 = multiprocessing.Process(target=sql_writer, args=(ProjectSQL.database, queue, None, dict_name_cropped[cls]))  # None for bounding boxes in this phase
-        sql_writer_process2.start()
-
         # Use ProcessPoolExecutor for parallel workers (cropping images)
-        with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
-            futures = [
-                executor.submit(bbox_worker, ProjectSQL.database, ProjectSQL.dir_images, filename, cls, 
-                                dict_name_yolo[cls], dict_name_location[cls], dict_name_cropped[cls], Dirs, queue)
-                for filename in batch_filenames
-            ]
+        try:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=num_workers) as executor:
+                futures = [
+                    executor.submit(bbox_worker, ProjectSQL.database, ProjectSQL.dir_images, filename, cls, 
+                                    dict_name_yolo[cls], dict_name_location[cls], dict_name_cropped[cls], Dirs, queue_bbox)
+                    for filename in batch_filenames
+                ]
 
-            # Wait for all workers to complete
-            for future in concurrent.futures.as_completed(futures):
-                future.result()  # Check for exceptions
+                # Wait for all workers to complete
+                for future in concurrent.futures.as_completed(futures):
+                    try:
+                        future.result()  # Check for exceptions
+                        print(f"Bbox worker completed for class {cls}.", flush=True)
+                    except Exception as e:
+                        print(f"Error in bbox worker: {e}", flush=True)
 
-        # Send stop signal to the SQL writer for cropping images
-        queue.put(('STOP', None))
-        sql_writer_process2.join()
-
+            # Send stop signal to the SQL writer for cropping images
+            queue_bbox.put(('STOP', None))
+            sql_writer_process2.join()
+            print(f"SQL writer process for cropping joined for class {cls}.", flush=True)
+        except:
+            # Send stop signal to the SQL writer for cropping images
+            queue_bbox.put(('STOP', None))
+            sql_writer_process2.join()
+            print(f"SQL writer process for cropping joined for class {cls}.", flush=True)
 
 
     # test_sql(get_database_path(ProjectSQL), n_rows=1)
@@ -143,9 +167,9 @@ def segment_leaves(cfg, time_report, logger, dir_home, ProjectSQL, batch, n_batc
         logger.info(f'Segmenting whole leaves')
         segment_whole_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers, device_list)
 
-    if cfg['leafmachine']['leaf_segmentation']['segment_partial_leaves']:
-        logger.info(f'Segmenting partial leaves')
-        segment_partial_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers, device_list)
+    # if cfg['leafmachine']['leaf_segmentation']['segment_partial_leaves']:
+    #     logger.info(f'Segmenting partial leaves')
+    #     segment_partial_leaves(cfg, logger, dir_home, ProjectSQL, batch_filenames, Dirs, num_workers, device_list)
 
     end_t = perf_counter()
     # print(f'Batch {batch+1}/{n_batches}: Leaf Segmentation Duration --> {round((end_t - start_t)/60)} minutes')
@@ -156,45 +180,61 @@ def segment_leaves(cfg, time_report, logger, dir_home, ProjectSQL, batch, n_batc
 
 # Worker function to process each file
 def unpack_worker(ProjectSQL, dir_images, filename, cls, dict_name_yolo, dict_name_location, dict_name_cropped, Dirs, queue):
+    print(f"Unpack worker started for file: {filename}, class: {cls}", flush=True)
     # Create a new SQLite connection per worker
     conn = sqlite3.connect(ProjectSQL)
     cur = conn.cursor()
-    
-    # Unpack classes from components and store the results in a list
-    class_data = unpack_class_from_components(cur, filename, cls)
 
-    # Put the data into the queue for the SQL writer
-    if class_data:
-        queue.put(('bbox', class_data))  # Tag the data
+    try:
+        # Unpack classes from components and store the results in a list
+        class_data = unpack_class_from_components(cur, filename, cls)
 
-    conn.close()
+        # Put the data into the queue for the SQL writer
+        if class_data:
+            queue.put(('bbox', class_data))  # Tag the data
+        print(f"Unpack worker finished for file: {filename}, class: {cls}", flush=True)
+    except Exception as e:
+        print(f"Error in unpack_worker for file {filename}: {e}", flush=True)
+    finally:
+        conn.close()
 
 # Worker function to process each file
 def bbox_worker(ProjectSQL, dir_images, filename, cls, dict_name_yolo, dict_name_location, dict_name_cropped, Dirs, queue):
+    print(f"Bbox worker started for file: {filename}, class: {cls}", flush=True)
     # Create a new SQLite connection per worker
     conn = sqlite3.connect(ProjectSQL)
     cur = conn.cursor()
 
-    # Crop the images to bounding boxes and store the results in the list
-    crop_data = crop_images_to_bbox(cur, dir_images, filename, cls, dict_name_location)
-
-    # Put the data into the queue for the SQL writer
-    if crop_data:
-        queue.put(('crop', crop_data))  # Tag the data
-
-    conn.close()
+    try:
+        # Crop the images to bounding boxes and store the results in the list
+        crop_data = crop_images_to_bbox(cur, dir_images, filename, cls, dict_name_location)
+        # Put the data into the queue for the SQL writer
+        if crop_data:
+            queue.put(('crop', crop_data))  # Tag the data
+    except Exception as e:
+        print(f"Error in bbox_worker for file {filename}: {e}", flush=True)
+    finally:
+        conn.close()
 
 # Function to extract bounding box information from components (returns the data to insert)
 def unpack_class_from_components(cur, filename, cls):
+    print(f"unpack_class_from_components called for filename {filename}, class {cls}", flush=True)
+
     data = []
 
     # Get the width and height from the images table
     cur.execute("SELECT width, height FROM images WHERE name = ?", (filename,))
-    width, height = cur.fetchone()
+    result = cur.fetchone()
+    if result:
+        width, height = result
+    else:
+        print(f"No width/height found for filename {filename}", flush=True)
+        return data
 
     # Retrieve plant annotations for the given filename and class
     cur.execute("SELECT annotation FROM annotations_plant WHERE file_name = ? AND component = 'Detections_Plant_Components'", (filename,))
     plant_annotations = cur.fetchall()
+    print(f"Found {len(plant_annotations)} annotations for filename {filename}", flush=True)
 
     for annotation in plant_annotations:
         # Process the annotation data to extract bounding box coordinates
@@ -207,22 +247,29 @@ def unpack_class_from_components(cur, filename, cls):
 
             # Collect the data instead of directly inserting into SQL
             data.append((filename, cls, x_min, y_min, x_max, y_max))
-
+    
+    print(f"unpack_class_from_components returning {len(data)} items for filename {filename}, class {cls}", flush=True)
     return data
 
 # Function to crop images based on bounding box data (returns the data to insert)
 def crop_images_to_bbox(cur, dir_images, filename, cls, dict_from):
+    print(f"crop_images_to_bbox called for filename {filename}, class {cls}", flush=True)
+
     data = []
 
     # Retrieve bounding boxes from the SQL database
     cur.execute(f"SELECT x_min, y_min, x_max, y_max FROM {dict_from} WHERE file_name = ? AND class = ?", (filename, cls))
     bboxes = cur.fetchall()
+    print(f"Found {len(bboxes)} bounding boxes for filename {filename}", flush=True)
 
     # Try to load the image
     try:
         img_path = glob.glob(os.path.join(dir_images, f"{filename}.*"))[0]
         img = cv2.imread(img_path)
-    except:
+        if img is None:
+            print(f"Failed to read image at path: {img_path}", flush=True)
+    except Exception as e:
+        print(f"Error loading image for filename {filename}: {e}", flush=True)
         img = None
 
     if img is None:
@@ -238,25 +285,32 @@ def crop_images_to_bbox(cur, dir_images, filename, cls, dict_from):
         # Store the cropped image as a BLOB in the database (collect the data)
         _, img_encoded = cv2.imencode('.jpg', img_crop)
         data.append((filename, crop_name, img_encoded.tobytes()))
-
+    
+    print(f"crop_images_to_bbox returning {len(data)} items for filename {filename}, class {cls}", flush=True)
     return data
 
 # SQL writer function to handle batch inserts from the queue
 def sql_writer(ProjectSQL, queue, dict_name_location, dict_name_cropped):
+    print("SQL writer started.", flush=True)
     conn = sqlite3.connect(ProjectSQL)
     cur = conn.cursor()
 
     bbox_buffer = []
     crop_buffer = []
-    batch_size = 100
+    batch_size = 1000
+    timeout = 5  # Timeout for queue.get(), in seconds
+    stop_received = False
 
-    while True:
+
+    while not stop_received:
         try:
-            # Retrieve data from the queue
-            tag, data = queue.get()
+            # Try to retrieve data from the queue with a timeout
+            tag, data = queue.get(timeout=timeout)
 
             # Handle the stop signal
             if tag == 'STOP':
+                print("SQL writer received stop signal.", flush=True)
+                stop_received = True
                 break
 
             # Buffer data based on its tag (either 'bbox' or 'crop')
@@ -268,26 +322,31 @@ def sql_writer(ProjectSQL, queue, dict_name_location, dict_name_cropped):
             # If the buffer reaches the batch size, perform the insert
             if len(bbox_buffer) >= batch_size:
                 insert_bbox_data_in_batches(cur, bbox_buffer, dict_name_location)
+                print(f"Inserted {len(bbox_buffer)} bounding boxes.", flush=True)
                 bbox_buffer.clear()
 
             if len(crop_buffer) >= batch_size:
                 insert_crop_data_in_batches(cur, crop_buffer, dict_name_cropped)
+                print(f"Inserted {len(crop_buffer)} cropped images.", flush=True)
                 crop_buffer.clear()
 
         except Exception as e:
             # Log the exception in case of error
-            print(f"Error in SQL writer: {e}")
-            continue
+            print(f"Error in SQL writer: {e}", flush=True)
+            pass
 
     # Insert any remaining data in the buffer
     if bbox_buffer:
         insert_bbox_data_in_batches(cur, bbox_buffer, dict_name_location)
+        print(f"Inserted remaining {len(bbox_buffer)} bounding boxes.", flush=True)
 
     if crop_buffer:
         insert_crop_data_in_batches(cur, crop_buffer, dict_name_cropped)
+        print(f"Inserted remaining {len(crop_buffer)} cropped images.", flush=True)
 
     conn.commit()
     conn.close()
+    print("SQL writer finished.", flush=True)
 
 
 # # Function to insert data in batches
@@ -576,29 +635,21 @@ def segment_images_batch(cfg, dir_home, ProjectSQL, dir_images, filenames, leaf_
             # Handle full image masks
             try:
                 full_size = full_image.shape
-                if save_full_image_masks_color:
-                    full_mask = Image.new('RGB', (full_size[1], full_size[0]), color=(0, 0, 0))
+                full_mask = Image.new('RGB', (full_size[1], full_size[0]), color=(0, 0, 0))
             except:
                 full_size = full_image.size
-                if save_full_image_masks_color:
-                    full_mask = Image.new('RGB', (full_size[0], full_size[1]), color=(0, 0, 0))
+                full_mask = Image.new('RGB', (full_size[0], full_size[1]), color=(0, 0, 0))
 
-            if save_full_image_masks_color:
-                full_mask = save_masks_color(keypoint_data, save_oriented_images, save_ind_masks_color, save_full_image_masks_color, 
-                                            use_efds_for_masks, full_mask, overlay_data, cropped_overlay_size, full_size, crop_name, 
-                                            crop_name.split("__")[2], leaf_type, Dirs, CF)
+            full_mask = save_masks_color(keypoint_data, save_oriented_images, save_ind_masks_color, save_full_image_masks_color, 
+                                        use_efds_for_masks, full_mask, overlay_data, cropped_overlay_size, full_size, crop_name, 
+                                        crop_name.split("__")[2], leaf_type, Dirs, CF)
 
-            # Save full masks
+        # Save full masks
+        if save_full_image_masks_color:
             save_full_masks(save_full_image_masks_color, full_mask, filename, leaf_type, Dirs)
 
-            # Save full overlay images
-            save_full_overlay_images(save_each_segmentation_overlay_image, full_image, filename, leaf_type, Dirs)
-
-    # Save full image segmentations to PDF if configured
-    # if save_overlay_pdf:
-        # save_full_image_segmentations(save_overlay_pdf, dict_name_seg, [full_image], [filename], Dirs, cfg)
-        #  save_full_image_segmentations(save_overlay_pdf, dict_name_seg, full_images, filenames, Dirs, cfg, batch, n_batches, lock)#, start, end)
-
+        # Save full overlay images
+        save_full_overlay_images(save_each_segmentation_overlay_image, full_image, filename, leaf_type, Dirs)
     
     conn.close()
     torch.cuda.empty_cache()
@@ -631,27 +682,45 @@ def save_keypoints_results_to_sql(cur, filename, crop_name, keypoint_data):
         base_serializable = convert_ndarray_to_list(keypoint_data.get('base', []))
         all_measurements = keypoint_data.get('keypoint_measurements', [])
 
-        # Extract numerical values directly for storage
-        distance_lamina = convert_ndarray_to_list(all_measurements.get('distance_lamina', None))
-        distance_width = convert_ndarray_to_list(all_measurements.get('distance_width', None))
-        distance_petiole = convert_ndarray_to_list(all_measurements.get('distance_petiole', None))
-        distance_midvein_span = convert_ndarray_to_list(all_measurements.get('distance_midvein_span', None))
-        distance_petiole_span = convert_ndarray_to_list(all_measurements.get('distance_petiole_span', None))
-        
-        # For these, if they're arrays or more complex structures, keep them as lists and serialize
-        trace_midvein_distance_serializable = convert_ndarray_to_list(all_measurements.get('trace_midvein_distance', []))
-        trace_petiole_distance_serializable = convert_ndarray_to_list(all_measurements.get('trace_petiole_distance', []))
+        if not all_measurements:
+            # Populate with NULL or default values when keypoint_data is empty
+            keypoints_json = json.dumps([])  # Empty list for keypoints
+            angle = None
+            tip_json = json.dumps([])  # Empty list for tip
+            base_json = json.dumps([])  # Empty list for base
+            distance_lamina = None
+            distance_width = None
+            distance_petiole = None
+            distance_midvein_span = None
+            distance_petiole_span = None
+            trace_midvein_distance_serializable = None  # Empty list for trace midvein distance
+            trace_petiole_distance_serializable = None  # Empty list for trace petiole distance
+            apex_angle = None
+            apex_is_reflex = 0  # Default to False (0)
+            base_angle = None
+            base_is_reflex = 0  # Default to False (0)
+        else:
+            # Extract numerical values directly for storage
+            distance_lamina = convert_ndarray_to_list(all_measurements.get('distance_lamina', None))
+            distance_width = convert_ndarray_to_list(all_measurements.get('distance_width', None))
+            distance_petiole = convert_ndarray_to_list(all_measurements.get('distance_petiole', None))
+            distance_midvein_span = convert_ndarray_to_list(all_measurements.get('distance_midvein_span', None))
+            distance_petiole_span = convert_ndarray_to_list(all_measurements.get('distance_petiole_span', None))
+            
+            # For these, if they're arrays or more complex structures, keep them as lists and serialize
+            trace_midvein_distance_serializable = convert_ndarray_to_list(all_measurements.get('trace_midvein_distance', []))
+            trace_petiole_distance_serializable = convert_ndarray_to_list(all_measurements.get('trace_petiole_distance', []))
 
-        # Angle and reflex attributes
-        apex_angle = convert_ndarray_to_list(all_measurements.get('apex_angle', None))
-        apex_is_reflex = 1 if all_measurements.get('apex_is_reflex', False) else 0
-        base_angle = convert_ndarray_to_list(all_measurements.get('base_angle', None))
-        base_is_reflex = 1 if all_measurements.get('base_is_reflex', False) else 0
+            # Angle and reflex attributes
+            apex_angle = convert_ndarray_to_list(all_measurements.get('apex_angle', None))
+            apex_is_reflex = 1 if all_measurements.get('apex_is_reflex', False) else 0
+            base_angle = convert_ndarray_to_list(all_measurements.get('base_angle', None))
+            base_is_reflex = 1 if all_measurements.get('base_is_reflex', False) else 0
 
-        # Serialize the data to JSON
-        keypoints_json = json.dumps(keypoints_serializable)
-        tip_json = json.dumps(tip_serializable)
-        base_json = json.dumps(base_serializable)
+            # Serialize the data to JSON
+            keypoints_json = json.dumps(keypoints_serializable)
+            tip_json = json.dumps(tip_serializable)
+            base_json = json.dumps(base_serializable)
 
     else:
         # Populate with NULL or default values when keypoint_data is empty
@@ -664,8 +733,8 @@ def save_keypoints_results_to_sql(cur, filename, crop_name, keypoint_data):
         distance_petiole = None
         distance_midvein_span = None
         distance_petiole_span = None
-        trace_midvein_distance_serializable = json.dumps([])  # Empty list for trace midvein distance
-        trace_petiole_distance_serializable = json.dumps([])  # Empty list for trace petiole distance
+        trace_midvein_distance_serializable = None  # Empty list for trace midvein distance
+        trace_petiole_distance_serializable = None  # Empty list for trace petiole distance
         apex_angle = None
         apex_is_reflex = 0  # Default to False (0)
         base_angle = None
@@ -1100,21 +1169,29 @@ def save_rgb_cropped(save_rgb_cropped_images, seg_name, img_cropped, leaf_type, 
 
 ##### For mask saving
 def rotate_mask_using_keypoint_data(dir_out, seg_name, save_oriented_images, keypoint_data, img):
-    # Handle rotation 
-    img_cv2 = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-    angle = keypoint_data[seg_name]['angle']
-    oriented_mask = rotate_image(-angle, img_cv2, save_oriented_images)
-    ### oriented_mask = Image.fromarray(cv2.cvtColor(oriented_mask, cv2.COLOR_BGR2RGB))
-    ### oriented_mask.save(os.path.join(dir_out, '.'.join([seg_name, 'png'])))
-    
-    # cv2.imwrite(os.path.join(dir_out, '.'.join([seg_name, 'png'])), oriented_mask)
+    # Check if seg_name exists in keypoint_data and contains 'angle'
+    if seg_name not in keypoint_data or 'angle' not in keypoint_data[seg_name]:
+        print(f"Warning: 'angle' data missing for {seg_name}. Skipping rotation.")
+        return None, None
 
-    # return oriented_mask, -angle
+    # Get the angle, check if it's None
+    angle = keypoint_data[seg_name]['angle']
+    if angle is None:
+        print(f"Warning: 'angle' is None for {seg_name}. Skipping rotation.")
+        return None, None
+
+    # Proceed with rotation
+    img_cv2 = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    oriented_mask = rotate_image(-angle, img_cv2, save_oriented_images)
+
+    if oriented_mask is None:
+        print(f"Error: Rotation failed for {seg_name}.")
+        return None, None
 
     # Find centroids of the petiole and leaf
     color_leaf = (0, 255, 46)
     color_petiole = (255, 173, 0)
-    
+
     def find_centroid(color, img):
         mask = cv2.inRange(img, np.array(color), np.array(color))
         moments = cv2.moments(mask)
@@ -1428,6 +1505,40 @@ def save_simple_txt(dir_simple_txt, rotated_contour, top, bottom, closest_tip_po
     # Open the file in write mode
     with open(file_path, 'w') as file:
         # Write the height and width of the original image
+        file.write(f"{full_size[0]}\n") # width 
+        file.write(f"{full_size[1]}\n") # height
+
+        # Write the conversion factor
+        file.write(f"{CF}\n") # CF
+
+        # Scaling factor
+        file.write(f"{max_extent}\n") # scaling factor
+        file.write(f"{x_min}\n") # scaling factor
+        file.write(f"{y_min}\n") # scaling factor
+
+        # Write the angle to the first line
+        file.write(f"{angle}\n")
+        # Write the topmost point 
+        file.write(f"{top[0]},{top[1]}\n")
+        # Write the bottommost point
+        file.write(f"{bottom[0]},{bottom[1]}\n")
+        # Write the closest_tip_point point to the 4th line
+        file.write(f"{closest_tip_point[0]},{closest_tip_point[1]}\n")
+        # Write the closest_base_point point to the 5th line
+        file.write(f"{closest_base_point[0]},{closest_base_point[1]}\n")
+        # Write each coordinate pair from the rotated contour
+        for x, y in rotated_contour:
+            file.write(f"{x},{y}\n")
+
+def save_simple_txt_Douglas_Peucker(dir_simple_txt_DP, rotated_contour, top, bottom, closest_tip_point, closest_base_point, angle, filename, 
+                    full_size, CF, max_extent, x_min, y_min):
+    # Construct the full path for the txt file
+    file_path = os.path.join(dir_simple_txt_DP, '.'.join([filename, 'txt']))
+    rotated_contour_DP = simplify_contour(rotated_contour)
+    
+    # Open the file in write mode
+    with open(file_path, 'w') as file:
+        # Write the height and width of the original image
         file.write(f"{full_size[0]}\n") # height
         file.write(f"{full_size[1]}\n") # width
 
@@ -1450,14 +1561,17 @@ def save_simple_txt(dir_simple_txt, rotated_contour, top, bottom, closest_tip_po
         # Write the closest_base_point point to the 5th line
         file.write(f"{closest_base_point[0]},{closest_base_point[1]}\n")
         # Write each coordinate pair from the rotated contour
-        for x, y in rotated_contour:
+        for x, y in rotated_contour_DP:
             file.write(f"{x},{y}\n")
 
 def save_raw_contour_txt(dir_raw_txt, raw_contour, seg_name, full_size, CF, angle):
     # Construct the full path for the raw txt file
     file_path = os.path.join(dir_raw_txt, f'{seg_name}.txt')
     bbox_str = seg_name.split('__L__')[-1].split('.')[0]
-    bbox = tuple(map(int, bbox_str.split('-')))
+    try:
+        bbox = tuple(map(int, bbox_str.split('-')))
+    except:
+        bbox = (0, 0, 0, 0)
     
     # Open the file in write mode
     with open(file_path, 'w') as file:
@@ -1480,9 +1594,62 @@ def save_raw_contour_txt(dir_raw_txt, raw_contour, seg_name, full_size, CF, angl
         # Write each coordinate pair from the raw contour
         for x, y in raw_contour:
             file.write(f"{x},{y}\n")
+
+
+def simplify_contour(raw_contour, tolerances=[0.0025], cutoff=500, report_stats=False):
+    """
+    SAME AS VERSION IN ECT METHODS, BUT WITH PLOTTING REMOVED
+
+    Simplify the contour of a given component using the Douglas-Peucker algorithm, 
+    with the option to plot the simplified contours for multiple tolerance levels and report statistics.
+    
+    Args:
+        tolerances (list or float): A list of tolerance values for the Douglas-Peucker algorithm.
+                                    If a single float is provided, it will be converted to a list.
+        cutoff (int): If the number of points in the original contour is below this value, the contour is not simplified.
+        report_stats (bool): Whether to report statistics on the number of points before and after simplification.
+    
+    Returns:
+        np.ndarray: Simplified contour points for the first tolerance in the list, or None in demo_mode.
+    """
+    # Convert a single tolerance to a list if necessary
+    if isinstance(tolerances, float) or isinstance(tolerances, int):
+        tolerances = [tolerances]
+
+    if raw_contour is None:
+        return None
+
+    first_simplified_points = None
+    original_point_count = len(raw_contour)
+
+    if original_point_count <= cutoff:
+        if report_stats:
+            print(f"Original contour has less than cutoff={cutoff} points. Using original {original_point_count} contour points.")
+
+        return raw_contour
+
+    else:
+        # Apply the Douglas-Peucker algorithm for each tolerance
+        for i, tolerance in enumerate(tolerances):
+            line = LineString(raw_contour)
+            simplified_line = line.simplify(tolerance, preserve_topology=True)
+            simplified_points = np.array(simplified_line.coords)
+
+            if i == 0:
+                first_simplified_points = simplified_points
+
+            simplified_point_count = len(simplified_points)
+            if report_stats:
+                print(f"Tolerance {tolerance}: {simplified_point_count} points "
+                        f"(reduced by {original_point_count - simplified_point_count})")
+
+        return first_simplified_points
+
+
+
 #######
 
-def save_masks_color(keypoint_data, save_oriented_images, save_individual_masks_color, save_full_image_masks_color, 
+def save_masks_color(keypoint_data, save_oriented_images, save_ind_masks_color, save_full_image_masks_color, 
                      use_efds_for_masks, full_mask, overlay_data, cropped_overlay_size, full_size, seg_name, seg_name_short, 
                      leaf_type, Dirs, CF):
     if len(overlay_data) > 0:
@@ -1494,9 +1661,9 @@ def save_masks_color(keypoint_data, save_oriented_images, save_individual_masks_
         else:
             use_polys = overlay_poly
         
-        if save_individual_masks_color:
 
-            ### Normal image
+        ### Normal image
+        if leaf_type == 0:
             # Create a black image
             img = Image.new('RGB', (cropped_overlay_size[1], cropped_overlay_size[0]), color=(0, 0, 0))
             draw = ImageDraw.Draw(img)
@@ -1526,37 +1693,40 @@ def save_masks_color(keypoint_data, save_oriented_images, save_individual_masks_
                             color = [255, 255, 255]
                     # Draw the filled polygon on the image
                     draw.polygon(poly, fill=tuple(color))
-            if leaf_type == 0:
+
+            if save_ind_masks_color:
                 img.save(os.path.join(Dirs.segmentation_masks_color_whole_leaves, '.'.join([seg_name, 'png'])))
 
-                # Handle rotation 
-                if keypoint_data:
-                    oriented_mask, angle = rotate_mask_using_keypoint_data(Dirs.dir_oriented_masks, seg_name, save_oriented_images, keypoint_data, img)
+            # Handle rotation 
+            if keypoint_data:
+                oriented_mask, angle = rotate_mask_using_keypoint_data(Dirs.dir_oriented_masks, seg_name, save_oriented_images, keypoint_data, img)
 
+                if oriented_mask is not None:
                     # Simple txt file
                     unique_colors = find_unique_colors(oriented_mask)
                     mask_leaf, masks, has_leaf_color = segment_masks(unique_colors, oriented_mask)
                     if has_leaf_color:
-                        # TODO ********* add original image's height/width & conversion factor to both txts as the first 2 lines
                         raw_contour, rotated_contour, max_extent, x_min, y_min, top, bottom, closest_tip_point, closest_base_point = create_perimeter_normalize(mask_leaf, keypoint_data, seg_name) 
                         save_simple_txt(Dirs.dir_simple_txt, rotated_contour, top, bottom, closest_tip_point, closest_base_point, angle, seg_name, full_size, CF, max_extent, x_min, y_min)
                         save_raw_contour_txt(Dirs.dir_simple_raw_txt, raw_contour, seg_name, full_size, CF, angle)
+                        save_simple_txt_Douglas_Peucker(Dirs.dir_simple_txt_DP, rotated_contour, top, bottom, closest_tip_point, closest_base_point, angle, seg_name, full_size, CF, max_extent, x_min, y_min)
 
-
-            elif leaf_type == 1:
+        elif leaf_type == 1:
+            if save_ind_masks_color:
                 img.save(os.path.join(Dirs.segmentation_masks_color_partial_leaves, '.'.join([seg_name, 'png'])))
 
-                # Handle rotation 
-                if keypoint_data:
-                    oriented_mask, angle = rotate_mask_using_keypoint_data(Dirs.dir_oriented_masks, seg_name, save_oriented_images, keypoint_data, img)
+            # Handle rotation 
+            if keypoint_data:
+                oriented_mask, angle = rotate_mask_using_keypoint_data(Dirs.dir_oriented_masks, seg_name, save_oriented_images, keypoint_data, img)
 
-                    # Simple txt file
-                    unique_colors = find_unique_colors(oriented_mask)
-                    mask_leaf, masks, has_leaf_color = segment_masks(unique_colors, oriented_mask)
-                    if has_leaf_color:
-                        raw_contour, rotated_contour, max_extent, x_min, y_min, top, bottom = create_perimeter_normalize(mask_leaf, keypoint_data, seg_name)
-                        save_simple_txt(Dirs.dir_simple_txt, rotated_contour, top, bottom, closest_tip_point, closest_base_point, angle, seg_name, full_size, CF, max_extent, x_min, y_min)
-                        save_raw_contour_txt(Dirs.dir_simple_raw_txt, raw_contour, seg_name, full_size, CF, angle)
+                # Simple txt file
+                unique_colors = find_unique_colors(oriented_mask)
+                mask_leaf, masks, has_leaf_color = segment_masks(unique_colors, oriented_mask)
+                if has_leaf_color:
+                    raw_contour, rotated_contour, max_extent, x_min, y_min, top, bottom = create_perimeter_normalize(mask_leaf, keypoint_data, seg_name)
+                    save_simple_txt(Dirs.dir_simple_txt, rotated_contour, top, bottom, closest_tip_point, closest_base_point, angle, seg_name, full_size, CF, max_extent, x_min, y_min)
+                    save_raw_contour_txt(Dirs.dir_simple_raw_txt, raw_contour, seg_name, full_size, CF, angle)
+                    save_simple_txt_Douglas_Peucker(Dirs.dir_simple_txt_DP, rotated_contour, top, bottom, closest_tip_point, closest_base_point, angle, seg_name, full_size, CF, max_extent, x_min, y_min)
 
         if save_full_image_masks_color:
             if '-' in seg_name_short:
@@ -1818,7 +1988,11 @@ def create_overlay_and_calculate_props(keypoint_data, seg_name, img_cropped, out
     draw = ImageDraw.Draw(cropped_overlay, "RGBA")
 
     # parse seg_name
-    seg_name_short = seg_name.split("__")[2]
+    try:
+        seg_name_short = seg_name.split("__")[2]
+    except:
+        seg_name_short = seg_name.split("__")[1]
+
 
     # List of instances
     detected_components = []

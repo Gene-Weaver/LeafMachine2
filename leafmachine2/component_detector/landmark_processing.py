@@ -1119,7 +1119,16 @@ class LeafSkeleton:
         perp_vector = np.array([-centroid_vector[1], centroid_vector[0]])
 
         # normalize the perpendicular vector
-        perp_unit_vector = perp_vector / np.linalg.norm(perp_vector)
+        # perp_unit_vector = perp_vector / np.linalg.norm(perp_vector)
+        # Calculate the norm (magnitude) of the perpendicular vector
+        norm = np.linalg.norm(perp_vector)
+
+        # Only normalize if the norm is non-zero
+        if norm > 0:
+            perp_unit_vector = perp_vector / norm
+        else:
+            # Handle the case where perp_vector is essentially zero (e.g., set it to a default or zero vector)
+            perp_unit_vector = np.array([0, 0])  # or another default value if necessary
 
         # define the length of the line segment
         # line_segment_length = np.linalg.norm(centroid_vector) / 2

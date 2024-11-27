@@ -9,11 +9,6 @@ from scipy.stats.mstats import gmean
 from scipy.spatial.distance import pdist, squareform
 from skimage.measure import label, regionprops_table
 from skimage.util import crop
-from concurrent.futures import ProcessPoolExecutor
-from functools import partial
-from multiprocessing import Manager
-import concurrent.futures
-from threading import Lock
 import torch
 import os, argparse, time, copy, cv2, wandb
 import torch
@@ -21,22 +16,22 @@ from torchvision import *
 from sklearn.cluster import KMeans
 import statistics
 import csv, logging
-from threading import Thread
 from queue import Queue
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
 from time import perf_counter
 from binarize_image_ML import DocEnTR
-from multiprocessing import Process, Queue
-from queue import Empty  # Correct import from queue
+# from multiprocessing.queues import Empty
 from PIL import Image
+import multiprocessing
+
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 parentdir2 = os.path.dirname(os.path.dirname(currentdir))
 sys.path.append(parentdir)
 sys.path.append(parentdir2)
 sys.path.append(currentdir)
-# from machine.general_utils import print_plain_to_console, print_blue_to_console, print_green_to_console, print_warning_to_console, print_cyan_to_console
+# from machine.general_utils import print_plain_to_console, print_blue_to_console, print_CGREENo_console, print_warning_to_console, print_cyan_to_console
 # from machine.general_utils import bcolors
 from leafmachine2.analysis.predict_pixel_to_metric_conversion_factor import PolynomialModel
 from leafmachine2.machine.LM2_logger import start_worker_logging, merge_worker_logs
@@ -233,7 +228,8 @@ def process_ruler_single(cfg, logger, dir_home, Project, batch, Dirs, Labels, mo
     Ruler_Info = convert_pixels_to_metric(logger, RulerCFG, Ruler, ruler_crop_name, Dirs)
 
     if any(unit in Ruler_Info.conversion_data_all for unit in ['smallCM', 'halfCM', 'mm']):
-        units_save = Ruler_Info.conversion_data_all
+        units_save = Ruler_Info.unit_list 
+        # units_save = Ruler_Info.conversion_data_all
         if units_save == []:
             units_save = 0
         plot_points = Ruler_Info.data_list
@@ -414,12 +410,8 @@ def calc_MP(full_image):
 
 def convert_rulers(cfg, time_report, logger, dir_home, ProjectSQL, batch, batch_filenames, Dirs, batch_size=100):
     num_workers = cfg['leafmachine']['project']['num_workers_ruler']
-
-    if cfg['leafmachine']['project']['device'] == 'cuda':
-        num_gpus = int(cfg['leafmachine']['project'].get('num_gpus', 1))  # Default to 1 GPU if not specified
-        device_list = [i for i in range(num_gpus)]  # List of GPU indices like [0, 1, 2, ...]
-    else:
-        device_list = ['cpu']  # Default to CPU if CUDA is not available
+    device_list = [0] if cfg['leafmachine']['project']['device'] == 'cuda' else ['cpu']
+    BLANK_SPACE = 30
     
     t1_start = perf_counter()
     logger.info(f"Converting Rulers in batch {batch+1}")
@@ -428,75 +420,214 @@ def convert_rulers(cfg, time_report, logger, dir_home, ProjectSQL, batch, batch_
     num_files = len(filenames)
     chunk_size = max((num_files + num_workers - 1) // num_workers, 4)
 
-    queue = Queue()
-    result_queue = Queue()
-    status_queue = Queue()  # New status queue for heartbeat messages
-    workers = []
+    queue = multiprocessing.Queue()
+    result_queue = multiprocessing.Queue()
+    status_queue = multiprocessing.Queue()
+    monitor_queue = multiprocessing.Queue()
+    workers = {}
 
-    worker_id = 0  # Unique worker ID
+    # Use 'spawn' start method
+    mp_context = multiprocessing.get_context('spawn')
 
     # Assign workers in a round-robin fashion across devices
     for worker_id in range(num_workers):
-        device = device_list[worker_id % len(device_list)]  # Cycle through available devices
-        p = Process(target=worker, args=(queue, result_queue, status_queue, worker_id, cfg, dir_home, ProjectSQL.database, ProjectSQL.dir_images, Dirs, device))
+        device = device_list[worker_id % len(device_list)]
+        p = mp_context.Process(target=worker, args=(
+            queue, result_queue, status_queue, worker_id, cfg, dir_home,
+            ProjectSQL.database, ProjectSQL.dir_images, Dirs, device))
         p.start()
-        workers.append(p)
+        workers[worker_id] = p
         logger.info(f"Starting worker {worker_id} on device {device}")
 
     # Start monitoring worker status in a separate process
-    monitor_process = Process(target=monitor_worker_status, args=(status_queue, num_workers))
+    monitor_process = mp_context.Process(target=monitor_worker_status, args=(
+        status_queue, num_workers, monitor_queue))
     monitor_process.start()
 
     # Enqueue work
-    for i in range(0, num_files, chunk_size):
-        queue.put(filenames[i:i + chunk_size])
+    # for i in range(0, num_files, chunk_size):
+    #     queue.put(filenames[i:i + chunk_size])
+    for filename in filenames:
+        queue.put(filename)
 
     for _ in range(num_workers):
         queue.put(None)  # send stop signal to all workers
 
     all_results = []
     completed_workers = 0
-    while completed_workers < num_workers:
-        try:
-            result = result_queue.get()
-            if result is None:
-                completed_workers += 1
-            else:
-                all_results.extend(result)
+    completed_worker_ids = set()  # Track completed worker IDs
+    worker_statuses = {i: 'running' for i in range(num_workers)}  # Track worker statuses
 
-        except Empty:  # Correct usage for handling empty queue timeout
-            logger.error("Timeout: One or more workers took too long to respond.")
+    while completed_workers < num_workers:
+        # Check for timed-out workers
+        try:
+            timed_out_worker = monitor_queue.get(timeout=10)
+            if timed_out_worker not in completed_worker_ids:
+                # Update worker status
+                worker_statuses[timed_out_worker] = 'unresponsive'
+                # Terminate the worker
+                # p = workers.get(timed_out_worker)
+                # if p and p.is_alive():
+                    # p.terminate()
+                    # logger.warning(f"Worker {timed_out_worker} was unresponsive and terminated.")
+                completed_worker_ids.add(timed_out_worker)
+                completed_workers += 1
+
+                # Print the message with formatting
+                print(f"{bcolors.CGREENBG}{' ' * BLANK_SPACE}{bcolors.ENDC}")
+                print(f"{bcolors.CGREENBG}Worker {timed_out_worker} is unresponsive or finished{bcolors.ENDC}")
+                print(f"{bcolors.CGREENBG}{' ' * BLANK_SPACE}{bcolors.ENDC}")
+
+            # Print cumulative status
+            print("\nCurrent worker statuses:")
+            for wid, status in worker_statuses.items():
+                if status == "running":
+                    # Magenta text for running workers
+                    print(f"{bcolors.CVIOLETBG}Worker {wid}: {status}{bcolors.ENDC}")
+                elif status == "finished":
+                    # Green text for finished workers
+                    print(f"{bcolors.CGREENBG2}Worker {wid}: {status}{bcolors.ENDC}")
+                else:
+                    # Default text for other statuses
+                    print(f"{bcolors.CGREYBG}Worker {wid}: {status}{bcolors.ENDC}")
+        except Exception as e:
+            print(f"First try: {e}")
+            # No workers are marked unresponsive; check if all workers are finished
+            pass  # Timeout handling allows the loop to continue
+
+
+        try:
+            print("Status: result = result_queue.get(timeout=10) BEFORE")
+            result = result_queue.get(timeout=10)
+            print("Status: rresult = result_queue.get(timeout=10) AFTER")
+
+        except Exception as e:
+            print("Result queue is empty, waiting 10 seconds...")
+            time.sleep(10)
+            continue
+
+
+        worker_id = None
+        if isinstance(result, tuple):
+            worker_id, status = result
+            if worker_id is not None and worker_id not in completed_worker_ids and status in [None, 'error', 'unresponsive']:
+                # Worker has finished
+                worker_statuses[worker_id] = 'finished'
+                completed_workers += 1
+                completed_worker_ids.add(worker_id)
+
+                # Print the message with formatting
+                print(f"{bcolors.CGREENBG}{' ' * BLANK_SPACE}{bcolors.ENDC}")
+                print(f"{bcolors.CGREENBG}Worker {worker_id} has finished{bcolors.ENDC}")
+                print(f"{bcolors.CGREENBG}{' ' * BLANK_SPACE}{bcolors.ENDC}")
+            else:
+                print(f"{bcolors.CYELLOWBG2}Worker {wid}: {status}{bcolors.ENDC}")
+                pass
+
+            # Print cumulative status
+            print("\nCurrent worker statuses 2:")
+            for wid, status in worker_statuses.items():
+                if status == "running":
+                    # Magenta text for running workers
+                    print(f"{bcolors.CVIOLETBG}Worker {wid}: {status}{bcolors.ENDC}")
+                elif status == "finished":
+                    # Green text for finished workers
+                    print(f"{bcolors.CGREENBG2}Worker {wid}: {status}{bcolors.ENDC}")
+                else:
+                    # Default text for other statuses
+                    print(f"{bcolors.CGREYBG}Worker {wid}: {status}{bcolors.ENDC}")
+        else:
+            # Regular results
+            all_results.extend(result)
+            print("Status: all_results.extend(result)")
+
+    # After the while loop ends, collect any remaining results
+    while True:
+        try:
+            print("TRY")
+            result = result_queue.get(timeout=5)
+            if isinstance(result, tuple):
+                print("TRY IF")
+                # Handle worker completion messages if any
+                worker_id, status = result
+                print(f"TRY IF {result}")
+
+                # Update statuses as needed
+            else:
+                print("TRY ELSE")
+                # Regular results
+                all_results.extend(result)
+        except Exception as e:
+            print(f'TRY EXCEPT BREAK {e}')
             break
 
-    # Check if any workers have hung
-    timed_out_worker = monitor_process.join()
-    if timed_out_worker is not None:
-        logger.warning(f"Worker {timed_out_worker} has timed out and will be terminated.")
-        for p in workers:
-            if p.pid == timed_out_worker:
-                p.terminate()  # Terminate the timed-out worker
-
     # Wait for all workers to finish
-    for p in workers:
-        p.join()
+    logger.info("Terminating all workers...")
+    for p in workers.values():
+        if p.is_alive():
+            logger.warning(f"Terminating worker {p.pid}")
+            p.terminate()  # Force terminate all alive workers
+        p.join()  # Ensure all processes are cleaned up properly
+    logger.info("Terminated")
+    monitor_process.terminate()
+    monitor_process.join()
 
 
-    monitor_process.terminate()  # Stop the monitor process
-
-    # After all workers are done, insert data into the database in chunks
-    conn = sqlite3.connect(ProjectSQL.database)
-    cur = conn.cursor()
-
+    logger.info(f"Committing [{len(all_results)}] data rows...")
     # Chunk insert to avoid write conflicts
-    for i in range(0, len(all_results), batch_size):
-        batch_data = all_results[i:i + batch_size]
-        cur.executemany("""
-            INSERT INTO ruler_data (file_name, ruler_image_name, success, conversion_mean, predicted_conversion_factor_cm, pooled_sd, ruler_class, 
-                                    ruler_class_confidence, units, cross_validation_count, n_scanlines, n_data_points_in_avg, avg_tick_width, plot_points)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""", batch_data)
-        conn.commit()
+    try:
+        # Use context managers for connection and cursor to ensure proper cleanup
+        with sqlite3.connect(ProjectSQL.database) as conn:
+            cur = conn.cursor()
+            
 
-    conn.close()
+
+            # Retrieve and process all annotations to count the total number of rulers
+            cur.execute("SELECT annotation FROM annotations_archival")
+            all_annotations = cur.fetchall()
+
+            expected_rulers_total = 0
+            for component in all_annotations:
+                component_data = list(map(float, component[0].split(',')))
+                # Check if the first value indicates a ruler (row[0] == 0 implies it's a ruler)
+                if component_data[0] == 0:
+                    expected_rulers_total += 1
+
+
+
+            total_rows = 0
+            for i in range(0, len(all_results), batch_size):
+                batch_data = all_results[i:i + batch_size]
+                logger.info(f'Inserting batch {i} to {i + len(batch_data)}')
+
+                # Executemany for batch insertion
+                cur.executemany("""
+                    INSERT INTO ruler_data (
+                        file_name, ruler_image_name, success, conversion_mean, 
+                        predicted_conversion_factor_cm, pooled_sd, ruler_class, 
+                        ruler_class_confidence, units, cross_validation_count, 
+                        n_scanlines, n_data_points_in_avg, avg_tick_width, plot_points
+                    ) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, batch_data)
+
+            # Commit once after the entire batch insertion
+            conn.commit()
+            logger.info("All data successfully committed to the database.")
+
+            # Verify the total number of rows inserted
+            cur.execute("SELECT COUNT(*) FROM ruler_data")
+            total_rows = cur.fetchone()[0]
+
+    except sqlite3.DatabaseError as e:
+        logger.error(f"Database error occurred: {e}")
+    except Exception as e:
+        logger.error(f"Unexpected error occurred: {e}")
+
+    logger.info(f"Tried to commit [{len(all_results)}] rulers.")
+    logger.info(f"Actually committed [{total_rows}], Expected ruler count from DB: [{expected_rulers_total}]")
+    if total_rows != expected_rulers_total:
+        logger.warning(f"Discrepancy detected: committed {total_rows} rulers but expected {expected_rulers_total}")
 
     merge_worker_logs(Dirs, num_workers, main_log_name='ruler_logs', log_name_stem='worker_log_ruler')
 
@@ -506,65 +637,88 @@ def convert_rulers(cfg, time_report, logger, dir_home, ProjectSQL, batch, batch_
     time_report['t_rulers'] = t_rulers
     return ProjectSQL, time_report
 
-# Move the worker function to the top level
-def worker(queue, result_queue, status_queue, worker_id, cfg, dir_home, ProjectSQL, dir_images, Dirs, device):
+def worker(queue_work, result_queue, status_queue, worker_id, cfg, dir_home, ProjectSQL, dir_images, Dirs, device):
+    completion_signal_sent = False  # Track if completion signal has been sent
     try:
         RulerCFG = RulerConfig(dir_home, Dirs, cfg, device)
         Labels = DocEnTR()
-        model, __device = Labels.load_DocEnTR_model(device)  # Load model on each process
+        model, __device = Labels.load_DocEnTR_model(device)
         poly_model = PolynomialModel()
         poly_model.load_polynomial_model()
         wlogger, wlogger_path = start_worker_logging(worker_id, Dirs, log_name='worker_log_ruler')
 
         use_CF_predictor = cfg['leafmachine']['project']['use_CF_predictor']
 
+        # Main processing loop
         while True:
-            filenames_chunk = queue.get()
-            if filenames_chunk is None:  # Stop signal
+            try:
+                filename = queue_work.get(timeout=10)
+                if filename is None:  # Stop signal
+                    break
+
+                try:
+                    # Process the filename
+                    result = process_filename(
+                        wlogger, filename, cfg, dir_home, ProjectSQL, dir_images, Dirs,
+                        RulerCFG, Labels, model, device, poly_model, use_CF_predictor
+                    )
+
+                    if not result:
+                        wlogger.warning("Status: no result")
+                        result = [(filename, None, False, None, 0, 0, 'no_rulers', 0, 'no_rulers', 0, 0, 0, 0, None)]
+
+                    # Send the result to the result_queue
+                    result_queue.put(result)
+
+                    # Send a heartbeat to the status_queue
+                    status_queue.put((worker_id, time.time()))
+                    wlogger.warning("Status: Sent heartbeat to status_queue.")
+
+                except Exception as e:
+                    wlogger.error(f"Error processing file {filename}: {e}")
+                    continue
+
+            except Exception as e:
+                wlogger.info(f"No more files to process for worker {worker_id}.")
                 break
 
-            results = []
-            for filename in filenames_chunk:
-                # Process the filename (this is the long task)
-                results.extend(process_filename(wlogger, filename, cfg, dir_home, ProjectSQL, dir_images, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor))
-
-                # Send a heartbeat to the status queue after each filename
-                status_queue.put((worker_id, time.time()))  # Send worker id and current timestamp
-
-            result_queue.put(results)  # Send the results back to the main process
-
     except Exception as e:
-        wlogger.error(f"Error in worker {worker_id}: {str(e)}")
+        wlogger.error(f"Fatal error in worker {worker_id}: {str(e)}")
+        # Decide whether to send an error signal or simply log and let the worker exit
+        # For now, we'll let the worker exit and send the completion signal in finally
 
     finally:
-        result_queue.put(None)  # Signal that this worker has finished
-        wlogger.info("Clearing GPU memory in worker...")
+        if not completion_signal_sent:
+            wlogger.info(f"Worker {worker_id} is shutting down.")
+            result_queue.put((worker_id, None))  # Signal completion
+            completion_signal_sent = True
         del model, poly_model
         torch.cuda.empty_cache()
 
-def monitor_worker_status(status_queue, worker_count, timeout=600):
-    """
-    Monitor the workers' heartbeats and terminate if any worker is unresponsive.
-    """
-    worker_last_seen = {i: time.time() for i in range(worker_count)}
+def monitor_worker_status(status_queue, num_workers, monitor_queue, timeout=30):
+    worker_last_seen = {}
+    unresponsive_workers = set()
 
-    while True:
-        try:
-            worker_id, heartbeat = status_queue.get(timeout=1)  # Check the status queue for updates
-            worker_last_seen[worker_id] = heartbeat  # Update the last seen time for this worker
-        except multiprocessing.queues.Empty:
-            # No heartbeats received in the last second, check if any workers have timed out
-            current_time = time.time()
-            for worker_id, last_seen in worker_last_seen.items():
-                if current_time - last_seen > timeout:
-                    return worker_id  # This worker has timed out
+    while len(unresponsive_workers) < num_workers:
+        current_time = time.time()
+
+        # Collect heartbeats from workers
+        while not status_queue.empty():
+            worker_id, last_heartbeat = status_queue.get()
+            worker_last_seen[worker_id] = last_heartbeat
+
+        # Check for unresponsive workers
+        for worker_id in range(num_workers):
+            if worker_id in unresponsive_workers:
+                continue
+            last_seen = worker_last_seen.get(worker_id, 0)
+            if current_time - last_seen > timeout:
+                monitor_queue.put(worker_id)  # Notify main process
+                unresponsive_workers.add(worker_id)  # Only mark them once
 
 def process_filename(wlogger, filename, cfg, dir_home, ProjectSQL, dir_images, Dirs, RulerCFG, Labels, model, device, poly_model, use_CF_predictor):
-    # This function no longer inserts data directly into the database.
-    # Instead, it returns the data to be inserted later by the main process.
-    
-    results = []  # Collect results here
-    
+    results = []
+
     try:
         # Create a new connection in this worker process
         conn = sqlite3.connect(ProjectSQL)
@@ -574,7 +728,7 @@ def process_filename(wlogger, filename, cfg, dir_home, ProjectSQL, dir_images, D
         cur.execute("SELECT width, height FROM images WHERE name = ?", (filename,))
         dimensions = cur.fetchone()
         if not dimensions:
-            print(f"No dimensions found for {filename}")
+            wlogger.warning(f"No dimensions found for {filename}")
             conn.close()
             return []
         width, height = dimensions
@@ -596,7 +750,7 @@ def process_filename(wlogger, filename, cfg, dir_home, ProjectSQL, dir_images, D
         }
 
         if len(analysis) != 0:
-            print(f"Processing file: {filename}")
+            wlogger.info(f"Processing file: {filename}")
 
             try:
                 image_path = glob.glob(os.path.join(dir_images, filename + '.*'))[0]
@@ -607,6 +761,8 @@ def process_filename(wlogger, filename, cfg, dir_home, ProjectSQL, dir_images, D
             # Predict conversion factor using the polynomial model
             MP_value = calc_MP(full_image)
             predicted_conversion_factor_cm = poly_model.predict_with_polynomial_single(MP_value)
+            if predicted_conversion_factor_cm is None:
+                print("predicted_conversion_factor_cm is None")
             wlogger.info(f"Predicted conversion mean for MP={MP_value}: {predicted_conversion_factor_cm}")
 
             archival = analysis.get('Detections_Archival_Components', [])
@@ -617,6 +773,13 @@ def process_filename(wlogger, filename, cfg, dir_home, ProjectSQL, dir_images, D
                 ruler_list = [row for row in archival if row[0] == 0]
                 if len(ruler_list) < 1:
                     wlogger.info('No rulers detected')
+                    result = (
+                            filename, 'no_ruler', False, 0,
+                            predicted_conversion_factor_cm, 0, 'no_ruler',
+                            0, 'no_ruler', 0,
+                            0, 0, 0, None
+                        )
+                    results.append(result)
                 else:
                     for ruler in ruler_list:
                         ruler_location = yolo_to_position_ruler(ruler, height, width)
@@ -633,8 +796,15 @@ def process_filename(wlogger, filename, cfg, dir_home, ProjectSQL, dir_images, D
                         loc = '-'.join(map(str, [min_x, min_y, max_x, max_y]))
                         ruler_crop_name = '__'.join([filename, 'R', loc])
 
-                        Ruler = setup_ruler(Labels, model, device, cfg, Dirs, wlogger, False, RulerCFG, ruler_cropped, ruler_crop_name)
-                        Ruler_Info = convert_pixels_to_metric(wlogger, False, RulerCFG, Ruler, ruler_crop_name, predicted_conversion_factor_cm, use_CF_predictor, Dirs)
+                        # Pass the device parameter
+                        Ruler = setup_ruler(
+                            Labels, model, device, cfg, Dirs, wlogger, False, RulerCFG,
+                            ruler_cropped, ruler_crop_name
+                        )
+                        Ruler_Info = convert_pixels_to_metric(
+                            wlogger, False, RulerCFG, Ruler, ruler_crop_name,
+                            predicted_conversion_factor_cm, use_CF_predictor, Dirs
+                        )
 
                         units_save = Ruler_Info.conversion_data_all if Ruler_Info.conversion_data_all else 0
                         plot_points = Ruler_Info.data_list if any(unit in Ruler_Info.conversion_data_all for unit in ['smallCM', 'halfCM', 'mm']) else 0
@@ -642,19 +812,41 @@ def process_filename(wlogger, filename, cfg, dir_home, ProjectSQL, dir_images, D
 
                         # Collect the result as a tuple
                         result = (
-                            filename, ruler_crop_name, Ruler_Info.conversion_successful, Ruler_Info.conversion_mean, 
-                            predicted_conversion_factor_cm, Ruler_Info.pooled_sd, Ruler_Info.ruler_class, 
+                            filename, ruler_crop_name, Ruler_Info.conversion_successful, Ruler_Info.conversion_mean,
+                            predicted_conversion_factor_cm, Ruler_Info.pooled_sd, Ruler_Info.ruler_class,
                             Ruler_Info.ruler_class_percentage, str(units_save), Ruler_Info.cross_validation_count,
                             Ruler_Info.conversion_mean_n, Ruler_Info.conversion_mean_n_vals, Ruler_Info.avg_width, plot_points_blob
                         )
                         results.append(result)
-
-        conn.close()
+            else:
+                result = (
+                            filename, 'no_ruler', False, 0,
+                            predicted_conversion_factor_cm, 0, 'no_ruler',
+                            0, 'no_ruler', 0,
+                            0, 0, 0, None
+                        )
+                results.append(result)
 
     except Exception as e:
-        print(f"Failed to process {filename}: {e}")
+        wlogger.error(f"Failed to process {filename}: {e}")
+    finally:
+        conn.close()
+        return results
 
-    return results  # Return the results to the worker
+def verify_ruler_count(cur, filename):
+    cur.execute("""
+        SELECT 
+            COUNT(*) 
+        FROM 
+            annotations_archival
+        WHERE 
+            file_name = ? AND annotation LIKE '0,%'
+    """, (filename,))
+    return cur.fetchone()[0]  # Returns the number of ruler annotations
+
+
+
+
 ############Replaced with version that has own models per process
 # def convert_rulers(cfg, time_report, logger, dir_home, ProjectSQL, batch, batch_filenames, Dirs, num_workers=16):
 
@@ -1863,6 +2055,8 @@ class RulerInfo:
                         unit = self.units_possible[0]
                         if row['mean'] in self.original_distances_1unit:
                             self.conversion_data_all.append({unit:row})
+                            self.unit_list.append(unit)
+                            # self.conversion_data_all.append(unit)
                             self.conversion_mean_n_vals += row['nPeaks']
                             self.pooled_sd_list.append([ np.multiply((row['nPeaks']-1), np.power(row['sd'], 2)) ]) # creat term for pooled sd
 
@@ -1871,6 +2065,8 @@ class RulerInfo:
                         for val in unit_value:
                             for row in self.data_list:
                                 if row['mean'] == val:
+                                    # self.conversion_data_all.append(unit)
+                                    self.unit_list.append(unit)
                                     self.conversion_data_all.append({unit:row})
                                     self.conversion_mean_n_vals += row['nPeaks']
                                     self.pooled_sd_list.append([ np.multiply((row['nPeaks']-1), np.power(row['sd'], 2)) ]) # creat term for pooled sd

@@ -38,6 +38,9 @@ from rich.panel import Panel
 from threading import Thread, Lock
 from queue import Queue, Empty
 from bs4 import BeautifulSoup
+from urllib.parse import urljoin, urlparse, urlunparse
+from requests.exceptions import ConnectionError, Timeout, HTTPError, RequestException
+import threading
 
 # from scraperapi import ScraperAPIClient # pip install scraperapi-sdk
 
@@ -48,34 +51,37 @@ sys.path.append(currentdir)
 
 Image.MAX_IMAGE_PIXELS = None
 
-from leafmachine2.machine.general_utils import bcolors
-
+from leafmachine2.machine.general_utils import bcolors, get_cfg_from_full_path
 # Initialize ScraperAPI client
-SCRAPERAPI_KEY = ''
 
+try:
+    cfg_private = get_cfg_from_full_path('/media/data/Dropbox/LeafMachine2/PRIVATE_DATA.yaml')
 
-USER_AGENTS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Safari/605.1.15',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.82 Safari/537.36',
-    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:89.0) Gecko/20100101 Firefox/89.0',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15; rv:86.0) Gecko/20100101 Firefox/86.0',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36',
-    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:90.0) Gecko/20100101 Firefox/90.0',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 11_2_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.192 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; AS; rv:11.0) like Gecko',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.2 Safari/605.1.15',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:90.0) Gecko/20100101 Firefox/90.0',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36',
+except:
+    cfg_private = get_cfg_from_full_path('/home/brlab/Dropbox/LeafMachine2/PRIVATE_DATA.yaml')
+
+# List of available API keys
+# SCRAPERAPI_KEYS = [
+#     cfg_private['SCRAPERAPI_KEY1'],
+#     cfg_private['SCRAPERAPI_KEY2'],
+# ]
+SCRAPERAPI_KEYS = [
+    cfg_private['SCRAPERAPI_KEY3'],
 ]
+
+BANNED = ['www.herbariumhamburgense.de', 'imagens4.jbrj.gov.br', 'imagens1.jbrj.gov.br', 
+              'arbmis.arcosnetwork.org', '128.171.206.220', 'ia801503.us.archive.org', 'procyon.acadiau.ca',
+              'www.inaturalist.org']
+TIMEOUT = 80
+USER_AGENTS = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+        ]
+# Create an SSL context that ignores SSL certificate verification
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
 
 # def fetch_image_with_proxy_func(url):
 #     headers = {
@@ -119,7 +125,62 @@ USER_AGENTS = [
 #         return None
 
         
-def fetch_image_with_proxy_func(url):
+# def fetch_image_with_proxy_func(url):
+#     headers = {
+#         'User-Agent': random.choice(USER_AGENTS),
+#         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+#         'Referer': 'https://www.google.com/',
+#         "Accept-Language": "en-US,en;q=0.9",
+#         "DNT": "1",
+#         "Connection": "keep-alive",
+#     }
+
+#     # Standard proxy URL
+#     payload = 
+#     scraperapi_url = f"http://api.scraperapi.com?api_key={SCRAPERAPI_KEY}&url={url}"
+
+#     # Premium proxy URL
+#     scraperapi_url_premium = f"http://api.scraperapi.com?api_key={SCRAPERAPI_KEY}&url={url}&premium=true"
+
+#     session = requests.Session()
+#     session.headers.update(headers)
+
+#     # Introduce a random delay to avoid detection
+#     time.sleep(random.uniform(1, 5))
+
+#     try:
+#         # Initial request without premium proxy
+#         initial_response = session.get(scraperapi_url, verify=False, allow_redirects=True, timeout=60)
+#         initial_response.raise_for_status()
+
+#         # If the initial request is successful, use the response directly
+#         if initial_response.status_code == 200:
+#             return initial_response.content
+
+#     except requests.exceptions.RequestException as e:
+#         print(f"Initial request failed: {e}")
+
+#     # If the initial request fails, try with premium proxy and cookies
+#     try:
+#         # Introduce another delay before the next request
+#         time.sleep(random.uniform(1, 5))
+
+#         # Get cookies with premium proxy
+#         initial_response_premium = session.get(scraperapi_url_premium, verify=False, allow_redirects=True, timeout=60)
+#         initial_response_premium.raise_for_status()
+
+#         cookies = initial_response_premium.cookies.get_dict()
+#         cookies['random_cookie'] = str(random.randint(1, 1000000))
+
+#         # Introduce another delay before the actual image request
+#         time.sleep(random.uniform(1, 5))
+#         response = session.get(scraperapi_url_premium, headers=headers, cookies=cookies, verify=False, allow_redirects=True, timeout=60)
+#         response.raise_for_status()
+#         return response.content
+#     except requests.exceptions.RequestException as e:
+#         print(f"Request with premium proxy failed: {e}")
+#         return None
+def fetch_image_with_proxy_func(url, premium=True, retries=1, render_js=False, country_code='us'):
     headers = {
         'User-Agent': random.choice(USER_AGENTS),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -129,51 +190,53 @@ def fetch_image_with_proxy_func(url):
         "Connection": "keep-alive",
     }
 
-    # Standard proxy URL
-    scraperapi_url = f"http://api.scraperapi.com?api_key={SCRAPERAPI_KEY}&url={url}"
+    # Randomly pick one of the API keys
+    SCRAPERAPI_KEY = random.choice(SCRAPERAPI_KEYS)
+    
+    params = {
+        'api_key': SCRAPERAPI_KEY,
+        'url': url,
+        'keep_headers': 'true',
+        'render_js': str(render_js).lower(),  # Convert boolean to 'true'/'false' for API
+        'premium': str(premium).lower(),  # Optional premium proxy
+    }
 
-    # Premium proxy URL
-    scraperapi_url_premium = f"http://api.scraperapi.com?api_key={SCRAPERAPI_KEY}&url={url}&premium=true"
+    if country_code:
+        params['country_code'] = country_code
+
+    # Optional parameters: device type, JS rendering, geotargeting, etc.
+    scraperapi_url = "http://api.scraperapi.com/"
 
     session = requests.Session()
     session.headers.update(headers)
 
-    # Introduce a random delay to avoid detection
-    time.sleep(random.uniform(1, 5))
+    # Exponential backoff retry logic
+    for attempt in range(1, retries + 1):
+        try:
+            # Introduce a random delay to avoid detection
+            time.sleep(random.uniform(1, 5))
 
-    try:
-        # Initial request without premium proxy
-        initial_response = session.get(scraperapi_url, verify=False, allow_redirects=True, timeout=60)
-        initial_response.raise_for_status()
+            # Make the request to ScraperAPI
+            print(f"      Attempt {attempt}: Fetching URL [{url}] with{' premium' if premium else ''} proxy...")
+            response = session.get(scraperapi_url, params=params, verify=False, allow_redirects=True, timeout=TIMEOUT)
 
-        # If the initial request is successful, use the response directly
-        if initial_response.status_code == 200:
-            return initial_response.content
+            # Check if the response is successful
+            if response.status_code == 200:
+                return response.content  # Return the image binary content
 
-    except requests.exceptions.RequestException as e:
-        print(f"Initial request failed: {e}")
+            # If the status code isn't 200, log it and continue retrying
+            print(f"      Attempt {attempt} failed with status code {response.status_code}: {response.text}")
 
-    # If the initial request fails, try with premium proxy and cookies
-    try:
-        # Introduce another delay before the next request
-        time.sleep(random.uniform(1, 5))
+        except requests.exceptions.RequestException as e:
+            print(f"      Attempt {attempt} failed: {e}")
 
-        # Get cookies with premium proxy
-        initial_response_premium = session.get(scraperapi_url_premium, verify=False, allow_redirects=True, timeout=60)
-        initial_response_premium.raise_for_status()
+        # Increase delay between retries (exponential backoff)
+        backoff_delay = 2 ** attempt
+        print(f"      Retrying in {backoff_delay} seconds...")
+        time.sleep(backoff_delay)
 
-        cookies = initial_response_premium.cookies.get_dict()
-        cookies['random_cookie'] = str(random.randint(1, 1000000))
-
-        # Introduce another delay before the actual image request
-        time.sleep(random.uniform(1, 5))
-        response = session.get(scraperapi_url_premium, headers=headers, cookies=cookies, verify=False, allow_redirects=True, timeout=60)
-        response.raise_for_status()
-        return response.content
-    except requests.exceptions.RequestException as e:
-        print(f"Request with premium proxy failed: {e}")
-        return None
-
+    print(f"      All {retries} attempts failed to fetch the URL.")
+    return None
     
 @dataclass
 class ImageCandidate:
@@ -183,7 +246,7 @@ class ImageCandidate:
     occ_row: pd.DataFrame
     image_row: pd.DataFrame
     url: str
-    lock: asyncio.Lock
+    
     failure_log: dict
     download_tracker: dict  # Shared dictionary
     completed_tracker: list  # Shared list
@@ -191,7 +254,9 @@ class ImageCandidate:
     banned_url_counts_tracker: dict # Shared dictionary
     # semaphore_scraperapi: asyncio.Semaphore
     # pp: PrettyPrint # self.pp.print()  ALSO enable stuff in process_batch()
-
+    # Initialize the asyncio.Lock with default_factory
+    # lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    # sync_lock: threading.Lock = field(default_factory=threading.Lock)
     filename_image: str = field(init=False)
     filename_image_jpg: str = field(init=False)
     herb_code: str = field(init=False)
@@ -211,150 +276,687 @@ class ImageCandidate:
         self.headers_occ = self.occ_row
         self.headers_img = self.image_row
         self.filename_image, self.filename_image_jpg, self.herb_code, self.specimen_id, self.family, self.genus, self.species, self.fullname = generate_image_filename(self.occ_row)
-            
+        self.lock = asyncio.Lock()  # Ensure it's correctly set here
+        self.sync_lock = threading.Lock()  # Ensure it's correctly set here
+
         self.n_to_download = self.cfg['n_to_download']
+        self.taxonomic_level = self.cfg['taxonomic_level']
+        self.retries = 0
+        self.backoff = 2  # Start with a 2-second delay for exponential backoff
+        self.max_retries=2
+        self.dir_destination = self.cfg['dir_destination_images']
+        self.MP_low = self.cfg['MP_low']
+        self.MP_high = self.cfg['MP_high']
+
+        if self.taxonomic_level == 'family':
+            self.taxonomic_unit = self.family
+        elif self.taxonomic_level == 'genus':
+            self.taxonomic_unit = self.genus
+        else:
+            self.taxonomic_unit = self.fullname
+        
+
     
-    def get_url_stem(self, url):
-        if isinstance(url, str):
-            return url.split('/')[2]  # Extracts the URL stem (domain)
+    async def get_domain(self, url):
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc
+        return domain
+    
+    def get_domain_sync(self, url):
+        parsed_url = urlparse(url)
+        domain = parsed_url.netloc
+        return domain
+    
+    async def is_valid_url(self):
+        if not isinstance(self.url, str) or not self.url.strip():
+            return False
+        parsed_url = urlparse(self.url)
+        return bool(parsed_url.scheme and parsed_url.netloc)
+        
+    async def convert_drive_url_to_direct(self, drive_url):
+        """Convert a Google Drive shareable URL to a direct download link."""
+        file_id = drive_url.split('/d/')[1].split('/')[0]  # Extract the file ID
+        return f"https://drive.google.com/uc?export=download&id={file_id}"
+    
+    async def check_for_google_drive_url(self):
+        # Handle Google Drive links
+        if "drive.google.com" in self.url:
+            print(f"Google Drive URL detected: {self.url}")
+            self.url = await self.convert_drive_url_to_direct(self.url)
+
+    async def fetch_largest_image_from_info(self, image_service_url, headers, session):
+        """Fetch the largest available image from the external info.json."""
+        try:
+            info_json_url = f"{image_service_url}/info.json"
+            
+            # Request the info.json file
+            async with session.get(info_json_url, headers=headers, timeout=TIMEOUT) as response:
+                if response.status == 200:
+                    info_data = await response.json()
+
+                    # Find the largest size in the 'sizes' array
+                    if 'sizes' in info_data:
+                        largest_size = max(info_data['sizes'], key=lambda x: x['width'])
+                        width = largest_size['width']
+                        height = largest_size['height']
+                        
+                        # Construct the full image URL for the largest size
+                        largest_image_url = f"{image_service_url}/full/{width},{height}/0/default.jpg"
+                        
+                        return largest_image_url
+                    else:
+                        # If no sizes array, fall back to full image
+                        return f"{image_service_url}/full/full/0/default.jpg"
+                else:
+                    print(f"      Failed to fetch info.json: {response.status} from {image_service_url}")
+        except Exception as e:
+            print(f"      Error fetching info.json from {image_service_url}: {e}")
+        
         return None
+
+    async def iiif_parse(self, manifest_url):
+        domain = await self.get_domain(manifest_url)
+
+        # Define custom headers with a random User-Agent
+        headers = {
+            'User-Agent': random.choice(USER_AGENTS),
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'Referer': 'https://www.google.com/',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'DNT': '1',  # Do Not Track
+            'Connection': 'keep-alive',
+        }
+
+        #"""Parse the IIIF manifest to extract the associated image URL."""
+        try:
+            # Make the GET request with custom headers
+                    
+
+            async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
+                async with session.get(manifest_url, headers=headers, timeout=TIMEOUT) as response:
+
+                    if response.status == 200:
+                        manifest_data = await response.json()
+
+                        # First check if this is the original structure with 'dwc:associatedMedia'
+                        for item in manifest_data.get('metadata', []):
+                            if item['label'] == 'dwc:associatedMedia':
+                                associated_media_url = item['value']
+                                # Handle cases where the value might contain an anchor tag with a URL
+                                if 'href' in associated_media_url:
+                                    associated_media_url = associated_media_url.split('"')[1]
+                                return associated_media_url
+
+                        # If no 'dwc:associatedMedia' was found, check the structure for the second case
+                        if 'items' in manifest_data:
+                            for canvas in manifest_data['items']:
+                                for annotation_page in canvas.get('items', []):
+                                    for annotation in annotation_page.get('items', []):
+                                        if annotation.get('motivation') == 'painting' and 'body' in annotation:
+                                            image_url = annotation['body']['id']
+
+                                            # Check if there's an ImageService3 reference
+                                            if 'service' in annotation['body']:
+                                                image_service_url = annotation['body']['service'][0]['id']
+                                                # Fetch the external info.json for image sizes
+                                                return await self.fetch_largest_image_from_info(image_service_url, headers, session)
+
+                                            return image_url
+
+                    else:
+                        print(f"      Failed to fetch manifest: {response.status} domain: {domain}")
+        except Exception as e:
+            print(f"      Error parsing manifest: domain: {domain} error: {e}")
+        
+        return None
+
+    async def check_for_iiif_manifest_url(self):
+        # Handle special case for URLs containing "manifest.json"
+        if ("manifest.json" in self.url) or ('manifest' in self.url):
+            print(f"      Manifest URL detected: {self.url}")
+            # Parse the IIIF manifest to get the actual image URL
+            self.url = await self.iiif_parse(self.url)
+            if not self.url:
+                # return None, "Failed to extract image from IIIF manifest"   
+                return False
+            else:
+                # return 200, "Extracted image from IIIF manifest"   
+                return True
+        return True
+        
+    async def get_driver_with_random_user_agent(self):
+        user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+        ]
+
+        options = Options()
+        user_agent = random.choice(user_agents)
+        options.add_argument(f"user-agent={user_agent}")
+        options.headless = True  # Run headless, without a GUI
+
+        driver = uc.Chrome(options=options)
+        driver.set_page_load_timeout(TIMEOUT)
+        driver.set_script_timeout(TIMEOUT)
+        return driver
+
+    async def handle_consent_with_selenium(self, consent_url):
+        if 'arctos' in consent_url:
+            try:
+                driver = await self.get_driver_with_random_user_agent()
+                driver.get(consent_url)
+
+                # Wait for the page to load (adjust as necessary)
+                WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, "//input[@value='I agree, continue']"))
+                )
+
+
+                # Interact with the consent buttons
+                agree_button = driver.find_element(By.XPATH, "//input[@value='I agree, continue']")
+                agree_button.click()
+
+                # Wait for the page to redirect and ensure the new URL is loaded
+                WebDriverWait(driver, 10).until(EC.url_changes(consent_url))
+
+                # Capture the current page URL after the redirect
+                redirect_url = driver.current_url
+                print(f"      Redirect URL after consent: {redirect_url}")
+                
+                return redirect_url  # Return the redirect URL for further use
+
+            except Exception as e:
+                print(f"      An error occurred while handling consent: {e}")
+                return None
+            finally:
+                driver.quit()
+        else:
+            print(f"      Only [arctos] server is currently supported for 401, automate agreement errors")
     
-    async def download_image(self, session: ClientSession, n_queue, logging_enabled=False, timeout=20) -> None:
+    def handle_consent_with_selenium_sync(self, consent_url, driver):
+        if 'arctos' in consent_url:
+            try:
+                driver.get(consent_url)
+
+                # Wait for the page to load (adjust as necessary)
+                WebDriverWait(driver, 10).until(
+                    EC.element_to_be_clickable((By.XPATH, "//input[@value='I agree, continue']"))
+                )
+
+
+                # Interact with the consent buttons
+                agree_button = driver.find_element(By.XPATH, "//input[@value='I agree, continue']")
+                agree_button.click()
+
+                # Wait for the page to redirect and ensure the new URL is loaded
+                WebDriverWait(driver, 10).until(EC.url_changes(consent_url))
+
+                # Capture the current page URL after the redirect
+                redirect_url = driver.current_url
+                print(f"      Redirect URL after consent: {redirect_url}")
+                
+                return redirect_url  # Return the redirect URL for further use
+
+            except Exception as e:
+                print(f"      An error occurred while handling consent: {e}")
+                return None
+        else:
+            print(f"      Only [arctos] server is currently supported for 401, automate agreement errors")
+
+    async def is_base64_image(self, image_data):
+        if isinstance(image_data, str) and image_data.startswith('data:image/'):
+            return True
+        return False
+
+    async def decode_base64_image(self, image_data):
+        # The base64 image data typically follows this pattern: data:image/{type};base64,{encoded_data}
+        header, encoded_data = image_data.split(',', 1)
+        
+        # Determine the extension from the base64 header
+        if 'image/jpeg' in header or 'image/jpg' in header:
+            ext = 'jpg'
+        elif 'image/png' in header:
+            ext = 'png'
+        elif 'image/jfif' in header:
+            ext = 'jfif'
+        elif 'image/tiff' in header:
+            ext = 'tiff'
+        else:
+            ext = 'unknown'
+
+        return base64.b64decode(encoded_data), ext
+
+    # async def save_base64_image(self, image_data, target_path):
+    #     """Save a decoded base64 image to a file."""
+    #     decoded_image, ext = await self.decode_base64_image(image_data)
+
+    #     # Save the image to the specified path
+    #     with open(target_path, 'wb') as img_file:
+    #         img_file.write(decoded_image)
+    #     print(f"Base64 image saved to {target_path}")
+
+    async def download_image_from_dynamic_page(self, page_url):
+        #"""Extracts the high-resolution image or canvas image using Selenium."""
+        driver = await self.get_driver_with_random_user_agent()
+        try:
+            driver.get(page_url)
+
+            # Try to extract the high-resolution image from the hidden input field
+            try:
+                txt_file_name = driver.find_element(By.ID, "txtFileName").get_attribute("value")
+                
+                # Dynamically construct the full URL based on the page_url
+                high_res_image_url = urljoin(page_url, txt_file_name)
+                print(f"            High-resolution image URL extracted: {high_res_image_url}")
+
+                # Download the high-resolution image using the extracted URL
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(high_res_image_url) as response:
+                        if response.status == 200:
+                            image_data = await response.read()  
+                            image_data = BytesIO(await response.read())
+                            return image_data, 'jpg', high_res_image_url
+                        else:
+                            print(f"            Failed to download high-resolution image. Status code: {response.status}")
+            except NoSuchElementException:
+                print("            High-resolution image not found, falling back to canvas extraction.")
+
+            # Fall back to canvas image extraction if high-res image is not available
+            try:
+                canvas_element = WebDriverWait(driver, 15).until(
+                    EC.presence_of_element_located((By.TAG_NAME, 'canvas'))  # Adjust the selector if necessary
+                )
+                print("            Canvas element found, extracting image...")
+
+                # Use JavaScript to extract the data from the canvas
+                image_url = driver.execute_script("""
+                    var canvas = arguments[0];
+                    return canvas.toDataURL('image/jpeg');
+                """, canvas_element)
+
+                # Handle Base64 encoded data URL
+                if image_url.startswith("data:image"):
+                    ext = image_url.split(";")[0].split("/")[1]  # Extract extension from the data URL
+                    print(f"            Extracted image format: {ext}")
+
+                    # Extract the base64-encoded part
+                    base64_data = image_url.split(",")[1]
+                    image_data = BytesIO(base64.b64decode(base64_data))  # Convert to a BytesIO object
+
+                    return image_data, ext, page_url  # Return image data and extension for further processing
+                else:
+                    print("            No valid image data found in the canvas element.")
+                    return None, None, page_url
+
+            except TimeoutException:
+                print("            Timed out waiting for the canvas element to load.")
+                return None, None, page_url
+
+        except Exception as e:
+            print(f"            Error extracting image: {e}")
+            return None, None, page_url
+
+        finally:
+            driver.quit()  # No need to await here, just call the method
+
+    async def make_https(self, url):
+        """Converts an http URL to https if it's not already https."""
+        parsed_url = urlparse(url)
+        if parsed_url.scheme == 'http':
+            # Rebuild the URL with https instead of http
+            https_url = parsed_url._replace(scheme='https')
+            return urlunparse(https_url)
+        return url  # Return the URL unchanged if it is already https
+
+
+
+
+    async def handle_response(self, session, response, n_queue):
+        if response.status == 404:
+            # return response.status, f"Error 404"
+            self.download_success = 'skip'
+            print(f"            Skipping Error 404 URL {self.url}")
+            return
+
+        if response.status == 403:
+            # return response.status, f"Error 404"
+            self.download_success = 'skip'
+            print(f"            Skipping Error 403 URL {self.url}")
+            return
+        
+
+        # Check if we received a 401 status code and handle consent
+        if response.status == 401:
+            self.initial_code = response.status
+            print(f"      401 Unauthorized detected. Handling consent...  {self.url}")
+            if self.url:
+                redirect_url = await self.handle_consent_with_selenium(self.url)
+                if redirect_url:
+                    response = session.get(redirect_url, timeout=TIMEOUT)
+                    print(f"            Retrying with the redirect URL {redirect_url}")
+                else:
+                    print(f"            Failed to retrieve the redirect URL after consent.  {self.url}")
+                    # return response.status, f"Failed to download image. Status code: {response.status}"
+                    self.download_success = False
+                    return
+            
+
+
+        # Check if the image URL is base64-encoded
+        if await self.is_base64_image(self.url):
+            print("      Base64-encoded image detected.")
+            decoded_image, ext = await self.decode_base64_image(self.url)
+            # Convert to a PIL Image
+            try:
+                img = Image.open(BytesIO(decoded_image))
+            except:
+                print(f"            Failed to save binary image, GBIF ID: {self.taxonomic_unit}  {self.url}")
+                self.download_success = 'skip'
+                return
+
+            was_saved, reason = await self._save_matching_image(img, self.MP_low, self.MP_high, self.dir_destination)
+            if was_saved:
+                await self._add_occ_and_img_data() # IF saved, add row to csv
+                print(f"{bcolors.OKGREEN}      SUCCESS binary image attempt {self.retries + 1} [Q {n_queue}]  {self.url}{bcolors.ENDC}")
+                self.download_success = True
+                if self.download_success:
+                    async with self.lock:
+                        current_count = self.download_tracker.get(self.taxonomic_unit, 0)
+                        updated_count = current_count + 1
+                        self.download_tracker.update({self.taxonomic_unit: updated_count})
+                        print(f"{bcolors.OKGREEN}      SUCCESS {self.taxonomic_unit} has {updated_count} images  {self.url}{bcolors.ENDC}")
+                return 
+            else:
+                print(f"      Failed to save binary image, GBIF ID: {self.taxonomic_unit} {self.url}")
+                self.download_success = 'skip'
+                return
+
+
+
+        # Get the content type to figure out the image format for non-base64 images
+        content_type = response.headers.get('Content-Type')
+        if not content_type:
+            content_type = 'missing'
+
+        if 'text/html' in content_type:
+            print(f"      HTML content detected. Parsing for image... {self.url}")
+
+            # Try to extract the image from the dynamic page
+            image_data, ext, new_dynamic_url = await self.download_image_from_dynamic_page(self.url)
+
+            if image_data:
+                # ext = "jpg"  # Ensure extension is jpg
+                # target_path = os.path.join(target_dir, f"{fname}.{ext}")
+
+                # Convert and save the image as JPEG
+                img = Image.open(image_data)
+                img = img.convert("RGB")  # Convert to RGB if needed
+                # img.save(target_path, 'JPEG', quality=95)
+                was_saved, reason = await self._save_matching_image(img, self.MP_low, self.MP_high, self.dir_destination)
+
+                if was_saved:
+                    if new_dynamic_url != self.url:
+                        # return 200, f"Downloaded image. Extracted HIGHRES url from dynamic image viewer."
+                        await self._add_occ_and_img_data() # IF saved, add row to csv
+                        print(f"{bcolors.OKGREEN}            Downloaded image. Extracted HIGHRES url from dynamic image viewer. {self.retries + 1} [Q {n_queue}] {self.url}{bcolors.ENDC}")
+                        self.download_success = True
+                        if self.download_success:
+                            async with self.lock:
+                                current_count = self.download_tracker.get(self.taxonomic_unit, 0)
+                                updated_count = current_count + 1
+                                self.download_tracker.update({self.taxonomic_unit: updated_count})
+                                print(f"{bcolors.OKGREEN}      SUCCESS {self.taxonomic_unit} has {updated_count} images {self.url}{bcolors.ENDC}")
+                        return 
+                    else:
+                        # return 200, f"Downloaded image. Extracted canvas LOWRES url from dynamic image viewer."
+                        await self._add_occ_and_img_data() # IF saved, add row to csv
+                        print(f"{bcolors.OKGREEN}            Downloaded image. Extracted canvas LOWRES url from dynamic image viewer. {self.retries + 1} [Q {n_queue}] {self.url}{bcolors.ENDC}")
+                        self.download_success = True
+                        if self.download_success:
+                            async with self.lock:
+                                current_count = self.download_tracker.get(self.taxonomic_unit, 0)
+                                updated_count = current_count + 1
+                                self.download_tracker.update({self.taxonomic_unit: updated_count})
+                                print(f"{bcolors.OKGREEN}      SUCCESS {self.taxonomic_unit} has {updated_count} images {self.url}{bcolors.ENDC}")
+                        return 
+                else:
+                    print(f"      Failed to save image from dynamic viewer, GBIF ID: {self.taxonomic_unit} {self.url}")
+                    self.download_success = 'skip'
+                    return
+            else:
+                print(f"      Failed to save image from dynamic viewer, no image_data, GBIF ID: {self.taxonomic_unit} {self.url}")
+                self.download_success = 'skip'
+                return
+
+        elif 'image/jpeg' in content_type or 'image/jpg' in content_type:
+            ext = 'jpg'
+        elif 'image/png' in content_type:
+            ext = 'png'
+        elif 'image/jfif' in content_type:
+            ext = 'jfif'
+        elif 'image/tiff' in content_type:
+            ext = 'tiff'
+        else:
+            ext = 'unknown'
+
+        print(f"            Image format detected: {ext} {self.url}")
+
+        # Use a placeholder filename based on the image URL and content type
+        # image_name = f"{fname}.jpg"
+        # target_path = os.path.join(target_dir, image_name)
+
+        # Read the image content from the response
+        image_data = await response.read()  # Now image_data is a bytes object
+        image_data = BytesIO(image_data)
+        
+        try:
+            # Open the image and convert it to JPEG format if necessary
+            img = Image.open(image_data)
+            if ext != 'jpg':
+                # target_path = os.path.join(target_dir, fname + f'_converted_from_{ext}' + ".jpg")
+                img = img.convert("RGB")  # Convert to RGB if needed (e.g., for PNG or TIFF)
+            
+            # Save the image as JPEG
+            # img.save(target_path, 'JPEG', quality=95)
+            was_saved, reason = await self._save_matching_image(img, self.MP_low, self.MP_high, self.dir_destination)
+
+            # print(f"      Image successfully saved as JPG to {target_path}")
+            # return response.status, f"Downloaded image. Final - {response.status} Initial - {initial_code}"
+            if was_saved:
+                await self._add_occ_and_img_data() # IF saved, add row to csv
+                print(f"{bcolors.OKGREEN}      Downloaded image. Final - {response.status} Initial - {self.initial_code} {self.retries + 1} [Q {n_queue}] {self.url}{bcolors.ENDC}")
+                self.download_success = True
+                if self.download_success:
+                    async with self.lock:
+                        current_count = self.download_tracker.get(self.taxonomic_unit, 0)
+                        updated_count = current_count + 1
+                        self.download_tracker.update({self.taxonomic_unit: updated_count})
+                        print(f"{bcolors.OKGREEN}      SUCCESS {self.taxonomic_unit} has {updated_count} images {self.url}{bcolors.ENDC}")
+                return 
+            else:
+                print(f"      Failed to save image status.code {response.status}, REASON [{reason}], GBIF ID: {self.taxonomic_unit} {self.url}")
+                if reason == "too_small" and 'too_small' in self.banned_url_counts_tracker:
+                    self.banned_url_counts_tracker['too_small_direct'] += 1
+                    self.download_success = 'skip'
+                elif reason == "too_small":
+                    self.banned_url_counts_tracker['too_small_direct'] = 1
+                    self.download_success = 'skip'
+                else:
+                    if reason in self.banned_url_counts_tracker:
+                        self.banned_url_counts_tracker[reason] += 1
+                    else:
+                        self.banned_url_counts_tracker[reason] = 1
+                    self.download_success = False
+                return
+            
+        except Exception as e:
+            print(f"      Failed to save image status.code {response.status}, {e}, GBIF ID: {self.taxonomic_unit} {self.url}")
+            self.download_success = False
+            return
+
+
+
+
+
+
+
+
+
+
+
+
+
+    async def download_image(self, session: ClientSession, n_queue, logging_enabled=False, timeout=TIMEOUT) -> None:
+        # SETTINGS
+        self.logging_enabled = logging_enabled 
+        
+        # Skip GBIF Taxa if not ID'd to species level
         if self.fullname is None:
             self.download_success = 'skip'
             return
         
-        # current_count = self.download_tracker.get(self.fullname, 0)
-        current_count = self.download_tracker.get(self.fullname, 0)
+        current_count = self.download_tracker.get(self.taxonomic_unit, 0)
 
-
+        # COUNT
         if current_count >= self.n_to_download:
-            print(f"      Skipping download for {self.fullname} as max number of images {current_count}/{self.n_to_download} have already been downloaded.")
+            print(f"      Skipping download for {self.taxonomic_unit} as max number of images {current_count}/{self.n_to_download} have already been downloaded.")
             self.download_success = True
             return  
         
         # Check if the URL stem is in the banned list
-        url_stem = self.get_url_stem(self.url)
-
-        
-        
-        self.logging_enabled = logging_enabled
-        # Check if the URL is valid
-        if ((not isinstance(self.url, str) or pd.isna(self.url)) and n_queue != 0):
-            print(f"{bcolors.BOLD}      Invalid URL --> {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
+        if not await self.is_valid_url():
+            print(f"{bcolors.BOLD}      Invalid URL --> {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
             self.download_success = False
             return 
 
-        if 'manifest' in self.url:
-            print(f"{bcolors.BOLD}      Manifest URL detected --> {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
+        # Check for banned domain
+        domain = await self.get_domain(self.url)
+        if (domain in BANNED) or (domain in self.banned_url_tracker):
             self.download_success = 'skip'
             return
-        # elif url_stem is not None and url_stem in self.banned_url_tracker:
-        #     print(f"{bcolors.CBLUEBG3}      URL stem is banned --> {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
-        #     self.download_success = 'skip'
-        #     return 
-        else:
-            if self.logging_enabled:
-                http_client.HTTPConnection.debuglevel = 1
-                logging.basicConfig(level=logging.DEBUG)
-                requests_log = logging.getLogger("aiohttp.client")
-                requests_log.setLevel(logging.CRITICAL)
-                requests_log.propagate = True
-                print(f"{bcolors.BOLD}      {self.fullname}{bcolors.ENDC}")
-                print(f"{bcolors.BOLD}           URL: {self.url}{bcolors.ENDC}")
+        
+        # Log
+        if self.logging_enabled:
+            http_client.HTTPConnection.debuglevel = 1
+            logging.basicConfig(level=logging.DEBUG)
+            requests_log = logging.getLogger("aiohttp.client")
+            requests_log.setLevel(logging.CRITICAL)
+            requests_log.propagate = True
+            print(f"{bcolors.BOLD}      {self.taxonomic_unit}{bcolors.ENDC}")
+            print(f"{bcolors.BOLD}           URL: {self.url}{bcolors.ENDC}")
 
-            dir_destination = self.cfg['dir_destination_images']
-            MP_low = self.cfg['MP_low']
-            MP_high = self.cfg['MP_high']
+        await asyncio.sleep(random.uniform(0, 5))  # Random delay between 0 and 5 seconds
 
-            headers = {
-                'User-Agent': random.choice(USER_AGENTS),  # Rotate user agent
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                'Referer': 'https://www.google.com/',  # Spoof the referrer
-            }
+        await self.check_for_google_drive_url() # updates self.url
 
-            await asyncio.sleep(random.uniform(0, 20))  # Random delay between 0 and 5 seconds
-
+        status_iiif = await self.check_for_iiif_manifest_url() # updates self.url or returns (None, message)
+        if not status_iiif:
+            self.download_success = 'skip'
+            return
+        
+        if 'arctos' in self.url:
+            print(f'Is arctos {self.url}')
+            self.url = await self.make_https(self.url)
+        
+        self.initial_code = 999
+        while self.retries < self.max_retries:
             try:
-                # Attempt to download the image directly
-                async with session.get(self.url, headers=headers, timeout=ClientTimeout(total=timeout)) as response:
-                    response.raise_for_status()
-                    content_type = response.headers.get('content-type')
-
-                    if 'image' in content_type:
-                        img_data = await response.read()
-                        img = Image.open(BytesIO(img_data))
-
-                        ### Exit early if the count has increased while working
-                        current_count = self.download_tracker.get(self.fullname, 0)
-                        if current_count >= self.n_to_download:
-                            print(f"Skipping URGENT download for {self.fullname} as max number of images {current_count}/{self.n_to_download} have already been downloaded.")
-                            self.download_success = True
-                            return True
-
-                        was_saved, reason = await self._save_matching_image(img, MP_low, MP_high, dir_destination)
-                        if reason == "too_small" and 'too_small' in self.banned_url_counts_tracker:
-                            self.banned_url_counts_tracker['too_small'] += 1
-                        elif reason == "too_small":
-                            self.banned_url_counts_tracker['too_small'] = 1
-
-                        if was_saved:
-                            print(f"{bcolors.OKGREEN}      SUCCESS 1st{bcolors.ENDC}")
-                            self.download_success = True
-                            await self._add_occ_and_img_data()
-                        else:
-                            print(f"{bcolors.WARNING}      FOUND BUT NOT SAVED{bcolors.ENDC}")
-                            self.download_success = False
-
-                    # if not self.download_success:
-                    #     retry_options = ExponentialRetry(attempts=3)
-                    #     async with RetryClient(session, retry_options=retry_options) as retry_session:
-                    #         async with retry_session.get(self.url, headers=headers, timeout=ClientTimeout(total=10.0)) as response:
-                    #             response.raise_for_status()
-                    #             content_type = response.headers.get('content-type')
-
-                    #             if 'image' in content_type:
-                    #                 img_data = await response.read()
-                    #                 img = Image.open(BytesIO(img_data))
-
-                    #                 was_saved, reason = await self._save_matching_image(img, MP_low, MP_high, dir_destination)
-                    #                 print(f"{bcolors.OKGREEN}                SUCCESS 2nd{bcolors.ENDC}")
-                    #                 self.download_success = True
-
-            except ImageSaveError as e:
-                print(f"{bcolors.WARNING}      {e} --> URL: {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
-                self.download_success = False
-                # await asyncio.sleep(random.uniform(1, 5))  # Random delay between 1 and 5 seconds
-
-            except ClientResponseError as http_err:
-                if http_err.status == 404:
-                    print(f"{bcolors.WARNING}404 Error (Not Found) --> URL: {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
-                    self.download_success = 'skip' # To cause it to not be tried again
-                elif http_err.status == 503:
-                    print(f"{bcolors.WARNING}503 Error (Service Unavailable) --> URL: {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
-                    self.download_success = 'skip' # To cause it to not be tried again
+                if self.retries == 1:
+                    # First attempt with custom headers
+                    headers = {
+                        'User-Agent': random.choice(USER_AGENTS),
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+                        'Referer': 'https://www.google.com/',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                        'DNT': '1',
+                        'Connection': 'keep-alive',
+                    }
+                    print("      Using custom headers")
                 else:
-                    print(f"{bcolors.WARNING}HTTP Error --> {http_err} --> URL: {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
-                    self.download_success = 'skip' # To cause it to not be tried again
+                    # Second attempt without custom headers
+                    headers = None
+                    print(f"            Trying without custom headers for {self.url}")
+                
+                async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
+                    # async with session.get(self.url, headers=headers, timeout=TIMEOUT) as response:
+                    # async with session.get(self.url, timeout=TIMEOUT) as response:
+                    if not headers:
+                        async with session.get(self.url, timeout=TIMEOUT) as response:
+                            print(f"      Response status: {response.status}")
+                            await self.handle_response(session, response, n_queue)
+                    else:
+                        async with session.get(self.url, headers=headers, timeout=TIMEOUT) as response:
+                            print(f"      Response status: {response.status}")
+                            await self.handle_response(session, response, n_queue)
+                            
+                
+                if (self.download_success == True) or (self.download_success == 'skip'):
+                    return
+                else:
+                    self.retries += 1
+                    self.backoff *= 2  # Exponential backoff
+                    await asyncio.sleep(self.backoff)
+                            
+            except aiohttp.ClientError as e:
+                self.retries += 1
+                self.backoff *= 2  # Exponential backoff
+                await asyncio.sleep(self.backoff)
+                print(f"      Client error occurred: {e}. Retrying {self.retries}/{self.max_retries}...")
 
+            except (ConnectionError, Timeout) as e:
+                self.retries += 1
+                self.backoff *= 2  # Exponential backoff
+                await asyncio.sleep(self.backoff)
+                print(f"      Connection error occurred: {e}. Retrying {self.retries}/{self.max_retries}...")
 
-            except ClientConnectionError as conn_err:
-                print(f"{bcolors.WARNING}      Connection Error --> {conn_err} --> URL: {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
-                self.download_success = False
-                # await asyncio.sleep(random.uniform(1, 5))  # Random delay between 1 and 5 seconds
+            except HTTPError as http_err:
+                self.retries += 1
+                self.backoff *= 2  # Exponential backoff
+                await asyncio.sleep(self.backoff)
+                print(f"      HTTP error occurred: {http_err}")
+
+            except RequestException as req_err:
+                self.retries += 1
+                self.backoff *= 2  # Exponential backoff
+                await asyncio.sleep(self.backoff)
+                print(f"      Request exception occurred: {req_err}")
+
+            except asyncio.TimeoutError:
+                self.retries += 1
+                self.backoff *= 2  # Exponential backoff
+                await asyncio.sleep(self.backoff)
+                print(f"      Connection timeout error occurred. Retrying {self.retries}/{self.max_retries}...")
 
             except Exception as e:
-                if str(e) != "No active exception to reraise":
-                    print(f"{bcolors.WARNING}      No Connection or Rate Limited --> {e} --> URL: {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
-                self.download_success = False
-                # await asyncio.sleep(random.uniform(1, 5))  # Random delay between 1 and 5 seconds
+                print(f"      An unexpected error occurred: {e}")
+                self.retries += 1
+                self.backoff *= 2  # Exponential backoff
+                await asyncio.sleep(self.backoff)
+            
+        # If the max retries are exhausted
+        if self.download_success == False:
+            print(f"{bcolors.CREDBG}      Retries exceeded: {self.retries + 1} STATUS[{self.initial_code}] URL: {self.url}{bcolors.ENDC}, GBIF ID: {self.taxonomic_unit}")
+            return 
+        elif self.download_success == 'skip':
+            print(f"{bcolors.CGREYBG}      Skipping: {self.retries + 1} STATUS[{self.initial_code}] URL: {self.url}{bcolors.ENDC}, GBIF ID: {self.taxonomic_unit}")
+            return 
+        else:
+            return 
 
-        if self.download_success and self.download_success != 'skip':
-            async with self.lock:
-                current_count = self.download_tracker.get(self.fullname, 0)
-                updated_count = current_count + 1
-                self.download_tracker.update({self.fullname: updated_count})
-                print(f"{bcolors.OKGREEN}      SUCCESS {self.fullname} has {updated_count} images{bcolors.ENDC}")
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     async def download_base64_image(self, url):
         was_saved = False
@@ -372,49 +974,59 @@ class ImageCandidate:
             print(f"Error saving base64 image: {e}")
             self.download_success = False
         return was_saved, reason
-    
-    # async def retry_download_image(self) -> None:
-    #     for attempt in range(5):  # Retry up to 5 times
-    #         print(f"Retry attempt {attempt + 1}")
 
-    #         await asyncio.sleep(random.uniform(0, 5) * 2**attempt)  # Exponential backoff with random delay
-
-    #         # Use Selenium for retries
-    #         success = await self.download_image_with_selenium()
-    #         if success:
-    #             self._log_failure("PassedOnRetry", self.url, f"Success on retry attempt {attempt + 1} with Selenium")
-    #             return
+    def download_base64_image_sync(self, url):
+        was_saved = False
+        try:
+            header, encoded = url.split(",", 1)
+            data = base64.b64decode(encoded)
+            img = Image.open(BytesIO(data))
+            dir_destination = self.cfg['dir_destination_images']
+            MP_low = self.cfg['MP_low']
+            MP_high = self.cfg['MP_high']
             
-    #     self._log_failure("FailedOnRetry", self.url, f"Failed on retry attempt {attempt + 1} with Selenium")
-    #     print(f"{bcolors.FAIL}                All retry attempts failed for URL: {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
+            was_saved, reason = self._save_matching_image_sync(img, MP_low, MP_high, dir_destination)
+            self.download_success = True if was_saved else False
+        except Exception as e:
+            print(f"Error saving base64 image: {e}")
+            self.download_success = False
+        return was_saved, reason
+    
 
-    async def download_image_with_selenium(self, driver, index, n_queue, timeout_duration=90, max_strikes=50) -> bool:
-        print(f"{bcolors.CWHITEBG}      RETRY [i {index}] [Q {n_queue}] {self.url} GBIF ID: {self.fullname}{bcolors.ENDC}")
+
+
+
+    async def download_image_with_selenium(self, driver, index, n_queue, timeout_duration=TIMEOUT, max_strikes=50) -> bool:
+        await asyncio.to_thread(self.download_image_with_selenium_sync, driver, index, n_queue, timeout_duration, max_strikes)
+
+    def download_image_with_selenium_sync(self, driver, index, n_queue, timeout_duration, max_strikes=50):
+
+        print(f"{bcolors.CWHITEBG}      RETRY [i {index}] [Q {n_queue}] {self.url} GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
         self.download_success = False
 
-        current_count = self.download_tracker.get(self.fullname, 0)
-        url_stem = self.get_url_stem(self.url)
+        current_count = self.download_tracker.get(self.taxonomic_unit, 0)
+        domain = self.get_domain_sync(self.url)
 
-        if current_count >= self.n_to_download or self.fullname in self.completed_tracker:
-            print(f"Skipping download for {self.fullname} as max number of images {current_count}/{self.n_to_download} have already been downloaded.")
+        if current_count >= self.n_to_download or self.taxonomic_unit in self.completed_tracker:
+            print(f"Skipping download for {self.taxonomic_unit} as max number of images {current_count}/{self.n_to_download} have already been downloaded.")
             self.download_success = True
             return 
         
         if current_count < self.n_to_download:
             if ((not isinstance(self.url, str) or pd.isna(self.url)) and n_queue != 0):
-                print(f"{bcolors.BOLD}      Invalid URL --> {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
+                print(f"{bcolors.BOLD}      Invalid URL --> {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
                 self.download_success = 'skip'
                 return 
             
-            async with self.lock:
-                if url_stem in self.banned_url_tracker:
-                    print(f"{bcolors.CGREYBG}      ******URL stem is banned --> {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
+            with self.sync_lock:
+                if domain in self.banned_url_tracker:
+                    print(f"{bcolors.CGREYBG}      ******URL stem is banned --> {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
                     self.download_success = 'skip'
                     return 
 
             # Ensure the URL is a valid image URL and not a user agent string
             if "user-agent" in self.url.lower():
-                print(f"{bcolors.BOLD}      Invalid URL detected (User-Agent) --> {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
+                print(f"{bcolors.BOLD}      Invalid URL detected (User-Agent) --> {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
                 self.download_success = False
                 return 
 
@@ -426,7 +1038,7 @@ class ImageCandidate:
             retries = 1
             for attempt in range(retries):
                 
-                await asyncio.sleep(10 * (attempt + 1))  # Increase wait time with each attempt
+                time.sleep(10 * (attempt + 1))  
                 try:
                     was_saved = False
                     reason = None
@@ -444,8 +1056,23 @@ class ImageCandidate:
                             "Connection": "keep-alive",
                         }
                     })
-                
+                    
                     driver.get(self.url)
+
+                    # Check for a 401 Unauthorized response
+                    if "401" in driver.page_source or driver.current_url.endswith("401"):
+                        print(f"{bcolors.WARNING}      401 Unauthorized detected for {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
+
+                        # Handle the 401 consent with Selenium
+                        new_url = self.handle_consent_with_selenium_sync(self.url, driver)
+                        if new_url:
+                            print(f"{bcolors.CVIOLETBG}      Redirected to new URL after consent: {new_url} {bcolors.ENDC}")
+                            self.url = new_url
+                            driver.get(self.url)
+                        else:
+                            print(f"{bcolors.FAIL}      Failed to handle 401 consent for {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
+                            self.download_success = 'skip'
+                            return
 
                     wait = WebDriverWait(driver, timeout_duration)
                     img_element = wait.until(EC.presence_of_element_located((By.TAG_NAME, 'img')))
@@ -460,20 +1087,22 @@ class ImageCandidate:
                         img_url = img_element.get_attribute('src')
 
                     if img_url.startswith('data:image'):
-                        was_saved, reason = await self.download_base64_image(img_url)
+                        # was_saved, reason = await self.download_base64_image(img_url)
+                        was_saved, reason = self.download_base64_image_sync(img_url)  # Sync version
+
                     else:
                         response = requests.get(img_url)
                         response.raise_for_status()
                         img = Image.open(BytesIO(response.content))
 
                         ### Exit early if the count has increased while working
-                        current_count = self.download_tracker.get(self.fullname, 0)
+                        current_count = self.download_tracker.get(self.taxonomic_unit, 0)
                         if current_count >= self.n_to_download:
-                            print(f"Skipping urgent download for {self.fullname} as max number of images {current_count}/{self.n_to_download} have already been downloaded.")
+                            print(f"Skipping urgent download for {self.taxonomic_unit} as max number of images {current_count}/{self.n_to_download} have already been downloaded.")
                             self.download_success = True
                             return 
 
-                        was_saved, reason = await self._save_matching_image(img, MP_low, MP_high, dir_destination, is_retry=True)
+                        was_saved, reason = self._save_matching_image_sync(img, MP_low, MP_high, dir_destination, is_retry=True)
                     
                     if reason == "too_small" and 'too_small' in self.banned_url_counts_tracker:
                         self.banned_url_counts_tracker['too_small_selenium'] += 1
@@ -481,24 +1110,24 @@ class ImageCandidate:
                         self.banned_url_counts_tracker['too_small_selenium'] = 1
 
                     if was_saved:
-                        await self._add_occ_and_img_data() # IF saved, add row to csv
+                        self._add_occ_and_img_data_sync() # IF saved, add row to csv
                         print(f"{bcolors.OKCYAN}      SUCCESS RETRY attempt {attempt + 1} [Q {n_queue}]{bcolors.ENDC}")
                         self.download_success = True
                         if self.download_success:
-                            async with self.lock:
-                                current_count = self.download_tracker.get(self.fullname, 0)
+                            with self.sync_lock:
+                                current_count = self.download_tracker.get(self.taxonomic_unit, 0)
                                 updated_count = current_count + 1
-                                self.download_tracker.update({self.fullname: updated_count})
-                                print(f"{bcolors.OKCYAN}      SUCCESS {self.fullname} has {updated_count} images{bcolors.ENDC}")
+                                self.download_tracker.update({self.taxonomic_unit: updated_count})
+                                print(f"{bcolors.OKCYAN}      SUCCESS {self.taxonomic_unit} has {updated_count} images{bcolors.ENDC}")
                         return 
 
                     else:
-                        print(f"Failed to save the image RETRY: {self.url}, GBIF ID: {self.fullname}")
+                        print(f"Failed to save the image RETRY: {self.url}, GBIF ID: {self.taxonomic_unit}")
 
 
                 except requests.exceptions.HTTPError as e:
                     if e.response.status_code == 503:
-                        print(f"{bcolors.WARNING}      SKIP all retries due to 503 error --> {e} --> URL: {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
+                        print(f"{bcolors.WARNING}      SKIP all retries due to 503 error --> {e} --> URL: {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
                         self._log_failure("HTTPError503", self.url, e)
                         return   # Skip all retries if 503 error occurs
 
@@ -507,25 +1136,25 @@ class ImageCandidate:
                         ElementClickInterceptedException, InvalidElementStateException, 
                         NoSuchFrameException, NoSuchWindowException) as e:
                     if attempt == retries - 1:
-                        print(f"{bcolors.FAIL}      Selenium Exception {attempt + 1} --> {e} --> URL: {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
+                        print(f"{bcolors.FAIL}      Selenium Exception {attempt + 1} --> {e} --> URL: {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
                     else:
-                        print(f"{bcolors.OKBLUE}      Selenium Exception {attempt + 1} --> {e} --> URL: {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
+                        print(f"{bcolors.OKBLUE}      Selenium Exception {attempt + 1} --> {e} --> URL: {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
 
                 except ImageSaveError as e:
                     if attempt == retries - 1:
-                        print(f"{bcolors.FAIL}      attempt {attempt + 1} {e} --> URL: {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
+                        print(f"{bcolors.FAIL}      attempt {attempt + 1} {e} --> URL: {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
                     else:
-                        print(f"{bcolors.OKBLUE}      attempt {attempt + 1} {e} --> URL: {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
+                        print(f"{bcolors.OKBLUE}      attempt {attempt + 1} {e} --> URL: {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
 
                 except Exception as e:
                     if attempt == retries - 1:
-                        print(f"{bcolors.FAIL}      SKIP attempt {attempt + 1} --- No Connection or Rate Limited --> {e} --> URL: {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
+                        print(f"{bcolors.FAIL}      SKIP attempt {attempt + 1} --- No Connection or Rate Limited --> {e} --> URL: {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
                     else:
-                        print(f"{bcolors.OKBLUE}      SKIP attempt {attempt + 1} --- No Connection or Rate Limited --> {e} --> URL: {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
+                        print(f"{bcolors.OKBLUE}      SKIP attempt {attempt + 1} --- No Connection or Rate Limited --> {e} --> URL: {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
             
-                async with self.lock:
-                    if url_stem in self.banned_url_tracker:
-                        print(f"{bcolors.CGREYBG}      ***URL stem is banned --> {self.url}, GBIF ID: {self.fullname}{bcolors.ENDC}")
+                with self.sync_lock:
+                    if domain in self.banned_url_tracker:
+                        print(f"{bcolors.CGREYBG}      ***URL stem is banned --> {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC}")
                         self.download_success = 'skip'
                         return 
                 
@@ -538,7 +1167,7 @@ class ImageCandidate:
                 MP_high = self.cfg['MP_high']
                 dir_destination = self.cfg['dir_destination_images']
 
-                for attempt in range(3):  # Retry up to 3 times for ScraperAPI requests
+                for attempt in range(1):  # Retry up to 3 times for ScraperAPI requests
                     try:
                         
                         # async with semaphore_scraperapi:
@@ -547,7 +1176,7 @@ class ImageCandidate:
                         if image_data:
                             # Check if image_data is base64 encoded
                             if image_data.startswith(b'data:image'):
-                                was_saved, reason = await self.download_base64_image(image_data.decode('utf-8'))
+                                was_saved, reason = self.download_base64_image_sync(image_data.decode('utf-8'))
                             else:
                                 try:
                                     img = Image.open(BytesIO(image_data))
@@ -556,7 +1185,7 @@ class ImageCandidate:
                                     self.download_success = 'skip'
                                     break  # Skip further processing for this image
 
-                                was_saved, reason = await self._save_matching_image(img, MP_low, MP_high, dir_destination, is_retry=True)
+                                was_saved, reason = self._save_matching_image_sync(img, MP_low, MP_high, dir_destination, is_retry=True)
 
                         if reason == "too_small" and 'too_small' in self.banned_url_counts_tracker:
                             self.banned_url_counts_tracker['too_small_proxy'] += 1
@@ -564,36 +1193,40 @@ class ImageCandidate:
                             self.banned_url_counts_tracker['too_small_proxy'] = 1
                                 
                         if was_saved:
-                            await self._add_occ_and_img_data()
+                            self._add_occ_and_img_data_sync()
                             self.download_success = True
 
-                            async with self.lock:
-                                current_count = self.download_tracker.get(self.fullname, 0)
+                            with self.sync_lock:
+                                current_count = self.download_tracker.get(self.taxonomic_unit, 0)
                                 updated_count = current_count + 1
-                                self.download_tracker.update({self.fullname: updated_count})
-                                print(f"{bcolors.CGREENBG2}      SUCCESS WITH PROXY {self.fullname} has {updated_count} images  URL: {self.url}{bcolors.ENDC}")
+                                self.download_tracker.update({self.taxonomic_unit: updated_count})
+                                print(f"{bcolors.CGREENBG2}      SUCCESS WITH PROXY {self.taxonomic_unit} has {updated_count} images  URL: {self.url}{bcolors.ENDC}")
                             return True
+                        else:
+                            print(f"{bcolors.WARNING}      No image data returned from ScraperAPI for URL: {self.url}{bcolors.ENDC}")
+
                     except requests.exceptions.RequestException as e:
                         print(f"{bcolors.CREDBG}      Request failed: {e} URL: {self.url}{bcolors.ENDC}")
                     except Exception as e:
-                        print(f"{bcolors.CREDBG}      Error in proxy attempt {attempt + 1}: {e}{self.banned_url_counts_tracker[url_stem]} URL: {self.url}{bcolors.ENDC}")
-                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                        print(f"{bcolors.CREDBG}      Error in proxy attempt {attempt + 1}: {e}{self.banned_url_counts_tracker[domain]} URL: {self.url}{bcolors.ENDC}")
+                    time.sleep(2 ** attempt)  
+                    
 
 
                 print(f"{bcolors.CBEIGE}      ADDING TO BANNED URL LIST{bcolors.ENDC}")
                 # Update banned_url_counts_tracker
-                async with self.lock:
-                    if url_stem in self.banned_url_counts_tracker:
-                        self.banned_url_counts_tracker[url_stem] += 1
+                with self.sync_lock:
+                    if domain in self.banned_url_counts_tracker:
+                        self.banned_url_counts_tracker[domain] += 1
                     else:
-                        self.banned_url_counts_tracker[url_stem] = 1
-                    print(f"{bcolors.CREDBG}      URL stem {url_stem} COUNT {self.banned_url_counts_tracker[url_stem]} URL: {self.url}{bcolors.ENDC}")
+                        self.banned_url_counts_tracker[domain] = 1
+                    print(f"{bcolors.CREDBG}      URL stem {domain} COUNT {self.banned_url_counts_tracker[domain]} URL: {self.url}{bcolors.ENDC}")
 
                     # Check if the count exceeds the threshold
-                    if self.banned_url_counts_tracker[url_stem] > max_strikes:
-                        if url_stem not in self.banned_url_tracker:
-                            self.banned_url_tracker.append(url_stem)
-                            print(f"{bcolors.CREDBG}      URL stem {url_stem} added to banned_url_tracker{bcolors.ENDC}")
+                    if self.banned_url_counts_tracker[domain] > max_strikes:
+                        if domain not in self.banned_url_tracker:
+                            self.banned_url_tracker.append(domain)
+                            print(f"{bcolors.CREDBG}      URL stem {domain} added to banned_url_tracker{bcolors.ENDC}")
                     print(f"{bcolors.CREDBG}      banned_url_tracker --> {self.banned_url_tracker} URL: {self.url}{bcolors.ENDC}")
 
              
@@ -610,9 +1243,9 @@ class ImageCandidate:
         MP_low = self.cfg['MP_low']
         MP_high = self.cfg['MP_high']
         dir_destination = self.cfg['dir_destination_images']
-        url_stem = self.get_url_stem(self.url)
+        domain = await self.get_domain(self.url)
 
-        for attempt in range(3):  # Retry up to 3 times for ScraperAPI requests
+        for attempt in range(1):  # Retry up to 1 times for ScraperAPI requests
             try:
                 image_data = fetch_image_with_proxy_func(self.url)
                 if image_data:
@@ -634,31 +1267,31 @@ class ImageCandidate:
                         self.download_success = True
 
                         async with self.lock:
-                            current_count = self.download_tracker.get(self.fullname, 0)
+                            current_count = self.download_tracker.get(self.taxonomic_unit, 0)
                             updated_count = current_count + 1
-                            self.download_tracker.update({self.fullname: updated_count})
-                            print(f"{bcolors.CGREENBG2}      SUCCESS WITH PROXY {self.fullname} has {updated_count} images{bcolors.ENDC}")
+                            self.download_tracker.update({self.taxonomic_unit: updated_count})
+                            print(f"{bcolors.CGREENBG2}      SUCCESS WITH PROXY {self.taxonomic_unit} has {updated_count} images{bcolors.ENDC}")
                         return True
             except requests.exceptions.RequestException as e:
                 print(f"{bcolors.CREDBG}      Request failed: {e}{bcolors.ENDC}")
             except Exception as e:
-                print(f"{bcolors.CREDBG}      Error in proxy attempt {attempt + 1}: {e}{self.banned_url_counts_tracker[url_stem]}{bcolors.ENDC}")
+                print(f"{bcolors.CREDBG}      Error in proxy attempt {attempt + 1}: {e}{self.banned_url_counts_tracker[domain]}{bcolors.ENDC}")
             await asyncio.sleep(2 ** attempt)  # Exponential backoff
 
         print(f"{bcolors.CBEIGE}      ADDING TO BANNED URL LIST{bcolors.ENDC}")
         # Update banned_url_counts_tracker
         async with self.lock:
-            if url_stem in self.banned_url_counts_tracker:
-                self.banned_url_counts_tracker[url_stem] += 1
+            if domain in self.banned_url_counts_tracker:
+                self.banned_url_counts_tracker[domain] += 1
             else:
-                self.banned_url_counts_tracker[url_stem] = 1
-            print(f"{bcolors.CREDBG}      URL stem {url_stem} COUNT {self.banned_url_counts_tracker[url_stem]}{bcolors.ENDC}")
+                self.banned_url_counts_tracker[domain] = 1
+            print(f"{bcolors.CREDBG}      URL stem {domain} COUNT {self.banned_url_counts_tracker[domain]}{bcolors.ENDC}")
 
             # Check if the count exceeds the threshold
-            if self.banned_url_counts_tracker[url_stem] > max_strikes:
-                if url_stem not in self.banned_url_tracker:
-                    self.banned_url_tracker.append(url_stem)
-                    print(f"{bcolors.CREDBG}      URL stem {url_stem} added to banned_url_tracker{bcolors.ENDC}")
+            if self.banned_url_counts_tracker[domain] > max_strikes:
+                if domain not in self.banned_url_tracker:
+                    self.banned_url_tracker.append(domain)
+                    print(f"{bcolors.CREDBG}      URL stem {domain} added to banned_url_tracker{bcolors.ENDC}")
             print(f"{bcolors.CREDBG}      banned_url_tracker --> {self.banned_url_tracker}{bcolors.ENDC}")
 
         print(f"{bcolors.CREDBG}      Failed to download image even with ScraperAPI: {self.url}{bcolors.ENDC}")
@@ -692,7 +1325,7 @@ class ImageCandidate:
 
         if MP_low <= img_mp <= MP_high:
             image_path = os.path.join(dir_destination, self.filename_image_jpg)
-            img.save(image_path)
+            img.save(image_path, quality=95)
             # await self._add_occ_and_img_data()
             print(f"{color}      Regular MP: {img_mp}{bcolors.ENDC}")
             print(f"{color}      URL: {self.url}{bcolors.ENDC}")
@@ -704,7 +1337,7 @@ class ImageCandidate:
             img_w, img_h = calc_resize(img_w, img_h)
             img = img.resize((img_w, img_h))
             image_path = os.path.join(dir_destination, self.filename_image_jpg)
-            img.save(image_path)
+            img.save(image_path, quality=95)
             # await self._add_occ_and_img_data()
             print(f"{color}      {MP_high}MP+ Resize: {img_mp}{bcolors.ENDC}")
             print(f"{color}      URL: {self.url}{bcolors.ENDC}")
@@ -717,6 +1350,46 @@ class ImageCandidate:
         print(f"{bcolors.CVIOLETBG}      SKIP: {image_path}{bcolors.ENDC}")
         reason = "too_large_skip_resize"
         return False, reason
+
+    def _save_matching_image_sync(self, img, MP_low, MP_high, dir_destination, is_retry=False):
+        reason = None
+        color = bcolors.OKCYAN if is_retry else bcolors.OKGREEN
+
+        img_mp, img_w, img_h = check_image_size(img)
+        if img_mp < MP_low:
+            print(f"{bcolors.WARNING}      SKIP < {MP_low}MP: {img_mp}{bcolors.ENDC}")
+            print(f"{bcolors.WARNING}      URL: {self.url}{bcolors.ENDC}")
+            reason = "too_small"
+            return False, reason
+
+        if MP_low <= img_mp <= MP_high:
+            image_path = os.path.join(dir_destination, self.filename_image_jpg)
+            img.save(image_path, quality=95)
+            # await self._add_occ_and_img_data()
+            print(f"{color}      Regular MP: {img_mp}{bcolors.ENDC}")
+            print(f"{color}      URL: {self.url}{bcolors.ENDC}")
+            print(f"{color}      Image Saved: {image_path}{bcolors.ENDC}")
+            reason = "regular"
+            return True, reason
+
+        if img_mp > MP_high and self.cfg['do_resize']:
+            img_w, img_h = calc_resize(img_w, img_h)
+            img = img.resize((img_w, img_h))
+            image_path = os.path.join(dir_destination, self.filename_image_jpg)
+            img.save(image_path, quality=95)
+            # await self._add_occ_and_img_data()
+            print(f"{color}      {MP_high}MP+ Resize: {img_mp}{bcolors.ENDC}")
+            print(f"{color}      URL: {self.url}{bcolors.ENDC}")
+            print(f"{color}      Image Saved: {image_path}{bcolors.ENDC}")
+            reason = "resize"
+            return True, reason
+
+        print(f"{bcolors.CVIOLETBG}      {MP_high}MP+ Resize: {img_mp}{bcolors.ENDC}")
+        print(f"{bcolors.CVIOLETBG}      URL: {self.url}{bcolors.ENDC}")
+        print(f"{bcolors.CVIOLETBG}      SKIP: {image_path}{bcolors.ENDC}")
+        reason = "too_large_skip_resize"
+        return False, reason
+    
 
     async def _add_occ_and_img_data(self) -> None:
         if not isinstance(self.occ_row, pd.DataFrame):
@@ -749,6 +1422,45 @@ class ImageCandidate:
     async def _append_combined_occ_image(self, combined) -> None:
         path_csv_combined = os.path.join(self.cfg['dir_destination_csv'], self.cfg['filename_combined'])
         async with self.lock:
+            file_exists = os.path.isfile(path_csv_combined)
+            try:
+                combined.to_csv(path_csv_combined, mode='a', header=not file_exists, index=False)
+                print(f'{bcolors.OKGREEN}      Added data to combined CSV: {path_csv_combined}{bcolors.ENDC}')
+            except Exception as e:
+                print(f"{bcolors.WARNING}      Error appending to combined CSV: {path_csv_combined}{bcolors.ENDC}")
+                print(f"{bcolors.WARNING}      {e}{bcolors.ENDC}")
+
+    def _add_occ_and_img_data_sync(self) -> None:
+        if not isinstance(self.occ_row, pd.DataFrame):
+            # Convert Series to DataFrame
+            self.occ_row = self.occ_row.to_frame().T
+
+        try:
+            # Ensure self.image_row is a DataFrame
+            if not isinstance(self.image_row, pd.DataFrame):
+                # Convert Series to DataFrame
+                self.image_row = self.image_row.to_frame().T
+            # Rename columns for DataFrame
+            self.image_row = self.image_row.rename(columns={"identifier": "url"})
+        except Exception as e:
+            print(f"Error during renaming or conversion: {e}")
+
+        id_column = 'gbifID' if 'gbifID' in self.image_row.columns else 'id'
+        self.image_row = self.image_row.rename(columns={id_column: f'{id_column}_images'})
+
+        new_data = pd.DataFrame({
+            'fullname': [self.fullname],
+            'filename_image': [self.filename_image],
+            'filename_image_jpg': [self.filename_image_jpg]
+        })
+
+        combined = pd.concat([new_data.reset_index(drop=True), self.image_row.reset_index(drop=True), self.occ_row.reset_index(drop=True)], axis=1)
+        combined.columns = np.hstack((new_data.columns.values, self.image_row.columns.values, self.occ_row.columns.values))
+        self._append_combined_occ_image_sync(combined)
+
+    def _append_combined_occ_image_sync(self, combined) -> None:
+        path_csv_combined = os.path.join(self.cfg['dir_destination_csv'], self.cfg['filename_combined'])
+        with self.lock:
             file_exists = os.path.isfile(path_csv_combined)
             try:
                 combined.to_csv(path_csv_combined, mode='a', header=not file_exists, index=False)
@@ -1205,7 +1917,7 @@ class ImageCandidateCustom:
 
         if MP_low <= img_mp <= MP_high:
             image_path = os.path.join(dir_destination, self.filename_image_jpg)
-            img.save(image_path)
+            img.save(image_path, quality=95)
             await self._add_occ_and_img_data()
             print(f"{color}                Regular MP: {img_mp}{bcolors.ENDC}")
             print(f"{color}                URL: {self.url}{bcolors.ENDC}")
@@ -1216,7 +1928,7 @@ class ImageCandidateCustom:
             img_w, img_h = calc_resize(img_w, img_h)
             img = img.resize((img_w, img_h))
             image_path = os.path.join(dir_destination, self.filename_image_jpg)
-            img.save(image_path)
+            img.save(image_path, quality=95)
             await self._add_occ_and_img_data()
             print(f"{color}                {MP_high}MP+ Resize: {img_mp}{bcolors.ENDC}")
             print(f"{color}                URL: {self.url}{bcolors.ENDC}")

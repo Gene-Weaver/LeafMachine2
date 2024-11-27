@@ -1,4 +1,4 @@
-import os, json, random, inspect, sys, cv2, itertools, sqlite3, ast
+import os, json, random, inspect, sys, cv2, itertools, sqlite3, ast, math
 from PIL import Image, ImageDraw, ImageFont
 from dataclasses import dataclass, field
 import numpy as np
@@ -62,16 +62,18 @@ def build_custom_overlay_parallel(cfg, time_report, logger, dir_home, ProjectSQL
 
     # Calculate dynamic batch size based on the number of workers
     num_files = len(project_data)
-    batch_size = max(1, num_files // num_workers)  # Ensure batch size is at least 1
+
+    # Calculate batch size and ensure all files are processed
+    batch_size = math.ceil(num_files / num_workers)
 
     logger.info(f"Total number of images: {num_files}, Number of workers: {num_workers}, Dynamic batch size: {batch_size}")
 
     # Split the files into smaller groups (file_batches) based on the calculated batch size
     file_batches = [project_data[i:i + batch_size] for i in range(0, num_files, batch_size)]
 
-    # Ensure all images are processed, even if batch size is not divisible by num_workers
-    if len(project_data) % num_workers != 0:
-        file_batches[-1].extend(project_data[num_workers * batch_size:])
+    # # Ensure all images are processed, even if batch size is not divisible by num_workers
+    # if len(project_data) % num_workers != 0:
+    #     file_batches[-1].extend(project_data[num_workers * batch_size:])
 
     dir_images = ProjectSQL.dir_images  # Image directory for workers
 
@@ -103,6 +105,8 @@ def process_file_batch(filenames, database, dir_images, line_w_archival, show_ar
         result = process_file(database, dir_images, filename, line_w_archival, show_archival, ignore_archival, line_w_plant, show_plant, ignore_plant, show_segmentations, show_landmarks, cfg, Dirs)
         if result:
             batch_results.append(result)
+        # else:
+            # print(f"NO RESULTS FOR {filename}")
 
     return batch_results
 
@@ -173,7 +177,7 @@ def process_file(database, dir_images, filename, line_w_archival, show_archival,
             analysis['Segmentation_Partial_Leaf'] = []
 
 
-    # Fetch all landmark data for whole leaves from the `Landmarks_Whole_Leaves` table
+        # Fetch all landmark data for whole leaves from the `Landmarks_Whole_Leaves` table
         if cfg['leafmachine']['landmark_detector']['landmark_whole_leaves']:
             cur.execute("""
                 SELECT *
@@ -217,17 +221,20 @@ def process_file(database, dir_images, filename, line_w_archival, show_archival,
 
         # Fetch all ruler information from the `ruler_data` table
         cur.execute("""
-            SELECT ruler_image_name, conversion_mean, predicted_conversion_factor_cm
+            SELECT file_name, ruler_image_name, conversion_mean, predicted_conversion_factor_cm
             FROM ruler_data
             WHERE file_name = ?;
         """, (filename,))
         ruler_data = cur.fetchall()
 
         # Store the fetched data in the analysis dictionary
-        analysis['Ruler_Info'] = [{'ruler_image_name': row[0], 
-                                'conversion_mean': row[1],
-                                'predicted_conversion_factor_cm': row[2]} 
+        analysis['Ruler_Info'] = [{
+                                'file_name': row[0], 
+                                'ruler_image_name': row[1], 
+                                'conversion_mean': row[2],
+                                'predicted_conversion_factor_cm': row[3]} 
                                 for row in ruler_data] if ruler_data else []
+        print(f"{filename} has {analysis['Ruler_Info']}")
     except sqlite3.DatabaseError as db_err:
         print(f"Database error: {db_err}")
         # Handle database-related errors (e.g., missing records, connectivity issues)
@@ -270,6 +277,7 @@ def process_file(database, dir_images, filename, line_w_archival, show_archival,
     # Save the overlay image
     save_overlay_images_to_jpg(image_overlay, filename, Dirs, cfg)
 
+    # return analysis['Ruler_Info']
 
 
 
@@ -1213,6 +1221,8 @@ def add_archival_detections(image_overlay, archival, height, width, ruler_info, 
                 current_y = start_y  # Start at the current Y position for this ruler
                 square_positions = []  # To store the positions of squares for enclosing
 
+                if rul['predicted_conversion_factor_cm'] is None:
+                    print("rul['predicted_conversion_factor_cm'] is None")
                 # Draw green square for conversion_mean
                 if 'conversion_mean' in rul and rul['conversion_mean'] is not None and rul['conversion_mean'] != 0:
                     conv_mean_size = int(rul['conversion_mean'])

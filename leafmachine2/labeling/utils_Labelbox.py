@@ -244,6 +244,13 @@ def assign_index(cls,annoType):
             annoInd = 2
         elif cls == 'spines_skip':
             annoInd = 3
+    elif annoType == 'petiole_width':
+        if cls == 'leaf':
+            annoInd = 0
+        elif cls == 'width':
+            annoInd = 0
+        elif cls == 'decurrent':
+            annoInd = 0
     return annoInd
 
 def set_index_for_annotation(cls,annoType):

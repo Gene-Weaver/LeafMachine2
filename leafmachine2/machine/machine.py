@@ -60,7 +60,7 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
 
         # Dir structure
         print_main_start("Creating Directory Structure")
-        Dirs = Dir_Structure(cfg)
+        Dirs = Dir_Structure(cfg, is_restart_run=False)
         if progress_report:
             progress_report.update_overall("Create Output Directory Structure") # Step 2/13
 
@@ -191,7 +191,7 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
                     ProjectSQL, time_report = convert_rulers(cfg, time_report, logger, dir_home, ProjectSQL, batch, Batch_Names, Dirs)
                     # Project = parallel_convert_rulers(cfg, logger, dir_home, Project, batch, Dirs)
                 
-                # test_sql(get_database_path(ProjectSQL), n_rows=1)
+                # test_sql(get_database_path(ProjectSQL), n_rows=100)
 
                 # Segment Whole Leaves1
                 if progress_report:
@@ -221,20 +221,17 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
                 # progress_report.update_batch_part(f"Detecting Armature Landmarks")
                 # Project = detect_armature(cfg, logger, dir_home, Project, batch, n_batches, Dirs, do_seg)
 
-
-            # Custom Overlay 
-            if progress_report:
-                progress_report.update_batch_part(f"Saving Overlay Images")
-            # test_sql(get_database_path(ProjectSQL), n_rows=1)
-            time_report = build_custom_overlay_parallel(cfg, time_report, logger, dir_home, ProjectSQL, batch, Dirs)
-
-
             # Export data to csv and json
             if progress_report:
                 progress_report.update_batch_part(f"Saving Data")
             # time_report = save_data(cfg, time_report, logger, dir_home, Project, batch, n_batches, Dirs)
             time_report = extract_and_save_data(cfg, time_report, logger, ProjectSQL, Dirs, batch, n_batches)
 
+            # Custom Overlay 
+            # if progress_report:
+            #     progress_report.update_batch_part(f"Saving Overlay Images")
+            # # test_sql(get_database_path(ProjectSQL), n_rows=1)
+            # time_report = build_custom_overlay_parallel(cfg, time_report, logger, dir_home, ProjectSQL, batch, Dirs)
 
             # Clear Completed Images
             # print(Project.project_data)

@@ -1,15 +1,18 @@
 # Ultralytics YOLO 🚀, AGPL-3.0 license
 import os, cv2, sys, inspect, logging
 import numpy as np
+
+currentdir = os.path.dirname(inspect.getfile(inspect.currentframe()))
+parentdir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(currentdir))))))
+parentdir2 = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(currentdir))))
+sys.path.append(parentdir2)
+sys.path.append(currentdir)
+sys.path.append(parentdir)
+
 from ultralytics.engine.results import Results
 from ultralytics.models.yolo.detect.predict import DetectionPredictor
 from ultralytics.utils import DEFAULT_CFG, LOGGER, ops
 from collections import defaultdict
-
-
-import os
-import cv2
-import json
 from PIL import Image, ImageDraw
 
 currentdir = os.path.dirname(inspect.getfile(inspect.currentframe()))
@@ -478,6 +481,7 @@ if __name__ == '__main__':
     # save_dir_overlay = "D:/Dropbox/LeafMachine2/KP_2024/OUTPUT8_uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2_OVERLAY"
     # save_dir_overlay = "D:/Dropbox/PH/image_tests/LM2_viburnum_2000_NY/Key_Points_OVERLAY"
     save_dir_overlay = "D:/Dropbox/PH/image_tests/LM2_viburnum/Key_Points_OVERLAYTEST"
+
     input_dir = dir_oriented_images
 
 

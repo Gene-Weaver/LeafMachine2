@@ -223,7 +223,7 @@ class DocEnTR:
 
                 cv2.imwrite(output_path, clean_image)
 
-    def load_DocEnTR_model(self, device):
+    def load_DocEnTR_model(self, device_i):
         # binarize_labels_skeletonize = cfg['leafmachine']['cropped_components']['binarize_labels_skeletonize']
 
         model_chosen = 'small_256_8__epoch-10.pt'
@@ -234,7 +234,8 @@ class DocEnTR:
 
         # output_dir = dir_component
 
-        device = torch.device(f'cuda:{device}' if torch.cuda.is_available() else 'cpu')
+        # device = torch.device(f'cuda:{device}' if torch.cuda.is_available() else 'cpu')
+        device = f'cuda:{device_i}'
 
         SPLITSIZE = self.SPLITSIZE
         SETTING = self.SETTING
@@ -295,7 +296,8 @@ class DocEnTR:
         model = model.to(device)
         return model, device
 
-    def run_DocEnTR_single(self, model, device, img, skeletonize):
+    def run_DocEnTR_single(self, model, device_i, img, skeletonize):
+        device = f'cuda:{device_i}'
     
         # print(f'       Working on image {i}/{n_images} --> {img}')
         deg_image = img / 255
@@ -321,11 +323,11 @@ class DocEnTR:
         for patch_idx, p in enumerate(out_patches):
             # print(f"(              {patch_idx} / {len(out_patches) - 1}) processing patch...")
             p = np.array(p, dtype='float32')
-            train_in = torch.from_numpy(p)
+            train_in = torch.from_numpy(p).to(device)
 
             with torch.no_grad():
-                train_in = train_in.view(1,3,self.SPLITSIZE,self.SPLITSIZE).to(device)
-                _ = torch.rand((train_in.shape)).to(device)
+                train_in = train_in.view(1,3,self.SPLITSIZE,self.SPLITSIZE)
+                _ = torch.rand(train_in.shape, device=device)
 
 
                 loss,_, pred_pixel_values = model(train_in,_)

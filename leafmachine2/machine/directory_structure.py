@@ -76,7 +76,7 @@ class Dir_Structure():
     # logging
     path_log: str = ''
     
-    def __init__(self, cfg) -> None:
+    def __init__(self, cfg, is_restart_run) -> None:
         # Home 
         self.run_name = cfg['leafmachine']['project']['run_name']
         self.dir_home = cfg['leafmachine']['project']['dir_output']
@@ -85,7 +85,8 @@ class Dir_Structure():
 
         self.dir_project = os.path.join(self.dir_home,self.run_name)
         validate_dir(self.dir_home)
-        self.__add_time_to_existing_project_dir()
+        if not is_restart_run: # This increments the project to keep from overwriting. But we WANT to use existing structure on a restart run
+            self.__add_time_to_existing_project_dir()
         validate_dir(self.dir_project)
 
 
@@ -281,6 +282,7 @@ class Dir_Structure():
         self.dir_keypoint_overlay = os.path.join(self.dir_project,'Keypoints','Keypoint_Overlay')
         self.dir_oriented_masks = os.path.join(self.dir_project,'Keypoints','Oriented_Masks')
         self.dir_simple_txt = os.path.join(self.dir_project,'Keypoints','Simple_Labels')
+        self.dir_simple_txt_DP = os.path.join(self.dir_project,'Keypoints','Simple_Labels_Douglas_Peucker')
         self.dir_simple_raw_txt = os.path.join(self.dir_project,'Keypoints','Simple_Labels_Original')
         if cfg['leafmachine']['leaf_segmentation']['save_oriented_images'] or cfg['leafmachine']['leaf_segmentation']['save_keypoint_overlay'] or cfg['leafmachine']['leaf_segmentation']['save_oriented_mask'] or cfg['leafmachine']['leaf_segmentation']['save_simple_txt'] :
             validate_dir(self.keypoints)
@@ -292,6 +294,7 @@ class Dir_Structure():
             validate_dir(self.dir_oriented_masks)
         if cfg['leafmachine']['leaf_segmentation']['save_simple_txt']:
             validate_dir(self.dir_simple_txt)
+            validate_dir(self.dir_simple_txt_DP)
             validate_dir(self.dir_simple_raw_txt)
 
             

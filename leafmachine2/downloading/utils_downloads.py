@@ -9,6 +9,8 @@ from aiohttp import ClientSession, TCPConnector
 from selenium.webdriver.chrome.options import Options
 import undetected_chromedriver as uc
 from concurrent.futures import ThreadPoolExecutor
+import dask.dataframe as dd
+from multiprocessing import Manager, Process
 
 from leafmachine2.machine.general_utils import bcolors, validate_dir
 from leafmachine2.downloading.utils_downloads_candidate import ImageCandidate#, PrettyPrint
@@ -19,26 +21,61 @@ sys.path.append(parentdir)
 sys.path.append(currentdir)
 
 
+
+def load_wishlist_to_tracker(taxonomic_level, wishlist_csv_path=None):
+    """
+    Imports the 'wishlist' CSV and populates the wishlist_tracker dictionary
+    using the 'taxonomic_level' column.
+    
+    Args:
+        wishlist_csv_path (str): The path to the 'wishlist' CSV file.
+        
+    Returns:
+        wishlist_tracker (manager.dict()): A shared dictionary with wishlist taxa categorized by taxonomic level.
+    """
+    # Initialize a Manager dictionary for shared memory
+    manager = Manager()
+    wishlist_tracker = manager.list()
+
+    try:
+        # Load the wishlist CSV into a DataFrame
+        wishlist_df = pd.read_csv(wishlist_csv_path, sep=",", header=0, low_memory=False, dtype=str, on_bad_lines='skip')
+
+        # Ensure the CSV contains the required columns
+        if taxonomic_level not in wishlist_df.columns:
+            raise ValueError(f"The CSV must contain {taxonomic_level} column.")
+
+        # Process each row in the DataFrame
+        wishlist_tracker = wishlist_df[taxonomic_level].tolist()
+
+        print(f"Wishlist tracker populated with {len(wishlist_tracker)} taxonomic levels.")
+        return wishlist_tracker
+
+    except Exception as e:
+        print(f"Error loading wishlist CSV: {e}")
+        return None
+    
+
 # def run_download_parallel(cfg, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker):
 #     # pp = PrettyPrint()
 #     pp = None
 #     asyncio.run(run_main(cfg, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker, pp))
-def run_download_parallel(cfg, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker):
+def run_download_parallel(cfg, wishlist_tracker, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker):
     # pp = PrettyPrint()
     pp = None
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
-        loop.run_until_complete(run_main(cfg, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker, pp))
+        loop.run_until_complete(run_main(cfg, wishlist_tracker, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker, pp))
     finally:
         loop.run_until_complete(loop.shutdown_asyncgens())
         loop.close()
 
-async def run_main(cfg, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker, pp):
+async def run_main(cfg, wishlist_tracker, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker, pp):
     # semaphore_scraperapi = asyncio.Semaphore(5)
-    await download_all_images_in_images_csv_selenium(cfg, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker, pp)
+    await download_all_images_in_images_csv_selenium(cfg, wishlist_tracker, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker, pp)
 
-async def download_all_images_in_images_csv_selenium(cfg, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker, pp):
+async def download_all_images_in_images_csv_selenium(cfg, wishlist_tracker, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker, pp):
     dir_destination = cfg['dir_destination_images']
     dir_destination_csv = cfg['dir_destination_csv']
 
@@ -79,9 +116,21 @@ async def download_all_images_in_images_csv_selenium(cfg, download_tracker, comp
     images_df = images_df[images_df[images_id_column].isin(occ_df[occ_id_column])]
     print("Debug: After filtering by ID columns, images_df type:", type(images_df))
 
+    
+
     # Ensure fullname exists in occ_df
     occ_df['fullname_index'] = occ_df.apply(lambda row: f"{row['family']}_{row['genus']}_{row['specificEpithet'] if pd.notna(row['specificEpithet']) else ''}", axis=1)
     
+    if wishlist_tracker:
+        # Print the length of the 'fullname_index' column before filtering
+        print(f"Before filtering: 'fullname_index' length = {len(occ_df['fullname_index'])}")
+
+        # Filter occ_df based on wishlist_tracker['fullname'] column
+        occ_df = occ_df[occ_df['fullname_index'].isin(wishlist_tracker)]
+        
+        print(f"After filtering: 'fullname_index' length = {len(occ_df['fullname_index'])}")
+
+
     # Shuffle the DataFrame with a random seed
     occ_df = occ_df.sample(frac=1, random_state=2023).reset_index(drop=True)
 
@@ -95,7 +144,7 @@ async def download_all_images_in_images_csv_selenium(cfg, download_tracker, comp
     print(f"{bcolors.BOLD}Number of images in images file: {images_df.shape[0]}{bcolors.ENDC}")
     print(f"{bcolors.BOLD}Number of occurrence to search through: {occ_df.shape[0]}{bcolors.ENDC}")
 
-    processor = ImageBatchProcessor(cfg, images_df, occ_df, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker, pp)
+    processor = ImageBatchProcessor(cfg, images_df, occ_df, wishlist_tracker, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker, pp)
     processor.init_selenium_drivers()
 
     try:
@@ -106,7 +155,7 @@ async def download_all_images_in_images_csv_selenium(cfg, download_tracker, comp
 
 
 class ImageBatchProcessor:
-    def __init__(self, cfg, images_df, occ_df, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker, pp ):
+    def __init__(self, cfg, images_df, occ_df, wishlist_tracker, download_tracker, completed_tracker, banned_url_tracker, banned_url_counts_tracker, pp ):
         self.cfg = cfg
         self.images_df = images_df
         self.occ_df = occ_df
@@ -128,6 +177,7 @@ class ImageBatchProcessor:
         self.lock = asyncio.Lock()
         self.executor = ThreadPoolExecutor(self.num_drivers)
 
+        self.wishlist_tracker = wishlist_tracker
         self.download_tracker = download_tracker
         self.completed_tracker = completed_tracker
         self.banned_url_tracker = banned_url_tracker
@@ -138,26 +188,9 @@ class ImageBatchProcessor:
 
     def get_driver_with_random_user_agent(self):
         user_agents = [
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Safari/605.1.15',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.82 Safari/537.36',
-            'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:89.0) Gecko/20100101 Firefox/89.0',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/85.0.4183.121 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 6.1; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15; rv:86.0) Gecko/20100101 Firefox/86.0',
-            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/81.0.4044.138 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.132 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 11_4) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.212 Safari/537.36',
-            'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:90.0) Gecko/20100101 Firefox/90.0',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 11_2_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/88.0.4324.192 Safari/537.36',
-            'Mozilla/5.0 (Windows NT 6.1; WOW64; Trident/7.0; AS; rv:11.0) like Gecko',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36',
-            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.2 Safari/605.1.15',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:90.0) Gecko/20100101 Firefox/90.0',
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
         ]
 
         options = Options()
@@ -206,22 +239,33 @@ class ImageBatchProcessor:
             for _, image_row in image_rows.iterrows():
                 gbif_url = image_row[self.cfg['custom_url_column_name']] if self.cfg['is_custom_file'] else image_row['identifier']
 
-                image_candidate = ImageCandidate(self.cfg, occ_row, image_row, gbif_url, asyncio.Lock(), self.failure_log, self.download_tracker, self.completed_tracker, self.banned_url_tracker, self.banned_url_counts_tracker)#, self.pp)
+                if pd.isna(gbif_url):
+                    try: # try the references column
+                        gbif_url = image_row[self.cfg['custom_url_column_name']] if self.cfg['is_custom_file'] else image_row['references']
+                        if pd.isna(gbif_url):
+                            return None
+                    except:
+                        return None
+
+
+
+                image_candidate = ImageCandidate(self.cfg, occ_row, image_row, gbif_url, self.failure_log, self.download_tracker, self.completed_tracker, self.banned_url_tracker, self.banned_url_counts_tracker)
                 async with semaphore:
                     print(f"Working on image: {image_row[id_column]}")
 
+                    # Non-blocking download attempt
                     await image_candidate.download_image(session, self.n_queue, logging_enabled=False)
-                    self.remove_fullnames_with_all_images(image_candidate.fullname)
 
                     if image_candidate.download_success == 'skip':
                         print(f"Skipping 404 error for image: {image_row[id_column]}")
                     elif image_candidate.download_success == False:
+                        # Offload failure to failure queue for further handling by Selenium/ScraperAPI
                         await self.failure_queue.put(image_candidate)
                         self.n_queue = self.failure_queue.qsize()
                         print(f"{bcolors.CBLACKBG}QUEUE [{self.n_queue}]{bcolors.ENDC}")
 
-            async with self.lock:
-                self.processed_rows += 1
+                async with self.lock:
+                    self.processed_rows += 1
 
             return pd.DataFrame(occ_row) if image_candidate.download_success == True else None
         except Exception as e:
@@ -290,6 +334,12 @@ class ImageBatchProcessor:
                 if image_candidate is not None:
                     await self.process_with_driver(image_candidate, driver, index)
                     self.failure_queue.task_done()
+
+                    # After retrying with Selenium, check if a proxy retry is necessary
+                    if image_candidate.download_success == 'proxy':
+                        await self.proxy_queue.put(image_candidate)
+                        print(f"{bcolors.HEADER}Added to proxy queue for image: {image_candidate.fullname}{bcolors.ENDC}")
+
 
                 # Check if driver is still active
                 # if driver.service.process is None or driver.service.process.poll() is not None:
@@ -399,9 +449,13 @@ class ImageBatchProcessor:
 
         print(f"{bcolors.CWHITEBG}[Active drivers {active_drivers_count}]{bcolors.ENDC}")
 
-        await asyncio.get_event_loop().run_in_executor(
-            self.executor, self.sync_wrapper, image_candidate, driver, index, self.n_queue
-        )
+        # await asyncio.get_event_loop().run_in_executor(
+        #     self.executor, self.sync_wrapper, image_candidate, driver, index, self.n_queue
+        # )
+        # await asyncio.to_thread(self.sync_wrapper, image_candidate, driver, index, self.n_queue)
+        await asyncio.to_thread(self.sync_wrapper, image_candidate, driver, index, self.n_queue)
+
+
         # await image_candidate.download_image_with_selenium(driver, index, self.n_queue, self.semaphore_scraperapi)
         n_queue = self.failure_queue.qsize()
         n_queue_proxy = self.proxy_queue.qsize()
@@ -428,19 +482,46 @@ class ImageBatchProcessor:
     #         # time.sleep(backoff * (2 ** attempt))
     #     loop.close()
     #     return #result
+
+    # @staticmethod # 10/12/24
+    # def sync_wrapper(image_candidate, driver, index, n_queue):
+    #     loop = asyncio.new_event_loop()
+    #     asyncio.set_event_loop(loop)
+    #     try:
+    #         retries = 1
+    #         for attempt in range(retries):
+    #             try:
+    #                 loop.run_until_complete(image_candidate.download_image_with_selenium(driver, index, n_queue))
+    #                 if image_candidate.download_success == True and image_candidate.download_success not in ['skip', 'proxy']:
+    #                     return  # Exit after the first successful attempt
+    #             except Exception as e:
+    #                 print(f"Attempt {attempt + 1} failed with error: {e}")
+    #     finally:
+    #         loop.run_until_complete(loop.shutdown_asyncgens())
+    #         loop.close()
+
+    # @staticmethod # 11/8/24 switched to the bottom
+    # def sync_wrapper(image_candidate, driver, index, n_queue):
+    #     retries = 1
+    #     for attempt in range(retries):
+    #         try:
+    #             # Create a task without needing asyncio.run()
+    #             asyncio.run_coroutine_threadsafe(
+    #                 image_candidate.download_image_with_selenium(driver, index, n_queue),
+    #                 asyncio.get_event_loop()
+    #             ).result()  # Ensure the coroutine completes in a thread-safe way
+    #             if image_candidate.download_success and image_candidate.download_success not in ['skip', 'proxy']:
+    #                 return  # Exit after the first successful attempt
+    #         except Exception as e:
+    #             print(f"Attempt {attempt + 1} failed with error: {e}")
     @staticmethod
     def sync_wrapper(image_candidate, driver, index, n_queue):
+        # Ensure a new event loop for each thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
+        
         try:
-            retries = 1
-            for attempt in range(retries):
-                try:
-                    loop.run_until_complete(image_candidate.download_image_with_selenium(driver, index, n_queue))
-                    if image_candidate.download_success == True and image_candidate.download_success not in ['skip', 'proxy']:
-                        return  # Exit after the first successful attempt
-                except Exception as e:
-                    print(f"Attempt {attempt + 1} failed with error: {e}")
+            loop.run_until_complete(image_candidate.download_image_with_selenium(driver, index, n_queue))
         finally:
             loop.run_until_complete(loop.shutdown_asyncgens())
             loop.close()
@@ -605,8 +686,20 @@ class ImageBatchProcessor:
         dir_home = cfg['dir_home']
         filename_occ = cfg['filename_occ']
         filename_img = cfg['filename_img']
-        occ_df = ImageBatchProcessor.ingest_DWC(filename_occ, dir_home)
-        images_df = ImageBatchProcessor.ingest_DWC(filename_img, dir_home)
+
+        try:
+            use_large = cfg['use_large_file_size_methods']
+        except:
+            use_large = False
+
+        if use_large:
+            occ_df = ImageBatchProcessor.ingest_DWC_large_files(filename_occ, dir_home)
+            images_df = ImageBatchProcessor.ingest_DWC_large_files(filename_img, dir_home)
+        else:
+            occ_df = ImageBatchProcessor.ingest_DWC(filename_occ, dir_home)
+            images_df = ImageBatchProcessor.ingest_DWC(filename_img, dir_home)
+            
+        
         return occ_df, images_df
 
     @staticmethod
@@ -637,6 +730,281 @@ class ImageBatchProcessor:
 
         return df
     
+    @staticmethod
+    def ingest_DWC_large_files(file_path, dir_home, block_size=512):
+        # Method to ingest large DWC (Darwin Core) CSV or TXT files using Dask to handle larger-than-memory files.
+        # This function supports .txt or .csv files with varying delimiters.
+        file_path = os.path.join(dir_home, file_path)
+        file_name = os.path.basename(file_path)
+        file_extension = file_path.split('.')[-1]
+
+        # Define the dtype for each column
+        column_dtypes = {
+            'filename': 'object',  # TEXT
+            'image_height': 'float64',  # INTEGER
+            'image_width': 'float64',  # INTEGER
+            'component_name': 'object',  # TEXT
+            'n_pts_in_polygon': 'float64',  # INTEGER
+            'conversion_mean': 'float64',  # FLOAT
+            'predicted_conversion_factor_cm': 'float64',  # FLOAT
+            'area': 'float64',  # FLOAT
+            'perimeter': 'float64',  # FLOAT
+            'convex_hull': 'float64',  # FLOAT
+            'rotate_angle': 'float64',  # FLOAT
+            'bbox_min_long_side': 'float64',  # FLOAT
+            'bbox_min_short_side': 'float64',  # FLOAT
+            'convexity': 'float64',  # FLOAT
+            'concavity': 'float64',  # FLOAT
+            'circularity': 'float64',  # FLOAT
+            'aspect_ratio': 'float64',  # FLOAT
+            'angle': 'float64',  # FLOAT
+            'distance_lamina': 'float64',  # FLOAT
+            'distance_width': 'float64',  # FLOAT
+            'distance_petiole': 'float64',  # FLOAT
+            'distance_midvein_span': 'float64',  # FLOAT
+            'distance_petiole_span': 'float64',  # FLOAT
+            'trace_midvein_distance': 'float64',  # FLOAT
+            'trace_petiole_distance': 'float64',  # FLOAT
+            'apex_angle': 'float64',  # FLOAT
+            'base_angle': 'float64',  # FLOAT
+            'base_is_reflex': 'bool',  # BOOLEAN
+            'apex_is_reflex': 'bool',  # BOOLEAN
+
+            'filename': 'object',  # TEXT
+            'bbox': 'object',  # TEXT
+            'bbox_min': 'object',  # TEXT
+            'efd_coeffs_features': 'object',  # TEXT 
+            'efd_a0': 'object',  # TEXT 
+            'efd_c0': 'object',  # TEXT 
+            'efd_scale': 'object',  # TEXT
+            'efd_angle': 'object',  # TEXT
+            'efd_phase': 'object',  # TEXT 
+            'efd_area': 'object',  # TEXT 
+            'efd_perimeter': 'object',  # TEXT 
+            'centroid': 'object',  # TEXT 
+            'convex_hull.1': 'object',  # TEXT
+            'polygon_closed': 'object',  # TEXT
+            'polygon_closed_rotated': 'object',  # TEXT 
+            'keypoints': 'object',  # TEXT 
+            'tip': 'object',  # TEXT 
+            'base': 'object',  # TEXT
+
+            'to_split': 'object',  # TEXT
+            'component_type': 'object',  # TEXT
+            'component_id': 'object',  # TEXT
+            'herb': 'object',  # TEXT
+            'gbif_id': 'object',  # TEXT
+            'fullname': 'object',  # TEXT
+            'genus_species': 'object',  # TEXT
+            'family': 'object',  # TEXT
+            'genus': 'object',  # TEXT
+            'specific_epithet': 'object',  # TEXT
+            'cf_error': 'float64',  # TEXT
+            'megapixels': 'float64',  # TEXT
+
+            'acceptedNameUsage': 'object',
+            'accessRights': 'object',
+            'associatedReferences': 'object',
+            'associatedSequences': 'object',
+            'associatedTaxa': 'object',
+            'bibliographicCitation': 'object',
+            'collectionCode': 'object',
+            'continent': 'object',
+            'dataGeneralizations': 'object',
+            'datasetID': 'object',
+            'datasetName': 'object',
+            'dateIdentified': 'object',
+            'decimalLatitude': 'object',
+            'decimalLongitude': 'object',
+            'disposition': 'object',
+            'dynamicProperties': 'object',
+            'earliestAgeOrLowestStage': 'object',
+            'earliestEonOrLowestEonothem': 'object',
+            'earliestEraOrLowestErathem': 'object',
+            'endDayOfYear': 'object',
+            'establishmentMeans': 'object',
+            'eventID': 'object',
+            'eventRemarks': 'object',
+            'eventTime': 'object',
+            'fieldNotes': 'object',
+            'fieldNumber': 'object',
+            'footprintSRS': 'object',
+            'footprintWKT': 'object',
+            'georeferenceProtocol': 'object',
+            'georeferenceRemarks': 'object',
+            'georeferenceSources': 'object',
+            'georeferenceVerificationStatus': 'object',
+            'georeferencedBy': 'object',
+            'georeferencedDate': 'object',
+            'higherGeography': 'object',
+            'identificationID': 'object',
+            'identificationReferences': 'object',
+            'identificationVerificationStatus': 'object',
+            'identifiedBy': 'object',
+            'informationWithheld': 'object',
+            'infraspecificEpithet': 'object',
+            'institutionID': 'object',
+            'island': 'object',
+            'islandGroup': 'object',
+            'language': 'object',
+            'latestEonOrHighestEonothem': 'object',
+            'latestEpochOrHighestSeries': 'object',
+            'level0Gid': 'object',
+            'level0Name': 'object',
+            'level1Gid': 'object',
+            'level1Name': 'object',
+            'level2Gid': 'object',
+            'level2Name': 'object',
+            'level3Gid': 'object',
+            'level3Name': 'object',
+            'lifeStage': 'object',
+            'locationAccordingTo': 'object',
+            'locationID': 'object',
+            'locationRemarks': 'object',
+            'materialSampleID': 'object',
+            'month': 'object',
+            'municipality': 'object',
+            'nomenclaturalCode': 'object',
+            'nomenclaturalStatus': 'object',
+            'organismID': 'object',
+            'organismQuantityType': 'object',
+            'otherCatalogNumbers': 'object',
+            'ownerInstitutionCode': 'object',
+            'parentNameUsage': 'object',
+            'parentNameUsageID': 'object',
+            'preparations': 'object',
+            'previousIdentifications': 'object',
+            'projectId': 'object',
+            'recordedByID': 'object',
+            'reproductiveCondition': 'object',
+            'sampleSizeUnit': 'object',
+            'samplingEffort': 'object',
+            'samplingProtocol': 'object',
+            'sex': 'object',
+            'startDayOfYear': 'object',
+            'taxonConceptID': 'object',
+            'taxonID': 'object',
+            'taxonRemarks': 'object',
+            'type': 'object',
+            'typeStatus': 'object',
+            'typifiedName': 'object',
+            'verbatimCoordinateSystem': 'object',
+            'verbatimDepth': 'object',
+            'verbatimIdentification': 'object',
+            'verbatimLabel': 'object',
+            'verbatimLocality': 'object',
+            'verbatimSRS': 'object',
+            'verbatimTaxonRank': 'object',
+            'vernacularName': 'object',
+            'waterBody': 'object',
+            'year': 'object',
+
+            'acceptedNameUsageID': 'object',
+            'acceptedTaxonKey': 'object',
+            'bed': 'object',
+            'classKey': 'object',
+            'coordinateUncertaintyInMeters': 'object',
+            'cultivarEpithet': 'object',
+            'depth': 'object',
+            'depthAccuracy': 'object',
+            'distanceFromCentroidInMeters': 'object',
+            'earliestPeriodOrLowestSystem': 'object',
+            'elevationAccuracy': 'object',
+            'eventType': 'object',
+            'familyKey': 'object',
+            'footprintSpatialFit': 'object',
+            'formation': 'object',
+            'genusKey': 'object',
+            'geologicalContextID': 'object',
+            'group': 'object',
+            'higherGeographyID': 'object',
+            'highestBiostratigraphicZone': 'object',
+            'identifiedByID': 'object',
+            'infragenericEpithet': 'object',
+            'kingdomKey': 'object',
+            'latestAgeOrHighestStage': 'object',
+            'latestEraOrHighestErathem': 'object',
+            'latestPeriodOrHighestSystem': 'object',
+            'lithostratigraphicTerms': 'object',
+            'lowestBiostratigraphicZone': 'object',
+            'member': 'object',
+            'nameAccordingTo': 'object',
+            'namePublishedIn': 'object',
+            'namePublishedInYear': 'object',
+            'orderKey': 'object',
+            'originalNameUsage': 'object',
+            'originalNameUsageID': 'object',
+            'parentEventID': 'object',
+            'phylumKey': 'object',
+            'scientificNameID': 'object',
+            'speciesKey': 'object',
+            'subfamily': 'object',
+            'subgenus': 'object',
+            'subgenusKey': 'object',
+            'subtribe': 'object',
+            'taxonKey': 'object',
+            'tribe': 'object',
+            'verticalDatum': 'object',
+
+            'superfamily': 'object',
+            'maximumDistanceAboveSurfaceInMeters': 'object',
+            'minimumDistanceAboveSurfaceInMeters': 'object',
+            'sampleSizeValue': 'object',
+
+            'earliestEpochOrLowestSeries': 'object',
+            'nameAccordingToID': 'object',
+            'namePublishedInID': 'object',
+            'organismRemarks': 'object'
+        }
+        # Check if the file name contains "occurrences" or "multimedia"
+        if "occurrences" in file_name.lower() or "occurrence" in file_name.lower() or "multimedia" in file_name.lower():
+            # Read the file without specifying dtypes to infer the column names
+            # df_tmp = dd.read_csv(file_path, sep=None, header=0, blocksize=f"{block_size}MB", on_bad_lines="skip", assume_missing=True)
+            # df_tmp = dd.read_csv(file_path, sep=None, header=0, blocksize=f"{block_size}MB", on_bad_lines="skip", assume_missing=True, nrows=5)
+            # # Set all columns to dtype object (equivalent to strings in pandas/dask)
+            # column_names = df_tmp.columns.tolist()
+            # # column_dtypes = {col: 'object' for col in df_tmp.columns}
+            # column_dtypes = {col: 'object' for col in column_names}
+
+            # Read a small portion of the file to get the column names
+            df_tmp = dd.read_csv(file_path, sep="\t", dtype='object',header=0, low_memory=False, blocksize=f"{block_size}MB", on_bad_lines="skip", assume_missing=True).head(n=5)
+            column_names = df_tmp.columns.tolist()
+            
+            # Set all columns to dtype object (equivalent to strings in pandas/dask)
+            column_dtypes = {col: 'object' for col in column_names}
+
+        try:
+            if "occurrences" in file_name.lower() or "occurrence" in file_name.lower() or "multimedia" in file_name.lower():
+                if file_extension == 'txt':
+                    # Reading a .txt file with tab-delimited data
+                    df = dd.read_csv(file_path, sep="\t", header=0, dtype=column_dtypes, assume_missing=True, 
+                                    blocksize=f"{block_size}MB", on_bad_lines="skip", low_memory=False)
+                elif file_extension == 'csv':
+                    # Reading a .csv file (comma-separated)
+                    df = dd.read_csv(file_path, sep=",", header=0, dtype=column_dtypes, assume_missing=True, 
+                                    blocksize=f"{block_size}MB", on_bad_lines="skip", low_memory=False)
+                else:
+                    # Handle other cases (e.g., pipe-separated or semicolon-separated)
+                    try:
+                        df = dd.read_csv(file_path, sep="|", header=0, dtype=column_dtypes, assume_missing=True, 
+                                        blocksize=f"{block_size}MB", on_bad_lines="skip", low_memory=False)
+                    except Exception:
+                        try:
+                            df = dd.read_csv(file_path, sep=";", header=0, dtype=column_dtypes, assume_missing=True, 
+                                            blocksize=f"{block_size}MB", on_bad_lines="skip", low_memory=False)
+                        except Exception as e:
+                            print(f"Error reading file with different delimiter: {e}")
+                            return None
+            else:
+                print(f"DWC file {file_path} is not '.txt' or '.csv' and was not opened")
+                return None
+        except Exception as e:
+            print(f"Error while reading file: {e}")
+            return None
+
+        return df.compute()
+
+
 
 
 

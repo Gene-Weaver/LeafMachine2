@@ -4,7 +4,7 @@ leafmachine:
     detector_type: Archival_Detector
     detector_version: PREP_final
     detector_weights: best.pt
-    do_save_prediction_overlay_images: true
+    do_save_prediction_overlay_images: false
     ignore_objects_for_overlay: []
     minimum_confidence_threshold: 0.5
     ruler_binary_detector: model_scripted_resnet_720_withCompression.pt
@@ -23,7 +23,7 @@ leafmachine:
     binarize_labels_skeletonize: false
     do_save_cropped_annotations: false
     save_cropped_annotations:
-    - label
+    - ruler
     save_per_annotation_class: true
     save_per_image: false
   data:
@@ -37,17 +37,17 @@ leafmachine:
     save_json_measurements: false
     save_json_rulers: false
   do:
-    check_for_corrupt_images_make_vertical: false
-    check_for_illegal_filenames: false
+    check_for_corrupt_images_make_vertical: true
+    check_for_illegal_filenames: true
     run_leaf_processing: true
   landmark_detector:
     detector_iteration: Landmarks
     detector_type: Landmark_Detector_YOLO
     detector_version: Landmarks
     detector_weights: best.pt
-    do_save_QC_images: true
-    do_save_final_images: true
-    do_save_prediction_overlay_images: true
+    do_save_QC_images: false # 
+    do_save_final_images: false # 
+    do_save_prediction_overlay_images: false # 
     do_show_QC_images: false
     do_show_final_images: false
     ignore_objects_for_overlay: []
@@ -74,21 +74,21 @@ leafmachine:
     detector_version: uniform_spaced_oriented_traces_mid15_pet5_clean_640_flipidx_pt2
     elliptic_fourier_descriptor_order: 40
     find_minimum_bounding_box: true
-    generate_overlay: true
+    generate_overlay: false # DEPRECATED
     keep_only_best_one_leaf_one_petiole: true
     minimum_confidence_threshold: 0.7
     overlay_background_color: black
     overlay_dpi: 300
     overlay_line_width: 1
-    save_each_segmentation_overlay_image: true
-    save_full_image_masks_color: true
-    save_individual_overlay_images: true
-    save_keypoint_overlay: true
-    save_masks_color: true
-    save_oriented_images: true
-    save_oriented_mask: true
-    save_rgb_cropped_images: true
-    save_segmentation_overlay_images_to_pdf: true
+    save_each_segmentation_overlay_image: false # useful
+    save_full_image_masks_color: false # useful
+    save_individual_overlay_images: false # useful
+    save_keypoint_overlay: false # useful
+    save_masks_color: false # useful
+    save_oriented_images: true # useful
+    save_oriented_mask: true # useful
+    save_rgb_cropped_images: true # useful
+    save_segmentation_overlay_images_to_pdf: false # DEPRECATED
     save_simple_txt: true
     segment_partial_leaves: false
     segment_whole_leaves: true
@@ -125,7 +125,7 @@ leafmachine:
     detector_type: Plant_Detector
     detector_version: PLANT_LeafPriority
     detector_weights: LeafPriority.pt
-    do_save_prediction_overlay_images: true
+    do_save_prediction_overlay_images: false
     ignore_objects_for_overlay: []
     minimum_confidence_threshold: 0.5
   print:
@@ -134,11 +134,11 @@ leafmachine:
   project:
     GBIF_mode: all
     accept_only_ideal_leaves: true
-    batch_size: 100000
-    censor_archival_components: true
-    dir_images_local: /home/brlab/Dropbox/LM2_Env/Image_Datasets/GBIF_DetailedSample_50Spp #D:/Dropbox/LM2_Env/Image_Datasets/GBIF_DetailedSample_50Spp #/media/nas/GBIF_Downloads/Cornales/Cornaceae/img #/media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg # /media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #G:/herbarium_CF_test #D:/D_Desktop/size_test # D:/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images_ind #/media/data/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images # D:/D_Desktop/temp_50_2 #/media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #/media/nas/GBIF_Downloads/Cornales/Cornaceae/img # /media/data/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images #/media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #  #
+    batch_size: 25000
+    censor_archival_components: true # Betulaceae/img_1 failed, DB Locked in SEG & 4
+    dir_images_local: /media/nas/GBIF_Downloads/Fagales/Betulaceae/img_4 #G:/Thais/final_dataset #/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/img # /media/nas/GBIF_Downloads/Cornales/Cornaceae/img #D:/Dropbox/LM2_Env/Image_Datasets/GBIF_DetailedSample_50Spp #/media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg # /media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #G:/herbarium_CF_test #D:/D_Desktop/size_test # D:/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images_ind #/media/data/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images # D:/D_Desktop/temp_50_2 #/media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #/media/nas/GBIF_Downloads/Cornales/Cornaceae/img # /media/data/Dropbox/LM2_Env/Image_Datasets/Botany_Test_Images #/media/data/Dropbox/LM2_Env/Image_Datasets/DwC_BroadSample_DwC10RandImg #  #
     dir_images_subset: ''
-    dir_output: /home/brlab/Desktop/GBIF_DetailedSample_50Spp # C:/Users/Will/Downloads/GBIF_DetailedSample_50Spp #/media/nas/GBIF_Downloads/Cornales/Cornaceae #/media/nas/TEMP_TEST  # C:/Users/Will/Downloads/herbarium_CF_test #/media/nas/test_LM2_optimized_DwC10RandImg #C:/Users/Will/Downloads #/media/nas/GBIF_Downloads/Cornales/Cornaceae #  #  #
+    dir_output: /media/nas/GBIF_Downloads/Fagales/Betulaceae/LM2_4 #G:/Thais #/media/nas/GBIF_Downloads/Magnoliales/Annonaceae #/media/nas/GBIF_Downloads/Cornales/Cornaceae # C:/Users/Will/Downloads/GBIF_DetailedSample_50Spp #/media/nas/TEMP_TEST  # C:/Users/Will/Downloads/herbarium_CF_test #/media/nas/test_LM2_optimized_DwC10RandImg #C:/Users/Will/Downloads #/media/nas/GBIF_Downloads/Cornales/Cornaceae #  #  #
     hide_archival_components:
     - ruler
     - barcode
@@ -162,7 +162,7 @@ leafmachine:
     path_occurrence_csv_local: null
     process_subset_of_images: false
     replacement_color: '#FFFFFF'
-    run_name: LM2
+    run_name: LM2  #LM2
     padding_for_crop: 150
     orientation: '6'
     colorspace: 'raw'
@@ -182,4 +182,4 @@ leafmachine:
     ruler_detector: ruler_classifier_38classes_v-1.pt
     save_ruler_processed: false
     save_ruler_validation: false
-    save_ruler_validation_summary: true
+    save_ruler_validation_summary: false

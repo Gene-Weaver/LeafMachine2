@@ -19,17 +19,26 @@ from sklearn.metrics import confusion_matrix, classification_report
 # Load the data
 # new_data_file_path = 'D:/T_Downloads/LM2_Populus_subset_MEASUREMENTS_PRED_MEAN_POLY_best.csv'
 # new_data_file_path = 'D:/T_Downloads/LM2_Quercus_NA-500_MEASUREMENTS_PRED_MEAN_POLY_best.csv'
-new_data_file_path = 'D:/T_Downloads/LM2_Quercus_NA-500_AND_Populus_MEASUREMENTS_PRED_MEAN_POLY_best_el.csv'
+# new_data_file_path = 'D:/T_Downloads/LM2_Quercus_NA-500_AND_Populus_MEASUREMENTS_PRED_MEAN_POLY_best_el.csv'
+new_data_file_path = 'G:/Thais/LM2/Data/Measurements/LM2_MEASUREMENTS_CLEAN.csv'
+
+# pdf_path = 'D:/T_Downloads/violin_plots_per_class_Quercus_AND_Populus_Genus_el.pdf'
+# new_data_file_path_LANDMARK = 'D:/T_Downloads/LM2_Quercus_NA_AND_Populus_LANDMARKS_el.csv'
+pdf_path = 'G:/Thais/LM2/Data/Measurements/violin_plots_per_class.pdf'
+new_data_file_path_LANDMARK = 'G:/Thais/LM2/Data/Landmarks/LM2_LANDMARKS.csv'
+path_circularity_convexity = 'G:/Thais/LM2/Data/Measurements/circularity_convexity.pdf'
+
 new_data = pd.read_csv(new_data_file_path)
 
 # Extract the relevant part of the filename and create a new column for it
 # new_data['class'] = new_data['filename'].apply(lambda x: '_'.join(x.split('_')[2:5]))
-new_data['class'] = new_data['filename'].apply(lambda x: '_'.join(x.split('_')[2:4]))
+# new_data['class'] = new_data['filename'].apply(lambda x: '_'.join(x.split('_')[2:4])) # For GBIF
+new_data['class'] = new_data['fullname'] # For Thais
 print(new_data['class'])
 # Count the number of rows per class
 class_counts = new_data['class'].value_counts()
 
-MIN_N_LEAVES = 20
+MIN_N_LEAVES = 10
 
 classes_to_keep = class_counts[class_counts >= MIN_N_LEAVES].index
 new_data = new_data[new_data['class'].isin(classes_to_keep)]
@@ -53,7 +62,6 @@ sorted_classes = sorted(class_counts[class_counts >= MIN_N_LEAVES].index)
 
 
 # pdf_path = 'D:/T_Downloads/violin_plots_per_class_Populus_log.pdf'
-pdf_path = 'D:/T_Downloads/violin_plots_per_class_Quercus_AND_Populus_Genus_el.pdf'
 pdf_pages = PdfPages(pdf_path)
 
 # Set the Seaborn style and font scale before the loop to apply it to all plots
@@ -80,7 +88,6 @@ for col in columns:
 
 ############################## ANGLES
 # new_data_file_path_LANDMARK = 'D:/T_Downloads/LM2_Populus_subset_LANDMARKS_CFapplied_PRED_MEAN_POLY_best.csv'
-new_data_file_path_LANDMARK = 'D:/T_Downloads/LM2_Quercus_NA_AND_Populus_LANDMARKS_el.csv'
 new_data_LANDMARK = pd.read_csv(new_data_file_path_LANDMARK)
 columns_LANDMARK = ['apex_angle_degrees', 'base_angle_degrees']
 # new_data_LANDMARK['class'] = new_data_LANDMARK['filename'].apply(lambda x: '_'.join(x.split('_')[2:5]))
@@ -117,7 +124,6 @@ for col in columns_LANDMARK:
 ######################### PCA
 # Load the data
 # new_data_file_path = 'D:/T_Downloads/LM2_Populus_subset_MEASUREMENTS_PRED_MEAN_POLY_best.csv'
-new_data_file_path = 'D:/T_Downloads/LM2_Quercus_NA-500_AND_Populus_MEASUREMENTS_PRED_MEAN_POLY_best_el.csv'
 new_data = pd.read_csv(new_data_file_path)
 
 # Log-transform 'area', 'perimeter', and 'convex_hull' columns
@@ -130,7 +136,6 @@ new_data['class'] = new_data['filename'].apply(lambda x: '_'.join(x.split('_')[2
 
 # Load the landmark data
 # new_data_file_path_LANDMARK = 'D:/T_Downloads/LM2_Populus_subset_LANDMARKS_CFapplied_PRED_MEAN_POLY_best.csv'
-new_data_file_path_LANDMARK = 'D:/T_Downloads/LM2_Quercus_NA_AND_Populus_LANDMARKS_el.csv'
 new_data_LANDMARK = pd.read_csv(new_data_file_path_LANDMARK)
 
 # Merge the two datasets on the 'component_name' column
@@ -487,8 +492,8 @@ plt.title('Average Morphospace by Class')
 plt.grid(True)
 # plt.legend()
 
-# Save the plot to a PDF file
-plt.savefig('D:/T_Downloads/populus_mean_circularity_convexity.pdf')
+# Save the plot to a PDF file 
+plt.savefig(path_circularity_convexity)
 
 # Close the plot
 plt.close()

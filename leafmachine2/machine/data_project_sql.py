@@ -727,6 +727,7 @@ class Project_Info_SQL():
             self.conn.close()
 
 def process_image_batch(image_batch, db_path, batch_commit_size=10, retries=5, delay=0.5):
+    REQ_PIXEL_HEIGHT = 3400
     conn = sqlite3.connect(db_path, timeout=30)  # Increased timeout for database lock
     cur = conn.cursor()
     
@@ -735,6 +736,12 @@ def process_image_batch(image_batch, db_path, batch_commit_size=10, retries=5, d
     for img_id, img_path in image_batch:
         width, height = fast_image_size(img_path)
         if width is not None and height is not None:  # Only proceed if valid dimensions are returned
+            longest_side = max(width, height)
+            if longest_side < REQ_PIXEL_HEIGHT:
+                new_width, new_height = resize_image_to_min_length(img_path, width, height, REQ_PIXEL_HEIGHT)
+                # If resize happens, we update dimensions
+                width, height = new_width, new_height
+
             batch_updates.append((width, height, img_id))
         else:
             print(f"Warning: Unable to get dimensions for image {img_path}")
@@ -766,6 +773,28 @@ def process_image_batch(image_batch, db_path, batch_commit_size=10, retries=5, d
     cur.close()
     conn.close()
 
+def resize_image_to_min_length(img_path, width, height, required_length):
+    # Determine the longest side and calculate the scaling factor
+    if width > height:
+        scale_factor = required_length / width
+        new_width = required_length
+        new_height = int(height * scale_factor)
+    else:
+        scale_factor = required_length / height
+        new_height = required_length
+        new_width = int(width * scale_factor)
+
+    # Resize the image and save it
+    try:
+        img_small = Image.open(img_path)
+        new_img = img_small.resize((new_width, new_height), Image.LANCZOS)
+        new_img.save(img_path)  # Overwrite the original image or save to a new path if needed
+        print(f"Image {img_path} resized from h:{height} w:{width} >>> TO >>> h:{new_height} w:{new_width}")
+
+    except Exception as e:
+        print(f"Error resizing image {img_path}: {e}")
+
+    return new_width, new_height
 
 def fast_image_size(img_path):
     parser = ImageFile.Parser()
