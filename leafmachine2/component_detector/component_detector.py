@@ -833,7 +833,7 @@ def run_landmarks(cfg, logger, show_all_logs, dir_home, Project, batch, n_batche
         # Weights folder base
         dir_weights = os.path.join(dir_home, 'leafmachine2', 'component_detector','runs','train')
 
-        if cfg['leafmachine']['project']['device'] == 'cuda'
+        if cfg['leafmachine']['project']['device'] == 'cuda':
             num_gpus = int(cfg['leafmachine']['project'].get('num_gpus', 1))  # Default to 1 GPU if not specified
             device_list = [i for i in range(num_gpus)]  # List of GPU indices like [0, 1, 2, ...]
         else:
