@@ -438,7 +438,7 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
                 break
 
             for filename in filenames_chunk:
-                process_filename(worker_id, filename, cfg, logger, show_all_logs, dir_home, Project, batch, Dirs, device, use_CF_predictor)
+                process_filename(worker_id, filename, cfg, show_all_logs, dir_home, Project, batch, Dirs, device, use_CF_predictor)
 
             queue.task_done()
 
@@ -472,14 +472,14 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
     time_report['t_rulers'] = t_rulers
     return Project, time_report
 
-def process_filename(worker_id, filename, cfg, logger, show_all_logs, dir_home, Project, batch, Dirs, device, use_CF_predictor):
+def process_filename(worker_id, filename, cfg, show_all_logs, dir_home, Project, batch, Dirs, device, use_CF_predictor):
+    wlogger, wlogger_path = start_worker_logging(worker_id, Dirs, log_name='worker_log_ruler')
     analysis = Project.project_data_list[batch][filename]
-    RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg, device)
+    RulerCFG = RulerConfig(wlogger, dir_home, Dirs, cfg, device)
     Labels = DocEnTR()
     model, __device = Labels.load_DocEnTR_model(device)
     poly_model = PolynomialModel()
     poly_model.load_polynomial_model()
-    wlogger, wlogger_path = start_worker_logging(worker_id, Dirs, log_name='worker_log_ruler')
 
     if len(analysis) != 0:
         Project.project_data_list[batch][filename]['Ruler_Info'] = []
@@ -2309,9 +2309,9 @@ class RulerConfig:
             self.path_to_class_names = os.path.join(dir_home, 'leafmachine2','machine','ruler_classifier','ruler_classes.txt')
             self.path_to_class_names_bi = os.path.join(dir_home, 'leafmachine2','machine','ruler_classifier','binary_classes.txt')
         except:
-            self.path_to_model = os.path.join(dir_home,'leafmachine2','machine','ruler_classifier','model')
-            self.path_to_class_names = os.path.join(dir_home, 'leafmachine2','machine','ruler_classifier','ruler_classes.txt')
-            self.path_to_class_names_bi = os.path.join(dir_home, 'leafmachine2','machine','ruler_classifier','binary_classes.txt')
+            self.path_to_model = os.path.join(Dirs.dir_home,'leafmachine2','machine','ruler_classifier','model')
+            self.path_to_class_names = os.path.join(Dirs.dir_home, 'leafmachine2','machine','ruler_classifier','ruler_classes.txt')
+            self.path_to_class_names_bi = os.path.join(Dirs.dir_home, 'leafmachine2','machine','ruler_classifier','binary_classes.txt')
 
         self.path_ruler_output_parent = Dirs.ruler_info
         self.dir_ruler_validation = Dirs.ruler_validation
