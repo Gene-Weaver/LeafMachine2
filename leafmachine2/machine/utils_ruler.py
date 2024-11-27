@@ -846,7 +846,22 @@ class RulerInfo:
         self.conversion_successful=False
         self.pooled_sd = -999
         self.conversion_mean_n_vals = -999
-        
+        self.tolerance = 5
+        self.at_least_one_correct_conversion = False
+        self.exhausted_units_to_test = False
+        self.current_val = 0
+        self.prev_val = 0
+        self.key_ind = 0
+        self.original_distances_1unit = []
+        self.cv_list = []
+        self.cv_list_dict = {}
+        self.cv_list_count = 0
+        self.cv_list_ind = 0
+        self.conversion_mean_n_vals = -999
+        self.pooled_sd = -999
+        self.pooled_sd_list = []
+        self.cross_validation_count = -999
+
         ### FIXES
         if self.ruler_class == 'tick_black_4thcm':
             self.ruler_class = 'tick_black_cm_halfcm_4thcm'
