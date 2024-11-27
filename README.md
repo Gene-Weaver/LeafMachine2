@@ -45,6 +45,13 @@ Table of Contents
 ---
 
 # Updates
+
+* November 27, 2024
+    * Added instrutions for installing/running CPU-only mode
+    * All Mac users should install using CPU only
+    * AMD Radeon GPUs are NOT supported, but it is possible if you want to modify the pytorch installation 
+    * To test in CPU only mode, run the `test_cpu_only.py` file
+
 * August 14, 2024
     * Added newest version of keypoint detector
     * Automatic vertical alignment (rotate leaves to have lamina tip at at top, petiole at bottom)

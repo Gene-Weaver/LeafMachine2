@@ -2294,6 +2294,11 @@ class RulerConfig:
     net_ruler: object = field(init=False)
 
     def __init__(self, logger, dir_home, Dirs, cfg, device) -> None:
+        print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+        print(dir_home)
+        print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+        print(Dirs)
+        print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
         self.path_to_config = dir_home
         self.cfg = cfg
 
@@ -2329,9 +2334,9 @@ class RulerConfig:
         
 
         try:
-            self.net_ruler = torch.jit.load(os.path.join(self.path_to_model,model_name), map_location=f'cuda:{device}')
+            self.net_ruler = torch.jit.load(os.path.join(self.path_to_model, model_name), map_location=f'cuda:{device}')
         except:
-            self.net_ruler = torch.jit.load(os.path.join(self.path_to_model,model_name), map_location='cpu')
+            self.net_ruler = torch.jit.load(os.path.join(self.path_to_model, model_name), map_location='cpu')
         self.net_ruler.eval()
         try:
             self.net_ruler.to(f'cuda:{device}') # specify device as 'cuda:0'
