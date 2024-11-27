@@ -176,7 +176,6 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
                 else:
                     Project, time_report = convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs)
                     # Project = parallel_convert_rulers(cfg, logger, dir_home, Project, batch, Dirs)
-                
 
                 # Segment Whole Leaves
                 if progress_report:

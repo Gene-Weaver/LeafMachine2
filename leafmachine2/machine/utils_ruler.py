@@ -2299,12 +2299,19 @@ class RulerConfig:
         print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
         print(Dirs)
         print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+        print(Dirs.dir_home)
+        print("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
         self.path_to_config = dir_home
         self.cfg = cfg
-
-        self.path_to_model = os.path.join(dir_home,'leafmachine2','machine','ruler_classifier','model')
-        self.path_to_class_names = os.path.join(dir_home, 'leafmachine2','machine','ruler_classifier','ruler_classes.txt')
-        self.path_to_class_names_bi = os.path.join(dir_home, 'leafmachine2','machine','ruler_classifier','binary_classes.txt')
+        
+        try:
+            self.path_to_model = os.path.join(dir_home,'leafmachine2','machine','ruler_classifier','model')
+            self.path_to_class_names = os.path.join(dir_home, 'leafmachine2','machine','ruler_classifier','ruler_classes.txt')
+            self.path_to_class_names_bi = os.path.join(dir_home, 'leafmachine2','machine','ruler_classifier','binary_classes.txt')
+        except:
+            self.path_to_model = os.path.join(dir_home,'leafmachine2','machine','ruler_classifier','model')
+            self.path_to_class_names = os.path.join(dir_home, 'leafmachine2','machine','ruler_classifier','ruler_classes.txt')
+            self.path_to_class_names_bi = os.path.join(dir_home, 'leafmachine2','machine','ruler_classifier','binary_classes.txt')
 
         self.path_ruler_output_parent = Dirs.ruler_info
         self.dir_ruler_validation = Dirs.ruler_validation
