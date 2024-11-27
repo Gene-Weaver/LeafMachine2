@@ -844,6 +844,7 @@ class RulerInfo:
         self.ruler_class = self.Ruler.ruler_class
 
         self.conversion_successful=False
+        self.pooled_sd = -999
 
         ### FIXES
         if self.ruler_class == 'tick_black_4thcm':

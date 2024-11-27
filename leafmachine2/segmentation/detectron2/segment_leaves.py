@@ -56,16 +56,6 @@ def segment_leaves(cfg, time_report, logger, dir_home, Project, batch, n_batches
     Project.project_data_list[batch] = crop_images_to_bbox(Project.project_data_list[batch], 0, 'Whole_Leaf_Cropped', "Whole_Leaf_BBoxes", Project)
     Project.project_data_list[batch] = crop_images_to_bbox(Project.project_data_list[batch], 1, 'Partial_Leaf_Cropped', "Partial_Leaf_BBoxes", Project)
 
-    # Run the leaf instance segmentation operations
-    dir_seg_model = os.path.join(dir_home, 'leafmachine2', 'segmentation', 'models',cfg['leafmachine']['leaf_segmentation']['segmentation_model'])
-    Instance_Detector_Whole = Detector_LM2(logger, dir_seg_model, cfg['leafmachine']['leaf_segmentation']['minimum_confidence_threshold'], 0)
-    Instance_Detector_Partial = Detector_LM2(logger, dir_seg_model, cfg['leafmachine']['leaf_segmentation']['minimum_confidence_threshold'], 1)
-
-
-    save_oriented_images = cfg['leafmachine']['leaf_segmentation']['save_oriented_images']
-    save_keypoint_overlay = cfg['leafmachine']['leaf_segmentation']['save_keypoint_overlay']
-    save_oriented_mask = cfg['leafmachine']['leaf_segmentation']['save_oriented_mask']
-    save_simple_txt = cfg['leafmachine']['leaf_segmentation']['save_simple_txt']
     # Weights folder base
     dir_weights = os.path.join(dir_home, 'leafmachine2', 'keypoint_detector','keypoint_models')
     detector_version = cfg['leafmachine']['leaf_segmentation']['detector_version']
