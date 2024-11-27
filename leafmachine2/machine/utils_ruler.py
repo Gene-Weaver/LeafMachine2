@@ -474,7 +474,7 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
 
 def process_filename(worker_id, filename, cfg, logger, show_all_logs, dir_home, Project, batch, Dirs, device, use_CF_predictor):
     analysis = Project.project_data_list[batch][filename]
-    RulerCFG = RulerConfig(dir_home, Dirs, cfg, device)
+    RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg, device)
     Labels = DocEnTR()
     model, __device = Labels.load_DocEnTR_model(device)
     poly_model = PolynomialModel()
