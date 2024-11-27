@@ -324,7 +324,7 @@ def distribute_workloads(weights, source, project, name, imgsz, nosave, anno_typ
     queue = Queue()
     # Start worker threads
     workers = []
-    for _ in range(num_workers):
+    for i in range(num_workers):
         # Assign the device for this worker (round-robin distribution across device_list)
         device = device_list[i % len(device_list)]
         t = Thread(target=worker_object_detector, args=(queue, weights, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, device, LOGGER))
