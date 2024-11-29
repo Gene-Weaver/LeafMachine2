@@ -232,6 +232,7 @@ For more information about virtual environments, please see [Creation of virtual
 - If that fails, you might have a CUDA installation issue. 
 - If you cannot get the GPU working, then you can install PyTorch with CPU only, avoiding the CUDA problem entirely, but that is not recommended given that 
 LeafMachine2 is designed to use GPUs. The components that rely on ViT (binarization of labels) will *NOT* work without a GPU. The leaf segmentation may not work either, sometimes it does, sometimes not. 
+- Do ensure LM2 runs on a CPU *only*, go to `leafmachine2/segmentation/detectron2/detectron2/modeling/meta_arch/build.py` replace the line `model.to(torch.device(cfg.MODEL.DEVICE))` on line 23 to `model.to(torch.device('cpu’))`
 - We have also validated CUDA 12.4 with PyTorch 2.X. If you have success with other versions of CUDA/pytorch, let us know and we will update our instructions. 
 
 ---
