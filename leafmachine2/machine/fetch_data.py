@@ -6,10 +6,18 @@ from zipfile import ZipFile
 import urllib.request
 from tqdm import tqdm
 import subprocess
+import ssl
+import certifi
 
 VERSION = 'v-2-3'
 
 def fetch_data(logger, dir_home, cfg_file_path):
+    # Force Python to use certifi's CA bundle
+    os.environ['SSL_CERT_FILE'] = certifi.where()
+    os.environ['REQUESTS_CA_BUNDLE'] = certifi.where()
+
+    ssl_context = ssl.create_default_context(cafile=certifi.where())
+
     logger.name = 'Fetch Data'
     ready_to_use = False
     do_fetch = True
