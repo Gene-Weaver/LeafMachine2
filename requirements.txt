@@ -52,7 +52,8 @@ pandastable>=0.13.1
 parse>=1.20.1
 Pillow>=10.2.0
 protobuf>=3.20.0
-#"protobuf>=3.21,<5.0.0"#protobuf>=3.20.0
+#protobuf>=3.21.0
+#protobuf>=3.20.0
 psutil>=5.9.4
 py_cpuinfo>=9.0.0
 pyexiv2>=2.8.1

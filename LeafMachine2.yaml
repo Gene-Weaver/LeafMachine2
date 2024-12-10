@@ -157,7 +157,7 @@ leafmachine:
     censor_archival_components: true
     colorspace: raw
     device: cuda
-    dir_images_local: D:\D_Desktop\temp_50
+    dir_images_local: D:\D_Desktop\temp_50_2
     dir_images_subset: ''
     dir_output: C:\Users\Will\Downloads
     hide_archival_components:
@@ -172,11 +172,11 @@ leafmachine:
     minimum_total_reproductive_counts: 0
     n_images_per_species: 10
     num_gpus: 1
-    num_workers: 4
+    num_workers: 1
     num_workers_cropping: 12
     num_workers_overlay: 12
     num_workers_ruler: 4
-    num_workers_seg: 4
+    num_workers_seg: 1
     orientation: '6'
     overlay_background_color: black
     overlay_dpi: 300
@@ -185,8 +185,8 @@ leafmachine:
     path_images_csv_local: null
     path_occurrence_csv_local: null
     process_subset_of_images: false
-    replacement_color: '#e800ff'
-    run_name: test_temp_50
+    replacement_color: '#FFFFFF'
+    run_name: test
     save_JPG_to_dir_output: true
     save_TIFF_to_dir_output: false
     save_TIFF_to_original_dir: false
