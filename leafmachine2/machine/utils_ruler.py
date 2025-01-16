@@ -413,7 +413,8 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
 
     show_all_logs = False
 
-    device_list = [0] if cfg['leafmachine']['project']['device'] == 'cuda' else ['cpu']
+    # device_list = [0] if cfg['leafmachine']['project']['device'] == 'cuda' else ['cpu']
+    device_list = [torch.device('cuda', i) for i in range(torch.cuda.device_count())] if cfg['leafmachine']['project']['device'] == 'cuda' else [torch.device('cpu')]
 
     # Load shared resources outside the loop
     # RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
@@ -446,7 +447,7 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
     queue = Queue()
     workers = []
     for worker_id in range(num_workers):
-        device = device_list[worker_id % len(device_list)]
+        device = device_list[worker_id % len(device_list)] # Caused error
         t = Thread(target=worker, args=(queue,device,worker_id,))
         t.start()
         workers.append(t)
@@ -2351,7 +2352,8 @@ class RulerConfig:
             self.net_ruler = torch.jit.load(os.path.join(self.path_to_model, model_name), map_location='cpu')
         self.net_ruler.eval()
         try:
-            self.net_ruler.to(f'cuda:{device}') # specify device as 'cuda:0'
+            # self.net_ruler.to(f'cuda:{device}') # specify device as 'cuda:0'
+            self.net_ruler.to(device) # specify device as 'cuda:0'
         except:
             self.net_ruler.to('cpu')
         # torch.jit.save(self.net_ruler, '/home/brlab/Dropbox/LeafMachine2/leafmachine2/machine/ruler_classifier/model/ruler_classifier_38classes_v-1.pt')
