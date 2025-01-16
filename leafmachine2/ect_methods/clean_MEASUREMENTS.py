@@ -14,9 +14,13 @@ if __name__ == '__main__':
     # outline_path = "G:/Thais/LM2/Keypoints/Simple_Labels"
     # path_figure = "G:/Thais/LM2/Data/Measurements/CF_Plot_Disagreement.png"
 
-    file_path = "C:/Users/Will/Downloads/GBIF_DetailedSample_50Spp/LM2_2024_10_30__19-14-22/Data/Measurements/LM2_MEASUREMENTS.csv"
-    outline_path = "C:/Users/Will/Downloads/GBIF_DetailedSample_50Spp/LM2_2024_10_30__19-14-22/Keypoints/Simple_Labels"
-    path_figure = "C:/Users/Will/Downloads/GBIF_DetailedSample_50Spp/LM2_2024_10_30__19-14-22/Keypoints/CF_Plot_Disagreement.png"
+    # file_path = "C:/Users/Will/Downloads/GBIF_DetailedSample_50Spp/LM2_2024_10_30__19-14-22/Data/Measurements/LM2_MEASUREMENTS.csv"
+    # outline_path = "C:/Users/Will/Downloads/GBIF_DetailedSample_50Spp/LM2_2024_10_30__19-14-22/Keypoints/Simple_Labels"
+    # path_figure = "C:/Users/Will/Downloads/GBIF_DetailedSample_50Spp/LM2_2024_10_30__19-14-22/Keypoints/CF_Plot_Disagreement.png"
+
+    file_path = "/media/nas/GBIF_Downloads/GBIF_DetailedSample_50Spp/LM2/Data/Measurements/LM2_MEASUREMENTS.csv"
+    outline_path = "/media/nas/GBIF_Downloads/GBIF_DetailedSample_50Spp/LM2/Keypoints/Simple_Labels"
+    path_figure = "/media/nas/GBIF_Downloads/GBIF_DetailedSample_50Spp/LM2/Keypoints/CF_Plot_Disagreement.png"
     
     clean_file_path = file_path.replace("LM2_MEASUREMENTS.csv", "LM2_MEASUREMENTS_CLEAN.csv")
 

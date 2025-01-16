@@ -153,13 +153,13 @@ leafmachine:
   project:
     GBIF_mode: all
     accept_only_ideal_leaves: true
-    batch_size: 100
+    batch_size: 20000
     censor_archival_components: true
     colorspace: raw
     device: cuda
-    dir_images_local: D:\D_Desktop\temp_50_2
+    dir_images_local: /media/nas/GBIF_Downloads/Magnoliopsida_By_Family/Apocynaceae/img
     dir_images_subset: ''
-    dir_output: C:\Users\Will\Downloads
+    dir_output: /media/nas/GBIF_Downloads/Magnoliopsida_By_Family/Apocynaceae
     hide_archival_components:
     - ruler
     - barcode
@@ -170,13 +170,13 @@ leafmachine:
     - weights
     image_location: local
     minimum_total_reproductive_counts: 0
-    n_images_per_species: 10
-    num_gpus: 1
-    num_workers: 1
-    num_workers_cropping: 12
-    num_workers_overlay: 12
-    num_workers_ruler: 4
-    num_workers_seg: 1
+    n_images_per_species: 1000
+    num_gpus: 2
+    num_workers: 32
+    num_workers_cropping: 32
+    num_workers_overlay: 32
+    num_workers_ruler: 32
+    num_workers_seg: 24
     orientation: '6'
     overlay_background_color: black
     overlay_dpi: 300
@@ -186,7 +186,7 @@ leafmachine:
     path_occurrence_csv_local: null
     process_subset_of_images: false
     replacement_color: '#FFFFFF'
-    run_name: test
+    run_name: LM2
     save_JPG_to_dir_output: true
     save_TIFF_to_dir_output: false
     save_TIFF_to_original_dir: false

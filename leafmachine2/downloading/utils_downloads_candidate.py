@@ -1,4 +1,4 @@
-import os, base64, cv2
+import os, base64, cv2, csv
 import time
 import requests, ssl, aiohttp
 import re
@@ -55,10 +55,15 @@ from leafmachine2.machine.general_utils import bcolors, get_cfg_from_full_path
 # Initialize ScraperAPI client
 
 try:
-    cfg_private = get_cfg_from_full_path('/media/data/Dropbox/LeafMachine2/PRIVATE_DATA.yaml')
-
-except:
-    cfg_private = get_cfg_from_full_path('/home/brlab/Dropbox/LeafMachine2/PRIVATE_DATA.yaml')
+    # Attempt to load the private data file
+    cfg_private = get_cfg_from_full_path(os.path.join(parentdir, 'PRIVATE_DATA.yaml'))
+except FileNotFoundError:
+    # Raise an error if the file is not found
+    raise FileNotFoundError("The private data file 'PRIVATE_DATA.yaml' cannot be found. This file is required for scraperAPI to function.")
+except Exception as e:
+    # Handle any other unexpected exceptions
+    raise RuntimeError(f"An unexpected error occurred while trying to load 'PRIVATE_DATA.yaml': {e}")
+    
 
 # List of available API keys
 # SCRAPERAPI_KEYS = [
@@ -279,6 +284,8 @@ class ImageCandidate:
         self.lock = asyncio.Lock()  # Ensure it's correctly set here
         self.sync_lock = threading.Lock()  # Ensure it's correctly set here
 
+        self.failure_csv_lock = threading.Lock()
+
         self.n_to_download = self.cfg['n_to_download']
         self.taxonomic_level = self.cfg['taxonomic_level']
         self.retries = 0
@@ -287,6 +294,8 @@ class ImageCandidate:
         self.dir_destination = self.cfg['dir_destination_images']
         self.MP_low = self.cfg['MP_low']
         self.MP_high = self.cfg['MP_high']
+
+        self.failure_csv_path = self.cfg['failure_csv_path']
 
         if self.taxonomic_level == 'family':
             self.taxonomic_unit = self.family
@@ -609,6 +618,21 @@ class ImageCandidate:
             return urlunparse(https_url)
         return url  # Return the URL unchanged if it is already https
 
+    async def log_failed_download(self, reason):
+        """
+        Append a failed download entry to the failure CSV file.
+        Args:
+            reason (str): Reason for the failure.
+        """
+        print(f"{bcolors.HEADER}LOGGING FAILURE{bcolors.ENDC}")
+        with self.failure_csv_lock:
+            try:
+                with open(self.failure_csv_path, mode='a', newline='', encoding='utf-8') as csvfile:
+                    writer = csv.writer(csvfile)
+                    writer.writerow([self.filename_image_jpg, self.url, reason])
+                    print(f"{bcolors.FAIL}Logged failure: {self.filename_image_jpg}, Reason: {reason}{bcolors.ENDC}")
+            except Exception as e:
+                print(f"{bcolors.FAIL}Failed to log failure: {e}{bcolors.ENDC}")
 
 
 
@@ -616,12 +640,13 @@ class ImageCandidate:
         if response.status == 404:
             # return response.status, f"Error 404"
             self.download_success = 'skip'
+            await self.log_failed_download("404 Not Found")
             print(f"            Skipping Error 404 URL {self.url}")
             return
 
         if response.status == 403:
-            # return response.status, f"Error 404"
             self.download_success = 'skip'
+            await self.log_failed_download("403 Forbidden")
             print(f"            Skipping Error 403 URL {self.url}")
             return
         
@@ -636,10 +661,16 @@ class ImageCandidate:
                     response = session.get(redirect_url, timeout=TIMEOUT)
                     print(f"            Retrying with the redirect URL {redirect_url}")
                 else:
-                    print(f"            Failed to retrieve the redirect URL after consent.  {self.url}")
+                    print(f"            Failed to retrieve the redirect URL after consent.  SKIPPING {self.url}")
+                    await self.log_failed_download("401 Unauthorized - Failed to retrieve the redirect URL after consent")
                     # return response.status, f"Failed to download image. Status code: {response.status}"
-                    self.download_success = False
+                    self.download_success = 'skip'
+                    # self.download_success = False
                     return
+            else:
+                await self.log_failed_download("401 Unauthorized - No URL")
+                self.download_success = 'skip'
+                return
             
 
 
@@ -669,6 +700,7 @@ class ImageCandidate:
                 return 
             else:
                 print(f"      Failed to save binary image, GBIF ID: {self.taxonomic_unit} {self.url}")
+                await self.log_failed_download(reason)
                 self.download_success = 'skip'
                 return
 
@@ -722,10 +754,12 @@ class ImageCandidate:
                         return 
                 else:
                     print(f"      Failed to save image from dynamic viewer, GBIF ID: {self.taxonomic_unit} {self.url}")
+                    await self.log_failed_download(reason)
                     self.download_success = 'skip'
                     return
             else:
                 print(f"      Failed to save image from dynamic viewer, no image_data, GBIF ID: {self.taxonomic_unit} {self.url}")
+                await self.log_failed_download("No image data in dynamic page")
                 self.download_success = 'skip'
                 return
 
@@ -776,6 +810,8 @@ class ImageCandidate:
                 return 
             else:
                 print(f"      Failed to save image status.code {response.status}, REASON [{reason}], GBIF ID: {self.taxonomic_unit} {self.url}")
+                await self.log_failed_download(f"Failed to save image status.code {response.status}, REASON [{reason}], GBIF ID: {self.taxonomic_unit} {self.url}")
+
                 if reason == "too_small" and 'too_small' in self.banned_url_counts_tracker:
                     self.banned_url_counts_tracker['too_small_direct'] += 1
                     self.download_success = 'skip'
@@ -787,22 +823,61 @@ class ImageCandidate:
                         self.banned_url_counts_tracker[reason] += 1
                     else:
                         self.banned_url_counts_tracker[reason] = 1
-                    self.download_success = False
+                    self.download_success = 'skip'
+                    # self.download_success = False
                 return
             
         except Exception as e:
             print(f"      Failed to save image status.code {response.status}, {e}, GBIF ID: {self.taxonomic_unit} {self.url}")
-            self.download_success = False
+            # self.download_success = False
+            self.download_success = 'skip'
             return
 
+    async def iiif_parse(manifest_url):
+        parsed_url = urlparse(manifest_url)
+        domain = parsed_url.netloc  # Extract the domain (netloc)
 
+        # Define custom headers with a random User-Agent
+        headers = {
+            'User-Agent': random.choice(USER_AGENTS),
+            'Accept': 'application/json, text/javascript, */*; q=0.01',
+            'Referer': 'https://www.google.com/',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'DNT': '1',  # Do Not Track
+            'Connection': 'keep-alive',
+        }
 
+        """Parse the IIIF manifest to extract the associated image URL."""
+        try:
+            # Make the GET request with custom headers
+            response = requests.get(manifest_url, headers=headers)
+            if response.status_code == 200:
+                manifest_data = response.json()
 
+                # First check if this is the original structure with 'dwc:associatedMedia'
+                for item in manifest_data.get('metadata', []):
+                    if item['label'] == 'dwc:associatedMedia':
+                        associated_media_url = item['value']
+                        # Handle cases where the value might contain an anchor tag with a URL
+                        if 'href' in associated_media_url:
+                            associated_media_url = associated_media_url.split('"')[1]
+                        return associated_media_url
 
+                # If no 'dwc:associatedMedia' was found, check the structure for the second case
+                if 'items' in manifest_data:
+                    for canvas in manifest_data['items']:
+                        for annotation_page in canvas.get('items', []):
+                            for annotation in annotation_page.get('items', []):
+                                if annotation.get('motivation') == 'painting' and 'body' in annotation:
+                                    image_url = annotation['body']['id']
+                                    return image_url
 
-
-
-
+            else:
+                print(f"Failed to fetch manifest: {response.status_code} domain: {domain}")
+        except Exception as e:
+            print(f"Error parsing manifest: domain: {domain} error: {e}")
+        
+        return None
 
 
 
@@ -849,15 +924,19 @@ class ImageCandidate:
         await asyncio.sleep(random.uniform(0, 5))  # Random delay between 0 and 5 seconds
 
         await self.check_for_google_drive_url() # updates self.url
-
-        status_iiif = await self.check_for_iiif_manifest_url() # updates self.url or returns (None, message)
-        if not status_iiif:
-            self.download_success = 'skip'
-            return
         
         if 'arctos' in self.url:
             print(f'Is arctos {self.url}')
             self.url = await self.make_https(self.url)
+
+        if ("manifest.json" in self.url) or ('manifest' in self.url):
+            print(f"IIIF Manifest URL detected: {self.url}")
+            # Parse the IIIF manifest to get the actual image URL
+            self.url = await self.iiif_parse(self.url)
+            if not self.url:
+                self.download_success = 'skip'
+                print("Failed to extract image from IIIF manifest")
+                return
         
         self.initial_code = 999
         while self.retries < self.max_retries:
@@ -936,10 +1015,14 @@ class ImageCandidate:
             
         # If the max retries are exhausted
         if self.download_success == False:
-            print(f"{bcolors.CREDBG}      Retries exceeded: {self.retries + 1} STATUS[{self.initial_code}] URL: {self.url}{bcolors.ENDC}, GBIF ID: {self.taxonomic_unit}")
+            self.download_success = "skip"
+            # Set to skip to keep it from going to ScraperAPI
+            await self.log_failed_download(f"Retries exceeded: {self.retries + 1} STATUS[{self.initial_code}] URL: {self.url}, GBIF ID: {self.taxonomic_unit}")
+            print(f"{bcolors.CYELLOWBG}      Retries exceeded: {self.retries + 1} STATUS[{self.initial_code}] URL: {self.url}, GBIF ID: {self.taxonomic_unit}{bcolors.ENDC},")
             return 
         elif self.download_success == 'skip':
-            print(f"{bcolors.CGREYBG}      Skipping: {self.retries + 1} STATUS[{self.initial_code}] URL: {self.url}{bcolors.ENDC}, GBIF ID: {self.taxonomic_unit}")
+            await self.log_failed_download(f"Retries exceeded: {self.retries + 1} STATUS[{self.initial_code}] URL: {self.url}, GBIF ID: {self.taxonomic_unit}")
+            print(f"{bcolors.CYELLOWBG}      Skipping: {self.retries + 1} STATUS[{self.initial_code}] URL: {self.url} GBIF ID: {self.taxonomic_unit}{bcolors.ENDC},")
             return 
         else:
             return 

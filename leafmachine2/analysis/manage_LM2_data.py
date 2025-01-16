@@ -951,64 +951,62 @@ class LM2DataVault:
 
 
 if __name__ == '__main__':
-    run_CLEAN = False
+    run_CLEAN = True
     run_ingest = False
 
-    run_ECT = False
-    run_collate_ECTs = False 
+    run_ECT = True
+    run_collate_ECTs = False  # DEP ? (double check that this is not used any more 01/13/25)
 
     run_PHATE_test = False # DEP
-    run_PHATE_on_family = True
-    run_PHATE_on_everything = False
+    run_PHATE_on_family = False #True
+    run_PHATE_on_everything = False # DEP ? (double check that this is not used any more 01/13/25)
 
     db_path = '/media/nas/GBIF_Downloads/Combined_LM2_Data/lm2_vault_copy.db'
 
-    # Directories that contain the desired LM2* _MEASUREMENTS.csv files
-    input_dirs = [
-        '/media/nas/GBIF_Downloads/Magnoliales/Eupomatiaceae/LM2',# DONE ECT
-        '/media/nas/GBIF_Downloads/Cornales/Cornaceae/LM2_2024_09_25__13-47-42',  # DONE ECT
-        '/media/nas/GBIF_Downloads/Cornales/Loasaceae/LM2', # DONE ECT
-        # '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_1/LM2', # 1-7 # DONE ECT
-        # '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_2/LM2', # 1-7 # DONE ECT
-        # '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_3/LM2', # 1-7 # DONE ECT
-        # '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_4/LM2', # 1-7 # DONE ECT
-        # '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_5/LM2', # 1-7 # DONE ECT
-        # '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_6/LM2', # 1-7 # DONE ECT
-        # '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_7/LM2', # 1-7 # DONE ECT
-        '/media/nas/GBIF_Downloads/Cornales/Hydrangeaceae/LM2',# DONE ECT
-        '/media/nas/GBIF_Downloads/Cornales/Nyssaceae/LM2',# DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Degeneriaceae/LM2',# DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Himantandraceae/LM2',# DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Magnoliaceae/LM2',# DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Myristicaceae/LM2_2024_09_29__19-09-14',# DONE ECT
-        '/media/nas/GBIF_Downloads/Moraceae/LM2', # have coordinates only # DONE ECT
-        '/media/nas/GBIF_Downloads/Urticaceae/LM2', # have coordinates only # DONE ECT
-    ]  
-    input_dirs2 = [
-        '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_1/LM2', # 1-7 # DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_2/LM2', # 1-7 # DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_3/LM2', # 1-7 # DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_4/LM2', # 1-7 # DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_5/LM2', # 1-7 # DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_6/LM2', # 1-7 # DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_7/LM2', # 1-7 # DONE ECT
-        '/media/nas/GBIF_Downloads/Cornales/Loasaceae/LM2', # DONE ECT
-        '/media/nas/GBIF_Downloads/Cornales/Cornaceae/LM2_2024_09_25__13-47-42',  # DONE ECT
-        '/media/nas/GBIF_Downloads/Cornales/Hydrangeaceae/LM2',# DONE ECT
-        '/media/nas/GBIF_Downloads/Cornales/Nyssaceae/LM2',# DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Degeneriaceae/LM2',# DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Eupomatiaceae/LM2',# DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Himantandraceae/LM2',# DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Magnoliaceae/LM2',# DONE ECT
-        '/media/nas/GBIF_Downloads/Magnoliales/Myristicaceae/LM2_2024_09_29__19-09-14',# DONE ECT
-        '/media/nas/GBIF_Downloads/Urticaceae/LM2', # have coordinates only # DONE ECT
-        '/media/nas/GBIF_Downloads/Moraceae/LM2', # have coordinates only # DONE ECT
-    ]  
+
     # input_dirs = [
-        # '/media/nas/GBIF_Downloads/Magnoliales/Eupomatiaceae/LM2',
-        # '/media/nas/GBIF_Downloads/Magnoliales/Degeneriaceae/LM2',
-        # '/media/nas/GBIF_Downloads/Cornales/Loasaceae/LM2',
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Eupomatiaceae/LM2',# DONE ECT
+    #     '/media/nas/GBIF_Downloads/Cornales/Cornaceae/LM2_2024_09_25__13-47-42',  # DONE ECT
+    #     '/media/nas/GBIF_Downloads/Cornales/Loasaceae/LM2', # DONE ECT
+    #     # '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_1/LM2', # 1-7 # DONE ECT
+    #     # '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_2/LM2', # 1-7 # DONE ECT
+    #     # '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_3/LM2', # 1-7 # DONE ECT
+    #     # '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_4/LM2', # 1-7 # DONE ECT
+    #     # '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_5/LM2', # 1-7 # DONE ECT
+    #     # '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_6/LM2', # 1-7 # DONE ECT
+    #     # '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_7/LM2', # 1-7 # DONE ECT
+    #     '/media/nas/GBIF_Downloads/Cornales/Hydrangeaceae/LM2',# DONE ECT
+    #     '/media/nas/GBIF_Downloads/Cornales/Nyssaceae/LM2',# DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Degeneriaceae/LM2',# DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Himantandraceae/LM2',# DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Magnoliaceae/LM2',# DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Myristicaceae/LM2_2024_09_29__19-09-14',# DONE ECT
+    #     '/media/nas/GBIF_Downloads/Moraceae/LM2', # have coordinates only # DONE ECT
+    #     '/media/nas/GBIF_Downloads/Urticaceae/LM2', # have coordinates only # DONE ECT
     # ]  
+    # input_dirs2 = [
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_1/LM2', # 1-7 # DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_2/LM2', # 1-7 # DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_3/LM2', # 1-7 # DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_4/LM2', # 1-7 # DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_5/LM2', # 1-7 # DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_6/LM2', # 1-7 # DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Annonaceae/LM2_7/LM2', # 1-7 # DONE ECT
+    #     '/media/nas/GBIF_Downloads/Cornales/Loasaceae/LM2', # DONE ECT
+    #     '/media/nas/GBIF_Downloads/Cornales/Cornaceae/LM2_2024_09_25__13-47-42',  # DONE ECT
+    #     '/media/nas/GBIF_Downloads/Cornales/Hydrangeaceae/LM2',# DONE ECT
+    #     '/media/nas/GBIF_Downloads/Cornales/Nyssaceae/LM2',# DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Degeneriaceae/LM2',# DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Eupomatiaceae/LM2',# DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Himantandraceae/LM2',# DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Magnoliaceae/LM2',# DONE ECT
+    #     '/media/nas/GBIF_Downloads/Magnoliales/Myristicaceae/LM2_2024_09_29__19-09-14',# DONE ECT
+    #     '/media/nas/GBIF_Downloads/Urticaceae/LM2', # have coordinates only # DONE ECT
+    #     '/media/nas/GBIF_Downloads/Moraceae/LM2', # have coordinates only # DONE ECT
+    # ]  
+    input_dirs = [
+        '/media/nas/GBIF_Downloads/GBIF_DetailedSample_50Spp/LM2',
+    ]  
 
     if run_CLEAN:
         clean_files = []
@@ -1070,7 +1068,7 @@ if __name__ == '__main__':
         ### collate_ect_data(input_dirs, output_h5_path, output_npz_path)  
 
         # First, process each family directory
-        for dir_path in input_dirs2:
+        for dir_path in input_dirs:
             collate_ect_data_family(dir_path)
 
         # Then, combine the family-specific files into a single total file
@@ -1096,7 +1094,7 @@ if __name__ == '__main__':
             run_PHATE_on_everything_h5(dir_path,family_ECT_path,
                     bin_by_class="genus")
         
-    if run_PHATE_on_everything:
-        run_PHATE_on_everything_h5('/media/nas/GBIF_Downloads/Combined_LM2_Data/collated_ect_data_newphyt.h5',
-                                bin_by_class="genus") # genus?
+    # if run_PHATE_on_everything:
+    #     run_PHATE_on_everything_h5('/media/nas/GBIF_Downloads/Combined_LM2_Data/collated_ect_data_newphyt.h5',
+    #                             bin_by_class="genus") # genus?
         

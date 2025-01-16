@@ -8,9 +8,15 @@ parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)
 sys.path.append(currentdir)
 
-from leafmachine2.downloading.utils_downloads import run_download_parallel, load_wishlist_to_tracker
+# from leafmachine2.downloading.utils_downloads import run_download_parallel, load_wishlist_to_tracker
+from leafmachine2.downloading.utils_downloads_refactored import run_download_parallel, load_wishlist_to_tracker
 from leafmachine2.machine.general_utils import bcolors
 # from leafmachine2.downloading.utils_downloads import download_all_images_in_images_csv
+
+
+'''
+Despite the file name this is the main script used to download large GBIF datasets
+'''
 
 def save_download_tracker_to_csv(download_tracker, csv_filename):
     with open(csv_filename, 'w', newline='') as csvfile:
@@ -50,8 +56,8 @@ if __name__ == '__main__':
     DWC_min_res = 1
     DWC_max_res = 25
     do_resize = True
-    n_threads = 48#24
-    num_drivers = 48#12#48
+    n_threads = 24#24
+    num_drivers = 24#12#48
 
     # project_download_list = ['/media/nas/GBIF_Downloads/Cornales_wCoords/Cornaceae']
     
@@ -142,26 +148,35 @@ if __name__ == '__main__':
 
 
     '''Populus_Populus_tremuloides 10/29/24 for Dave Tank, with coordinates   DONE'''
-    # project_download_list = [
-    #     "/media/nas/GBIF_Downloads/Tank/Salicaceae_Populus_tremuloides2", 
-    #     ]
-    # taxonomic_level = 'fullname' # family genus fullname
-    # use_large_file_size_methods = False # False for < 1 GB csv files
+    project_download_list = [
+        "/media/nas/GBIF_Downloads/Tank/Salicaceae_Populus_tremuloides2", 
+        ]
+    taxonomic_level = 'fullname' # family genus fullname
+    use_large_file_size_methods = True # False for < 1 GB csv files
+    failure_csv_path = "/media/nas/GBIF_Downloads/Tank/Salicaceae_Populus_tremuloides2/failed_downloads.csv"
+    wishlist_csv_path = None
+    n_to_download = 50 # PER taxonomic_level
     
 
     '''Magnoliopsida 10/15/24          '''
-    project_download_list = [
-        "/media/nas/GBIF_Downloads/Magnoliopsida", 
-        ]
-    taxonomic_level = 'fullname' # family genus fullname
-    use_large_file_size_methods = True # False for < 1 GB csv files           
-    wishlist_csv_path = "/media/nas/GBIF_Downloads/big_tree_names_USE.csv"
-    n_to_download = 10 # PER taxonomic_level
-    
+    # project_download_list = [
+    #     "/media/nas/GBIF_Downloads/Magnoliopsida", 
+    #     ]
+    # taxonomic_level = 'fullname' # family genus fullname
+    # use_large_file_size_methods = True # False for < 1 GB csv files           
+    # wishlist_csv_path = "/media/nas/GBIF_Downloads/big_tree_names_USE.csv"
+    # failure_csv_path = "/media/nas/GBIF_Downloads/Magnoliopsida/failed_downloads.csv"
+    # n_to_download = 10 # PER taxonomic_level
 
     for path in project_download_list:
         if not os.path.exists(path):
             raise FileNotFoundError(f"The path {path} does not exist.")
+        
+        if not os.path.exists(failure_csv_path):
+            with open(failure_csv_path, mode='w', newline='', encoding='utf-8') as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(["Filename", "URL", "Reason"])  # Headers for the CSV file
+
         
         start_time = timer()  # Start timer
 
@@ -171,6 +186,7 @@ if __name__ == '__main__':
             'dir_home': path,
             'dir_destination_images': dir_destination_images,
             'dir_destination_csv': dir_destination_csv,
+            'failure_csv_path': failure_csv_path,
             'filename_occ': filename_occ,
             'filename_img': filename_img, 
             'filename_combined': 'combined_occ_img_downloaded.csv',

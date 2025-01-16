@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from test_proxy import download_image_directly  # Assuming the function is in test_proxy.py
+from test_proxy import download_image_directly  
 
 def test_urls_in_file(file_path, target_dir, output_csv=None):
     """
@@ -82,6 +82,8 @@ def test_urls_in_file(file_path, target_dir, output_csv=None):
 
 if __name__ == "__main__":
     # Example usage:
-    input_file = 'D:/Dropbox/LeafMachine2/leafmachine2/downloading/one_url_per_domain.csv' 
-    target_dir = 'D:/Dropbox/LeafMachine2/leafmachine2/downloading/one_url_per_domain_test'
+    input_file = '/media/data/Dropbox/LeafMachine2/leafmachine2/downloading/one_url_per_domain.csv' 
+    target_dir = '/media/data/Dropbox/LeafMachine2/leafmachine2/downloading/one_url_per_domain_test'
+    # input_file = 'D:/Dropbox/LeafMachine2/leafmachine2/downloading/one_url_per_domain.csv' 
+    # target_dir = 'D:/Dropbox/LeafMachine2/leafmachine2/downloading/one_url_per_domain_test'
     test_urls_in_file(input_file, target_dir)

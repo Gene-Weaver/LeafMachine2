@@ -1,4 +1,5 @@
 import os, json, random, glob, inspect, sys, cv2, itertools, torch, sqlite3, logging, warnings
+import time, random
 from timeit import default_timer as timer
 from PIL import Image, ImageDraw
 import matplotlib
@@ -570,6 +571,7 @@ def segment_images_batch(cfg, dir_home, ProjectSQL, dir_images, filenames, leaf_
 
     # Process each filename in the batch
     for filename in filenames:
+        full_mask = None
         # Safely increment the shared counter
         progress_queue.put(1)
         # Load image
@@ -645,8 +647,9 @@ def segment_images_batch(cfg, dir_home, ProjectSQL, dir_images, filenames, leaf_
                                         crop_name.split("__")[2], leaf_type, Dirs, CF)
 
         # Save full masks
-        if save_full_image_masks_color:
-            save_full_masks(save_full_image_masks_color, full_mask, filename, leaf_type, Dirs)
+        if full_mask:
+            if save_full_image_masks_color:
+                save_full_masks(save_full_image_masks_color, full_mask, filename, leaf_type, Dirs)
 
         # Save full overlay images
         save_full_overlay_images(save_each_segmentation_overlay_image, full_image, filename, leaf_type, Dirs)
@@ -896,28 +899,43 @@ def save_segmentation_results_to_sql(cur, filename, crop_name, detected_componen
                         
 
     # Perform a single SQL insertion
-    cur.execute(f"""
-        INSERT INTO {dict_name_seg} 
-        (file_name, crop_name, object_name, overlay_data, polygons, bboxes, labels, colors, 
-        bbox, bbox_min, rotate_angle, bbox_min_long_side, bbox_min_short_side, efd_coeffs_features, 
-        efd_a0, efd_c0, efd_scale, efd_angle, efd_phase, efd_area, efd_perimeter, efd_overlay, area, perimeter, centroid, 
-        convex_hull, convexity, concavity, circularity, n_pts_in_polygon, aspect_ratio, 
-        polygon_closed, polygon_closed_rotated) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, 
-                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                ?, ?, ?, ?, ?, ?, 
-                ?, ?)""",
-        (filename, crop_name, object_name, overlay_data, out_polygons_json, out_bboxes_json, out_labels_json, out_color_json, #overlay_data_json,
-        bbox, bbox_min, rotate_angle, bbox_min_long_side, bbox_min_short_side, efd_coeffs_features, 
-        efd_a0, efd_c0, efd_scale, efd_angle, efd_phase, efd_area, efd_perimeter, efd_overlay, area, perimeter, centroid, 
-        convex_hull, convexity, concavity, circularity, n_pts_in_polygon, aspect_ratio, 
-        polygon_closed, polygon_closed_rotated)
-    )
+    max_retries = 10  # Maximum number of retry attempts
+    min_delay = 1  # Minimum delay in seconds
+    max_delay = 3  # Maximum delay in seconds
 
-    # Commit the transaction to save changes
-    cur.connection.commit()
-
+    for attempt in range(max_retries):
+        try:
+            cur.execute(f"""
+                INSERT INTO {dict_name_seg} 
+                (file_name, crop_name, object_name, overlay_data, polygons, bboxes, labels, colors, 
+                bbox, bbox_min, rotate_angle, bbox_min_long_side, bbox_min_short_side, efd_coeffs_features, 
+                efd_a0, efd_c0, efd_scale, efd_angle, efd_phase, efd_area, efd_perimeter, efd_overlay, area, perimeter, centroid, 
+                convex_hull, convexity, concavity, circularity, n_pts_in_polygon, aspect_ratio, 
+                polygon_closed, polygon_closed_rotated) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?, ?, 
+                        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                        ?, ?, ?, ?, ?, ?, 
+                        ?, ?)""",
+                (filename, crop_name, object_name, overlay_data, out_polygons_json, out_bboxes_json, out_labels_json, out_color_json, #overlay_data_json,
+                bbox, bbox_min, rotate_angle, bbox_min_long_side, bbox_min_short_side, efd_coeffs_features, 
+                efd_a0, efd_c0, efd_scale, efd_angle, efd_phase, efd_area, efd_perimeter, efd_overlay, area, perimeter, centroid, 
+                convex_hull, convexity, concavity, circularity, n_pts_in_polygon, aspect_ratio, 
+                polygon_closed, polygon_closed_rotated)
+            )
+            # Commit the transaction to save changes
+            cur.connection.commit()
+            return
+        except sqlite3.OperationalError as e:
+            if "database is locked" in str(e):
+                print(f"Database is locked. Attempt {attempt + 1}/{max_retries}. Retrying in a moment...")
+                time.sleep(random.uniform(min_delay, max_delay))  # Random delay before retrying
+            else:
+                cur.connection.rollback()  # Roll back any changes on failure
+                raise  # Re-raise non-lock-related errors
+            
+    # If loop completes without breaking, raise an error
+    print("Failed to execute SQL query after multiple retries due to database lock.")
 
 ''' #SEGMENT PARALLEL
 def segment_images_parallel(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dict_from, cfg, Project, Dirs, batch, n_batches, num_workers):

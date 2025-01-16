@@ -686,6 +686,8 @@ class ImageBatchProcessor:
         dir_home = cfg['dir_home']
         filename_occ = cfg['filename_occ']
         filename_img = cfg['filename_img']
+        project_multimedia_file = cfg['project_multimedia_file'] # If this is not None, then use it instead of the dynamically generated img path
+
 
         try:
             use_large = cfg['use_large_file_size_methods']
@@ -693,19 +695,24 @@ class ImageBatchProcessor:
             use_large = False
 
         if use_large:
-            occ_df = ImageBatchProcessor.ingest_DWC_large_files(filename_occ, dir_home)
-            images_df = ImageBatchProcessor.ingest_DWC_large_files(filename_img, dir_home)
+            occ_df = ImageBatchProcessor.ingest_DWC_large_files(filename_occ, dir_home, None)
+            images_df = ImageBatchProcessor.ingest_DWC_large_files(filename_img, dir_home, project_multimedia_file)
         else:
-            occ_df = ImageBatchProcessor.ingest_DWC(filename_occ, dir_home)
-            images_df = ImageBatchProcessor.ingest_DWC(filename_img, dir_home)
+            occ_df = ImageBatchProcessor.ingest_DWC(filename_occ, dir_home, None)
+            images_df = ImageBatchProcessor.ingest_DWC(filename_img, dir_home, project_multimedia_file)
             
         
         return occ_df, images_df
 
     @staticmethod
-    def ingest_DWC(DWC_csv_or_txt_file, dir_home):
-        file_path = os.path.join(dir_home, DWC_csv_or_txt_file)
+    def ingest_DWC(DWC_csv_or_txt_file, dir_home, project_multimedia_file):
+
+        if project_multimedia_file:
+            file_path = project_multimedia_file
+        else:
+            file_path = os.path.join(dir_home, DWC_csv_or_txt_file)
         file_extension = DWC_csv_or_txt_file.split('.')[-1]
+
 
         try:
             if file_extension == 'txt':
@@ -731,11 +738,15 @@ class ImageBatchProcessor:
         return df
     
     @staticmethod
-    def ingest_DWC_large_files(file_path, dir_home, block_size=512):
+    def ingest_DWC_large_files(file_path, dir_home, project_multimedia_file, block_size=512):
         # Method to ingest large DWC (Darwin Core) CSV or TXT files using Dask to handle larger-than-memory files.
         # This function supports .txt or .csv files with varying delimiters.
-        file_path = os.path.join(dir_home, file_path)
-        file_name = os.path.basename(file_path)
+        if project_multimedia_file:
+            file_path = project_multimedia_file
+            file_name = os.path.basename(file_path)
+        else:
+            file_path = os.path.join(dir_home, file_path)
+            file_name = os.path.basename(file_path)
         file_extension = file_path.split('.')[-1]
 
         # Define the dtype for each column
@@ -954,10 +965,19 @@ class ImageBatchProcessor:
             'earliestEpochOrLowestSeries': 'object',
             'nameAccordingToID': 'object',
             'namePublishedInID': 'object',
-            'organismRemarks': 'object'
+            'organismRemarks': 'object',
+
+            'associatedOccurrences': 'object',
+            'identificationQualifier': 'object',
+            'identificationRemarks': 'object',
+            'occurrenceRemarks': 'object',
+            'recordNumber': 'object',
+            'verbatimElevation': 'object',
+
+
         }
         # Check if the file name contains "occurrences" or "multimedia"
-        if "occurrences" in file_name.lower() or "occurrence" in file_name.lower() or "multimedia" in file_name.lower():
+        # if "occurrences" in file_name.lower() or "occurrence" in file_name.lower() or "multimedia" in file_name.lower():
             # Read the file without specifying dtypes to infer the column names
             # df_tmp = dd.read_csv(file_path, sep=None, header=0, blocksize=f"{block_size}MB", on_bad_lines="skip", assume_missing=True)
             # df_tmp = dd.read_csv(file_path, sep=None, header=0, blocksize=f"{block_size}MB", on_bad_lines="skip", assume_missing=True, nrows=5)
@@ -967,30 +987,37 @@ class ImageBatchProcessor:
             # column_dtypes = {col: 'object' for col in column_names}
 
             # Read a small portion of the file to get the column names
-            df_tmp = dd.read_csv(file_path, sep="\t", dtype='object',header=0, low_memory=False, blocksize=f"{block_size}MB", on_bad_lines="skip", assume_missing=True).head(n=5)
-            column_names = df_tmp.columns.tolist()
+            # df_tmp = dd.read_csv(file_path, sep="\t", dtype='object',header=0, low_memory=False, blocksize=f"{block_size}MB", on_bad_lines="skip", assume_missing=True).head(n=5)
+            # column_names = df_tmp.columns.tolist()
             
-            # Set all columns to dtype object (equivalent to strings in pandas/dask)
-            column_dtypes = {col: 'object' for col in column_names}
+            # # Set all columns to dtype object (equivalent to strings in pandas/dask)
+            # column_dtypes = {col: 'object' for col in column_names}
+
+        # Use pandas to get column names
+        sample_df = pd.read_csv(file_path, sep="\t", nrows=10)
+        all_columns = sample_df.columns.tolist()
+
+        # Default unspecified columns to 'object'
+        complete_dtypes = {col: column_dtypes.get(col, 'object') for col in all_columns}
 
         try:
             if "occurrences" in file_name.lower() or "occurrence" in file_name.lower() or "multimedia" in file_name.lower():
                 if file_extension == 'txt':
                     # Reading a .txt file with tab-delimited data
-                    df = dd.read_csv(file_path, sep="\t", header=0, dtype=column_dtypes, assume_missing=True, 
+                    df = dd.read_csv(file_path, sep="\t", header=0, dtype=complete_dtypes, assume_missing=True, 
                                     blocksize=f"{block_size}MB", on_bad_lines="skip", low_memory=False)
                 elif file_extension == 'csv':
                     # Reading a .csv file (comma-separated)
-                    df = dd.read_csv(file_path, sep=",", header=0, dtype=column_dtypes, assume_missing=True, 
+                    df = dd.read_csv(file_path, sep=",", header=0, dtype=complete_dtypes, assume_missing=True, 
                                     blocksize=f"{block_size}MB", on_bad_lines="skip", low_memory=False)
                 else:
                     # Handle other cases (e.g., pipe-separated or semicolon-separated)
                     try:
-                        df = dd.read_csv(file_path, sep="|", header=0, dtype=column_dtypes, assume_missing=True, 
+                        df = dd.read_csv(file_path, sep="|", header=0, dtype=complete_dtypes, assume_missing=True, 
                                         blocksize=f"{block_size}MB", on_bad_lines="skip", low_memory=False)
                     except Exception:
                         try:
-                            df = dd.read_csv(file_path, sep=";", header=0, dtype=column_dtypes, assume_missing=True, 
+                            df = dd.read_csv(file_path, sep=";", header=0, dtype=complete_dtypes, assume_missing=True, 
                                             blocksize=f"{block_size}MB", on_bad_lines="skip", low_memory=False)
                         except Exception as e:
                             print(f"Error reading file with different delimiter: {e}")

@@ -27,6 +27,11 @@ from matplotlib.legend_handler import HandlerPatch
 from matplotlib.patches import Polygon
 import matplotlib.patches as mpatches
 import warnings
+import numpy as np
+import richdem as rd
+import pywt
+from scipy.ndimage import convolve
+from skimage.util.shape import view_as_blocks
 
 def plot_2d_distribution(total_data, bins, class_data, bin_width, class_label, save_dir, test_type, taxa):
     
@@ -536,6 +541,708 @@ def calculate_weighted_average_density(matrix):
         total_density += value * density
         total_weight += value
     return total_density / total_weight if total_weight > 0 else 0
+
+
+
+
+def calculate_terrain_ruggedness_index(matrix):
+    """
+    Calculate the Terrain Ruggedness Index (TRI) using numpy.
+    TRI measures the elevation variation within a local neighborhood.
+
+    Args:
+        matrix (ndarray): A 2D numpy array with heights in each cell.
+
+    Returns:
+        ndarray: A 2D numpy array representing the TRI.
+    """
+    kernel = np.array([[1, 1, 1],
+                       [1, 0, 1],
+                       [1, 1, 1]])
+    local_diff = np.zeros_like(matrix, dtype=float)
+
+    # Calculate local elevation differences
+    for i in range(1, matrix.shape[0] - 1):
+        for j in range(1, matrix.shape[1] - 1):
+            neighbors = matrix[i-1:i+2, j-1:j+2] * kernel
+            local_diff[i, j] = np.sum(np.abs(neighbors - matrix[i, j]))
+
+    return local_diff / 8  # Normalize by the number of neighbors
+
+def visualize_region(matrix):
+    """
+    Visualize the region using richdem.
+
+    Args:
+        matrix (ndarray): A 2D numpy array with heights in each cell.
+    """
+    beau = rd.rdarray(matrix, no_data=-9999)
+    rd.rdShow(beau, ignore_colours=[0], axes=False, cmap='jet', figsize=(8, 5.5))
+
+def calculate_slope(matrix):
+    """
+    Calculate the slope of the terrain using richdem.
+
+    Args:
+        matrix (ndarray): A 2D numpy array with heights in each cell.
+
+    Returns:
+        ndarray: A 2D numpy array representing the slope in degrees.
+    """
+    dem = rd.rdarray(matrix, no_data=-9999)
+    slope = rd.TerrainAttribute(dem, attrib='slope_degrees')
+    return slope
+
+def calculate_flow_accumulation(matrix):
+    """
+    Calculate the flow accumulation using the D8 method in richdem.
+
+    Args:
+        matrix (ndarray): A 2D numpy array with heights in each cell.
+
+    Returns:
+        ndarray: A 2D numpy array representing flow accumulation.
+    """
+    dem = rd.rdarray(matrix, no_data=-9999)
+    flow_accum = rd.FlowAccumulation(dem, method='D8')
+    return flow_accum
+
+def calculate_watershed(matrix):
+    """
+    Extract watershed information using richdem.
+
+    Args:
+        matrix (ndarray): A 2D numpy array with heights in each cell.
+
+    Returns:
+        ndarray: A 2D numpy array representing the watershed.
+    """
+    dem = rd.rdarray(matrix, no_data=-9999)
+    watershed = rd.TerrainAttribute(dem, attrib='aspect')
+    return watershed
+
+def calculate_global_morans_i(matrix, k=8):
+    """
+    Calculate Global Moran's I for a 2D matrix with spatial coordinates and height values.
+
+    Args:
+        matrix (ndarray): A 2D array where each element represents a height value.
+        k (int): The number of nearest neighbors to use for spatial weights.
+
+    Returns:
+        dict: Moran's I, Expected Index, Variance, z-score, and p-value.
+    """
+    import numpy as np
+    from pysal.explore import esda
+    from pysal.lib import weights
+
+    # Flatten the 2D matrix to obtain values and their corresponding coordinates
+    nrows, ncols = matrix.shape
+    x, y = np.meshgrid(range(nrows), range(ncols), indexing='ij')
+    coordinates = np.column_stack((x.ravel(), y.ravel()))
+    values = matrix.ravel()
+
+    # Check if values have variance
+    if np.var(values) == 0:
+        raise ValueError("The input values have zero variance, so Moran's I cannot be calculated.")
+
+    # Create spatial weights using k-nearest neighbors
+    w = weights.KNN.from_array(coordinates, k=k)
+    w.transform = "R"  # Row-standardize the weights
+
+    # Check for disconnected observations
+    disconnected = [key for key, count in w.cardinalities.items() if count == 0]
+    if disconnected:
+        raise ValueError(f"The following observations have no neighbors: {disconnected}. Try increasing `k`.")
+
+    # Calculate Global Moran's I
+    moran = esda.moran.Moran(values, w)
+
+    # Return Moran's I statistics
+    return {
+        "Moran's I Index": moran.I,
+        "Expected Index": moran.EI,
+        "Variance": moran.VI_norm,
+        "z-score": moran.z_norm,
+        "p-value": moran.p_norm
+    }
+
+
+
+def calculate_global_morans_i_filtered(matrix, k=8, threshold=2):
+    """
+    Calculate Global Moran's I for a 2D matrix with spatial coordinates and height values,
+    only including features greater than or equal to the given threshold.
+
+    Args:
+        matrix (ndarray): A 2D array where each element represents a height value.
+        k (int): The number of nearest neighbors to use for spatial weights.
+        threshold (float): The minimum value for features to be included in the analysis.
+
+    Returns:
+        dict: Moran's I, Expected Index, Variance, z-score, and p-value.
+    """
+    import numpy as np
+    from pysal.explore import esda
+    from pysal.lib import weights
+
+    # Flatten the 2D matrix to obtain values and their corresponding coordinates
+    nrows, ncols = matrix.shape
+    x, y = np.meshgrid(range(nrows), range(ncols), indexing='ij')
+    coordinates = np.column_stack((x.ravel(), y.ravel()))
+    values = matrix.ravel()
+
+    # Filter values and coordinates based on the threshold
+    mask = values >= threshold
+    filtered_values = values[mask]
+    filtered_coordinates = coordinates[mask]
+
+    # Check if there are enough valid observations
+    if len(filtered_values) < 2:
+        raise ValueError("Not enough valid observations after filtering. Adjust the threshold or check the matrix.")
+
+    # Check if filtered values have variance
+    if np.var(filtered_values) == 0:
+        raise ValueError("The input values have zero variance after filtering, so Moran's I cannot be calculated.")
+
+    # Create spatial weights using k-nearest neighbors
+    w = weights.KNN.from_array(filtered_coordinates, k=k)
+    w.transform = "R"  # Row-standardize the weights
+
+    # Check for disconnected observations
+    disconnected = [key for key, count in w.cardinalities.items() if count == 0]
+    if disconnected:
+        raise ValueError(f"The following observations have no neighbors: {disconnected}. Try increasing `k`.")
+
+    # Calculate Global Moran's I
+    moran = esda.moran.Moran(filtered_values, w)
+
+    # Return Moran's I statistics
+    return {
+        f"Moran's I Index (thresh={threshold}, k={k})": moran.I,
+        "Expected Index": moran.EI,
+        "Variance": moran.VI_norm,
+        "z-score": moran.z_norm,
+        "p-value": moran.p_norm
+    }
+
+
+
+def calculate_ripleys_g(matrix, distance_range, threshold=2, num_simulations=99):
+    """
+    Calculate Ripley's G statistic for spatial point pattern analysis based on a 2D matrix.
+    Only considers cells with values >= 2.
+
+    Args:
+        matrix (ndarray): A 2D array where each cell represents a value (e.g., pixel intensity).
+        distance_range (ndarray): A 1D array of distances at which to calculate G(d).
+        num_simulations (int): Number of simulations to compute the null hypothesis distribution.
+
+    Returns:
+        dict: Observed G(d), Mean Simulated G(d), Standard Deviation, and p-value for each distance.
+    """
+    import numpy as np
+    from scipy.spatial import distance
+
+    # Get the coordinates of cells with values >= threshold
+    coordinates = np.column_stack(np.where(matrix >= threshold))
+
+    # Number of points
+    n_points = len(coordinates)
+    if n_points < 2:
+        raise ValueError("At least two points are required to compute Ripley's G statistic.")
+
+    # Pairwise distance matrix (considering the 8-neighbor adjacency)
+    dist_matrix = distance.cdist(coordinates, coordinates)
+
+    # Exclude self-distances (diagonal of the matrix)
+    np.fill_diagonal(dist_matrix, np.inf)
+
+    # Calculate observed G(d)
+    observed_g = []
+    for d in distance_range:
+        count = np.sum(np.min(dist_matrix, axis=1) <= d)
+        observed_g.append(count / n_points)
+    observed_g = np.array(observed_g)
+
+    # Simulate null hypothesis (random spatial distribution)
+    simulated_g = []
+    for _ in range(num_simulations):
+        # Generate random points in the same spatial extent
+        random_x = np.random.randint(0, matrix.shape[0], n_points)
+        random_y = np.random.randint(0, matrix.shape[1], n_points)
+        random_coords = np.column_stack((random_x, random_y))
+
+        # Compute pairwise distances for random points
+        random_dist_matrix = distance.cdist(random_coords, random_coords)
+        np.fill_diagonal(random_dist_matrix, np.inf)
+
+        # Compute G(d) for the random pattern
+        g_values = []
+        for d in distance_range:
+            count = np.sum(np.min(random_dist_matrix, axis=1) <= d)
+            g_values.append(count / n_points)
+        simulated_g.append(g_values)
+
+    simulated_g = np.array(simulated_g)
+
+    # Compute mean and standard deviation of simulated G(d)
+    mean_simulated_g = np.mean(simulated_g, axis=0)
+    std_simulated_g = np.std(simulated_g, axis=0)
+
+    # Calculate p-values for observed G(d) based on simulation
+    p_values = np.mean(simulated_g >= observed_g, axis=0)
+
+    # Return results
+    return {
+        # "Distance Range": distance_range,
+        "Observed G(d)": observed_g,
+        "Mean Simulated G(d)": mean_simulated_g,
+        "Standard Deviation": std_simulated_g,
+        "p-values": p_values,
+    }
+
+
+def analyze_terrain_spectral(matrix_og, threshold=2):
+    """
+    Perform spectral analysis on elevation data using Fourier Transform.
+
+    Args:
+        matrix (ndarray): A 2D numpy array representing elevation values.
+
+    Returns:
+        tuple: (magnitude_spectrum, frequencies_x, frequencies_y)
+            - magnitude_spectrum (ndarray): 2D array of magnitude spectrum.
+            - frequencies_x (ndarray): Frequency values along the x-axis.
+            - frequencies_y (ndarray): Frequency values along the y-axis.
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from scipy.fftpack import fft2, fftshift
+
+    # Apply the threshold by replacing values below it with zero
+    matrix = np.where(matrix_og >= threshold, matrix_og, 0)
+
+    # Perform 2D Fast Fourier Transform (FFT)
+    fft_result = fft2(matrix)
+    
+    # Shift the zero frequency component to the center
+    fft_shifted = fftshift(fft_result)
+    
+    # Compute the magnitude spectrum
+    magnitude_spectrum = np.abs(fft_shifted)
+    
+    # Generate frequency values for x and y axes
+    rows, cols = matrix.shape
+    frequencies_x = np.fft.fftfreq(cols)
+    frequencies_y = np.fft.fftfreq(rows)
+    
+    # Compute the spectral centroid (summary statistic)
+    # Create a grid of frequencies
+    freq_x, freq_y = np.meshgrid(frequencies_x, frequencies_y)
+    freq_magnitude = np.sqrt(freq_x**2 + freq_y**2)
+    weighted_sum = np.sum(freq_magnitude * magnitude_spectrum)
+    total_magnitude = np.sum(magnitude_spectrum)
+    spectral_summary = weighted_sum / total_magnitude if total_magnitude > 0 else 0
+
+    return {
+        "spectral_summary": spectral_summary,
+        "magnitude_spectrum": magnitude_spectrum,
+        "frequencies_x": frequencies_x,
+        "frequencies_y": frequencies_y,
+    }
+
+def visualize_spectral_analysis(matrix_og, magnitude_spectrum, threshold=2):
+    """
+    Visualize the original ECT data and its magnitude spectrum.
+
+    Args:
+        matrix (ndarray): 2D array of ECT data.
+        magnitude_spectrum (ndarray): 2D array of magnitude spectrum.
+    """
+    matrix = np.where(matrix_og >= threshold, matrix_og, 0)
+
+    plt.figure(figsize=(12, 6))
+    
+    # Plot the original ECT data
+    plt.subplot(1, 2, 1)
+    plt.title("ECT")
+    plt.imshow(matrix, cmap='terrain', origin='lower')
+    plt.colorbar(label='ECT')
+    plt.xlabel('X Coordinate')
+    plt.ylabel('Y Coordinate')
+    
+    # Plot the magnitude spectrum
+    plt.subplot(1, 2, 2)
+    plt.title("Magnitude Spectrum")
+    plt.imshow(np.log(1 + magnitude_spectrum), cmap='viridis', origin='lower')
+    plt.colorbar(label='Log Magnitude')
+    plt.xlabel('Frequency (x)')
+    plt.ylabel('Frequency (y)')
+    
+    plt.tight_layout()
+    plt.show()
+
+
+
+def analyze_wavelet(matrix_og, large_scale=8, small_scale=1, threshold=2):
+    matrix = np.where(matrix_og >= threshold, matrix_og, 0)
+
+    # Perform wavelet transform
+    coeffs = pywt.dwt2(matrix, 'haar')  # Use Haar wavelet
+    cA, (cH, cV, cD) = coeffs  # Approximation and detail coefficients
+
+    # Get dimensions of cA
+    rows, cols = cA.shape
+
+    # Compute padding for large and small scales
+    pad_rows_large = (large_scale - (rows % large_scale)) % large_scale
+    pad_cols_large = (large_scale - (cols % large_scale)) % large_scale
+
+    pad_rows_small = (small_scale - (rows % small_scale)) % small_scale
+    pad_cols_small = (small_scale - (cols % small_scale)) % small_scale
+
+    # Pad the cA array
+    padded_large = np.pad(cA, ((0, pad_rows_large), (0, pad_cols_large)), mode='constant')
+    padded_small = np.pad(cA, ((0, pad_rows_small), (0, pad_cols_small)), mode='constant')
+
+    # Aggregate features at large scale
+    large_blocks = view_as_blocks(padded_large, block_shape=(large_scale, large_scale))
+    large_features = np.mean(large_blocks, axis=(2, 3))
+
+    # Aggregate features at small scale
+    small_blocks = view_as_blocks(padded_small, block_shape=(small_scale, small_scale))
+    small_features = np.mean(small_blocks, axis=(2, 3))
+
+    return large_features, small_features
+def visualize_wavelet(matrix_og, large_features, small_features, threshold):
+    matrix = np.where(matrix_og >= threshold, matrix_og, 0)
+    fig, axes = plt.subplots(3, 1, figsize=(2, 6))
+
+    # Original Height Map
+    axes[0].imshow(matrix, cmap="terrain", aspect="auto")
+    axes[0].set_title("Original Height Map")
+    axes[0].axis("off")
+
+    # Large Scale Wavelet Features
+    axes[1].imshow(large_features, cmap="viridis", aspect="auto")
+    axes[1].set_title("Large-Scale Features (Wavelet)")
+    axes[1].axis("off")
+
+    # Small Scale Wavelet Features
+    axes[2].imshow(small_features, cmap="plasma", aspect="auto")
+    axes[2].set_title("Small-Scale Features (Wavelet)")
+    axes[2].axis("off")
+
+    plt.tight_layout()
+    plt.show()
+
+
+
+def compute_slope(matrix):
+    """Compute slopes in x and y directions."""
+    kernel_x = np.array([[1, 0, -1], [2, 0, -2], [1, 0, -1]])  # Sobel operator for x
+    kernel_y = np.array([[1, 2, 1], [0, 0, 0], [-1, -2, -1]])  # Sobel operator for y
+
+    slope_x = convolve(matrix, kernel_x, mode="reflect")
+    slope_y = convolve(matrix, kernel_y, mode="reflect")
+
+    slope = np.sqrt(slope_x**2 + slope_y**2)  # Combine gradients
+    return slope
+def classify_geomorphon(matrix_og, search_distance=4, flatness_threshold=1, threshold=2):
+    """
+    Classify geomorphons based on local slopes and relative heights.
+    :param matrix: 2D numpy array of height values.
+    :param search_distance: Distance to evaluate neighbors.
+    :param flatness_threshold: Threshold for flat regions.
+    :return: 2D numpy array of geomorphon classes.
+    """
+    matrix = np.where(matrix_og >= threshold, matrix_og, 0)
+
+    rows, cols = matrix.shape
+    geomorphon_classes = np.zeros_like(matrix, dtype=int)
+
+    for i in range(rows):
+        for j in range(cols):
+            center_height = matrix[i, j]
+
+            # Define a local neighborhood
+            min_row = max(i - search_distance, 0)
+            max_row = min(i + search_distance + 1, rows)
+            min_col = max(j - search_distance, 0)
+            max_col = min(j + search_distance + 1, cols)
+
+            neighborhood = matrix[min_row:max_row, min_col:max_col]
+            relative_heights = neighborhood - center_height
+
+            # Determine class based on relative heights
+            max_height = np.max(relative_heights)
+            min_height = np.min(relative_heights)
+
+            if abs(max_height) < flatness_threshold and abs(min_height) < flatness_threshold:
+                geomorphon_classes[i, j] = 1  # Flat
+            elif max_height > abs(min_height):
+                geomorphon_classes[i, j] = 2  # Ridge/Peak
+            else:
+                geomorphon_classes[i, j] = 3  # Valley/Pit
+
+    unique, counts = np.unique(geomorphon_classes, return_counts=True)
+    class_summary = dict(zip(unique, counts))
+
+    return geomorphon_classes, class_summary
+def visualize_geomorphon(matrix_og, geom_classes, threshold=2):
+    matrix = np.where(matrix_og >= threshold, matrix_og, 0)
+    fig, ax = plt.subplots(1, 2, figsize=(12, 4))
+
+    # Original Height Map
+    ax[0].imshow(matrix, cmap="terrain")
+    ax[0].set_title("Original Height Map")
+    ax[0].axis("off")
+
+    # Geomorphon Classes
+    cmap = plt.cm.get_cmap("tab10", len(np.unique(geom_classes)))
+    im = ax[1].imshow(geom_classes, cmap=cmap)
+    ax[1].set_title("Geomorphon Classes")
+    ax[1].axis("off")
+    cbar = fig.colorbar(im, ax=ax[1], orientation="horizontal")
+    cbar.set_label("Geomorphon Class")
+
+    plt.tight_layout()
+    plt.show()
+
+def define_leaf_bounds(matrix):
+    rows, cols = matrix.shape
+    n_cells = rows*cols
+
+    n_cells_leaf = np.count_nonzero(matrix)
+    n_cells_bg = n_cells - n_cells_leaf
+    return n_cells, n_cells_leaf, n_cells_bg
+
+
+
+def analyze_connected_components(matrix_og, threshold):
+    """
+    Analyze connected components in a matrix for each unique integer value >= threshold.
+    Report sizes and solidity for each connected component.
+
+    Args:
+        matrix_og (np.ndarray): Input matrix of integers.
+        threshold (int): Minimum value to include in the analysis.
+
+    Returns:
+        dict: Sizes of connected components by value.
+        dict: Solidities of connected components by value.
+    """
+    # Filter matrix
+    matrix = np.where(matrix_og >= threshold, matrix_og, 0)
+
+    # Initialize result dictionaries
+    component_sizes = {}
+    component_solidities = {}
+
+    # Get the max value in the matrix
+    max_val = int(np.max(matrix))
+
+    for val in range(threshold, max_val + 1):
+        # Create a binary mask for the current value
+        mask = (matrix == val).astype(int)
+
+        # Perform connected components analysis
+        labeled_array, num_features = label(mask, structure=np.ones((3, 3)))  # 8-connectivity
+
+        # Initialize lists to store sizes and solidities for this value
+        sizes = []
+        solidities = []
+
+        for component_idx in range(1, num_features + 1):
+            # Extract the component
+            component_mask = (labeled_array == component_idx)
+
+            # Calculate size (number of pixels)
+            size = np.sum(component_mask)
+            sizes.append(size)
+
+            # Calculate solidity (size / convex hull area)
+            slice_x, slice_y = find_objects(component_mask)[0]  # Bounding box
+            bounding_box = component_mask[slice_x, slice_y]
+            convex_hull_area = np.prod(bounding_box.shape)  # Simplified for rectangular hull
+            solidity = size / convex_hull_area
+            solidities.append(solidity)
+
+        # Save sizes and solidities for this value
+        component_sizes[val] = sizes
+        component_solidities[val] = solidities
+
+    return component_sizes, component_solidities
+
+def plot_connected_components(component_sizes, component_solidities):
+    """
+    Plot ranked sizes and solidities of connected components as line plots, sorted by size and colored by value.
+
+    Args:
+        component_sizes (dict): Sizes of connected components by value.
+        component_solidities (dict): Solidities of connected components by value.
+    """
+    # Define a colormap
+    colormap = plt.cm.get_cmap('tab10', len(component_sizes))
+    colors = {val: colormap(idx) for idx, val in enumerate(component_sizes.keys())}
+
+    # Plot sizes
+    plt.figure(figsize=(12, 6))
+    for val, sizes in component_sizes.items():
+        ranked_sizes = sorted(sizes, reverse=True)
+        plt.plot(ranked_sizes, label=f"Value {val}", color=colors[val])
+    plt.xlabel("Rank", fontsize=12)
+    plt.ylabel("Size", fontsize=12)
+    plt.title("Ranked Sizes of Connected Components", fontsize=14)
+    plt.legend(title="Value", fontsize=10)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    # Plot solidities
+    plt.figure(figsize=(12, 6))
+    for val, solidities in component_solidities.items():
+        ranked_solidities = sorted(solidities, reverse=True)
+        plt.plot(ranked_solidities, label=f"Value {val}", color=colors[val])
+    plt.xlabel("Rank", fontsize=12)
+    plt.ylabel("Solidity", fontsize=12)
+    plt.title("Ranked Solidities of Connected Components", fontsize=14)
+    plt.legend(title="Value", fontsize=10)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+
+def calculate_transition_stat(matrix_og, threshold=2):
+    """
+    Compute a single summary statistic for the matrix based on the transition pattern within connected components.
+    A cell contributes 0 if any of its neighbors decreases; otherwise, it contributes 1.
+
+    Args:
+        matrix_og (np.ndarray): Original matrix of values.
+        threshold (int): Threshold to binarize the matrix.
+
+    Returns:
+        float: Average transition statistic for the entire matrix.
+    """
+    # Filter matrix
+    matrix = np.where(matrix_og >= threshold, 1, 0)
+
+    # Perform connected components analysis (4-connectedness)
+    labeled_array, num_features = label(matrix, structure=np.array([[0, 1, 0],
+                                                                    [1, 1, 1],
+                                                                    [0, 1, 0]]))
+    
+    component_stats = []
+
+    for component_idx in range(1, num_features + 1):
+        # Isolate the current connected component
+        component_mask = (labeled_array == component_idx)
+        component_coords = np.argwhere(component_mask)
+
+        transitions = []
+
+        for x, y in component_coords:
+            # Check 4-connected neighbors
+            neighbors = [
+                (x - 1, y),  # Up
+                (x + 1, y),  # Down
+                (x, y - 1),  # Left
+                (x, y + 1)   # Right
+            ]
+
+            neighbor_decreased = False
+            for nx, ny in neighbors:
+                # Check bounds
+                if 0 <= nx < matrix.shape[0] and 0 <= ny < matrix.shape[1]:
+                    if matrix[nx, ny] == 0:  # Neighbor decreases to 0
+                        neighbor_decreased = True
+                        break  # Stop checking further neighbors
+            
+            # Add 1 if no neighbors decrease, else add 0
+            transitions.append(0 if neighbor_decreased else 1)
+
+        # Compute the transition probability for the current component
+        if transitions:
+            transition_stat = sum(transitions) #/ len(transitions)
+            component_stats.append(transition_stat)
+
+    # Compute the average transition statistic for the entire matrix
+    if component_stats:
+        matrix_stat = np.mean(component_stats)
+    else:
+        matrix_stat = 0.0  # Handle case with no connected components
+
+    return matrix_stat
+
+
+def calculate_max_steps_to_zero(matrix_og, threshold=2):
+    """
+    Compute the maximum number of steps in any direction to reach a 0 for each cell in a connected component.
+    Sum these maximum distances for each connected component.
+
+    Args:
+        matrix_og (np.ndarray): Original matrix of values.
+        threshold (int): Threshold to binarize the matrix.
+
+    Returns:
+        list: Total summed distances for each connected component.
+    """
+    # Filter matrix
+    matrix = np.where(matrix_og >= threshold, 1, 0)
+
+    # Perform connected components analysis (4-connectedness)
+    labeled_array, num_features = label(matrix, structure=np.array([[0, 1, 0],
+                                                                    [1, 1, 1],
+                                                                    [0, 1, 0]]))
+    
+    component_sums = []
+
+    for component_idx in range(1, num_features + 1):
+        # Isolate the current connected component
+        component_mask = (labeled_array == component_idx)
+        component_coords = np.argwhere(component_mask)
+
+        component_sum = 0
+
+        for x, y in component_coords:
+            max_distance = 0  # Track the maximum distance for this cell
+
+            # Check distances in each direction
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1)]:  # Up, Down, Left, Right
+                distance = 0
+                nx, ny = x, y
+
+                # Traverse in the current direction until reaching 0 or boundary
+                while 0 <= nx < matrix.shape[0] and 0 <= ny < matrix.shape[1]:
+                    if matrix[nx, ny] == 0:
+                        break
+                    nx += dx
+                    ny += dy
+                    distance += 1
+
+                # Update the maximum distance for the current cell
+                max_distance = max(max_distance, distance)
+
+            # Add the maximum distance for this cell to the component sum
+            component_sum += max_distance
+
+        # Store the total sum for this component
+        component_sums.append(component_sum)
+
+    # Compute the average transition statistic for the entire matrix
+    if component_sums:
+        matrix_stat = np.mean(component_sums)
+    else:
+        matrix_stat = 0.0  # Handle case with no connected components
+
+    return matrix_stat
+
+
+
+
+
 
 def compute_ect_summary_metrics(save_dir, LM2_measurements, ect_data, component_names, matrix_means, ect_matrix_means_fullname, ect_matrix_means_genus, ect_matrix_means_family, labels_fullname, labels_genus, labels_family, do_print=True):
     """

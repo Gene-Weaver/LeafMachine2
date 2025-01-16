@@ -28,7 +28,16 @@ sys.path.append(currentdir)
 from leafmachine2.machine.general_utils import bcolors, get_cfg_from_full_path
 # Initialize ScraperAPI client
 # cfg_private = get_cfg_from_full_path('/media/data/Dropbox/LeafMachine2/PRIVATE_DATA.yaml')
-cfg_private = get_cfg_from_full_path('D:/Dropbox/LeafMachine2/PRIVATE_DATA.yaml')
+# cfg_private = get_cfg_from_full_path('D:/Dropbox/LeafMachine2/PRIVATE_DATA.yaml') 
+try:
+    # Attempt to load the private data file
+    cfg_private = get_cfg_from_full_path(os.path.join(parentdir, 'PRIVATE_DATA.yaml'))
+except FileNotFoundError:
+    # Raise an error if the file is not found
+    raise FileNotFoundError("The private data file 'PRIVATE_DATA.yaml' cannot be found. This file is required for scraperAPI to function.")
+except Exception as e:
+    # Handle any other unexpected exceptions
+    raise RuntimeError(f"An unexpected error occurred while trying to load 'PRIVATE_DATA.yaml': {e}")
 
 # SCRAPERAPI_KEY = cfg_private['SCRAPERAPI_KEY1']
 # SCRAPERAPI_KEY = cfg_private['SCRAPERAPI_KEY2']
