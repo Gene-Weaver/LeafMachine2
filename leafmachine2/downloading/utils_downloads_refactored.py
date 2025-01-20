@@ -1,4 +1,4 @@
-import os, json, random, time, csv, dask
+import os, json, random, time, csv, dask, platform
 import sys
 import inspect
 import certifi
@@ -15,7 +15,12 @@ from multiprocessing import Manager, Process
 from leafmachine2.machine.general_utils import bcolors, validate_dir
 from leafmachine2.downloading.utils_downloads_candidate import ImageCandidate#, PrettyPrint
 
-dask.config.set({'temporary_directory': '/data/tmp'})
+if platform.system() != "Windows":
+    try:
+        os.makedirs('/data/tmp', exist_ok=True)
+        dask.config.set({'temporary_directory': '/data/tmp'})
+    except:
+        pass
 
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
@@ -302,7 +307,29 @@ async def download_all_images_in_images_csv_selenium(cfg, wishlist_tracker, down
     finally:
         await processor.finalize()
 
-
+def detect_delimiter(file_path, fallback_delimiters=['\t', ',']):
+    # # Check if the file exists
+    # if not os.path.isfile(file_path):
+    #     raise FileNotFoundError(f"The file {file_path} does not exist.")
+    
+    # # Open the file and read the sample
+    # with open(file_path, 'r') as f:
+    #     sample = f.read(1024)  # Read the first 1024 bytes
+    
+    # # Try to detect delimiter using csv.Sniffer
+    # try:
+    #     detected_delimiter = csv.Sniffer().sniff(sample).delimiter
+    # except csv.Error:
+    # Fallback to manually testing common delimiters
+    if '.txt' in file_path:
+        return '\t'
+    elif '.csv' in file_path:
+        return ','
+    else:
+    # Raise an error if no delimiter is found
+        raise ValueError("Could not determine delimiter from the file or fallback options.")
+    
+    # return detected_delimiter
 
 
 class ImageBatchProcessor:
@@ -978,6 +1005,10 @@ class ImageBatchProcessor:
             'recordNumber': 'object',
             'verbatimElevation': 'object',
             'associatedOccurrences': 'object',
+
+            'created': 'object',
+            'publisher': 'object',
+            'title': 'object',
         }
         # Check if the file name contains "occurrences" or "multimedia"
         # if "occurrences" in file_name.lower() or "occurrence" in file_name.lower() or "multimedia" in file_name.lower():
@@ -996,11 +1027,13 @@ class ImageBatchProcessor:
             # # Set all columns to dtype object (equivalent to strings in pandas/dask)
             # column_dtypes = {col: 'object' for col in column_names}
         # Use pandas to get column names
-        with open(file_path, 'r') as f:
-            sample = f.read(1024)  # Read the first 1024 bytes
-            detected_delimiter = csv.Sniffer().sniff(sample).delimiter
+        try:
+            delimiter = detect_delimiter(file_path)
+            print(f"Detected delimiter: {delimiter}")
+        except Exception as e:
+            print(f"Error: {e}")
 
-        sample_df = pd.read_csv(file_path, sep=detected_delimiter, nrows=10, low_memory=False)
+        sample_df = pd.read_csv(file_path, sep=delimiter, nrows=10, low_memory=False)
         all_columns = sample_df.columns.to_list()
 
         # Default unspecified columns to 'object'
@@ -1035,6 +1068,7 @@ class ImageBatchProcessor:
             print(f"Error while reading file: {e}")
             return None
 
+        df = df.astype(complete_dtypes)
         if do_compute:
             return df.compute()
         else:

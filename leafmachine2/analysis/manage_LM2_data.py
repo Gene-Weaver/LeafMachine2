@@ -121,6 +121,7 @@ def run_PHATE_on_everything_h5(dir_path, h5_file_path, bin_by_class="family", EC
             plot_ddr_Weighted_Avg_Density_mean_ect_3d_to_gif(save_path, class_stats, ect_matrix_means, matrix_means, labels, shapes, filename=f"plot_ddr_Weighted_Avg_Density_mean_{TAXA}.gif")
         
         if do_compute_summary_metrics_plots:
+            # TODO ADD geomorphon to this
             make_plots(save_path_SUMMARY, class_stats_genus, ect_matrix_means_genus, matrix_means, labels_genus, shapes, TAXA='GENUS')
             make_plots(save_path_SUMMARY, class_stats_species, ect_matrix_means_fullname, matrix_means, labels_fullname, shapes, TAXA='SPECIES')
             make_plots(save_path_SUMMARY, class_stats_family, ect_matrix_means_family, matrix_means, labels_family, shapes, TAXA='FAMILY')

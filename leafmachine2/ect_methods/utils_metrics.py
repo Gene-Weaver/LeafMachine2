@@ -32,6 +32,9 @@ import richdem as rd
 import pywt
 from scipy.ndimage import convolve
 from skimage.util.shape import view_as_blocks
+from skimage.measure import regionprops_table
+import matplotlib.colors as mcolors
+import matplotlib
 
 def plot_2d_distribution(total_data, bins, class_data, bin_width, class_label, save_dir, test_type, taxa):
     
@@ -949,14 +952,19 @@ def compute_slope(matrix):
 
     slope = np.sqrt(slope_x**2 + slope_y**2)  # Combine gradients
     return slope
-def classify_geomorphon(matrix_og, search_distance=4, flatness_threshold=1, threshold=2):
+def classify_geomorphon(matrix_og, search_distance=4, flatness_threshold=1, threshold=2, do_visualize=False, path_geomorphon=None, name=None, leaf_data=None, dpi=600):
     """
-    Classify geomorphons based on local slopes and relative heights.
-    :param matrix: 2D numpy array of height values.
+    Classify geomorphons based on local slopes and relative heights, with an additional plateau class.
+    :param matrix_og: 2D numpy array of original height values.
     :param search_distance: Distance to evaluate neighbors.
     :param flatness_threshold: Threshold for flat regions.
-    :return: 2D numpy array of geomorphon classes.
+    :param threshold: Threshold for minimum height to consider.
+    :return: 2D numpy array of geomorphon classes and a summary of class counts.
     """
+    n_cells, n_cells_leaf, n_cells_bg = define_leaf_bounds(matrix_og)
+
+    # Processed matrix with thresholding applied
+    matrix_og = matrix_og.T
     matrix = np.where(matrix_og >= threshold, matrix_og, 0)
 
     rows, cols = matrix.shape
@@ -965,6 +973,8 @@ def classify_geomorphon(matrix_og, search_distance=4, flatness_threshold=1, thre
     for i in range(rows):
         for j in range(cols):
             center_height = matrix[i, j]
+            if center_height == 0:
+                continue  # Skip cells below the threshold
 
             # Define a local neighborhood
             min_row = max(i - search_distance, 0)
@@ -980,35 +990,213 @@ def classify_geomorphon(matrix_og, search_distance=4, flatness_threshold=1, thre
             min_height = np.min(relative_heights)
 
             if abs(max_height) < flatness_threshold and abs(min_height) < flatness_threshold:
-                geomorphon_classes[i, j] = 1  # Flat
+                geomorphon_classes[i, j] = 1  # Flat (lobes)
             elif max_height > abs(min_height):
-                geomorphon_classes[i, j] = 2  # Ridge/Peak
+                # Check for plateau condition
+                flat_cells = (np.abs(neighborhood - center_height) < flatness_threshold)
+                if np.any(flat_cells):
+                    flat_original_values = matrix_og[min_row:max_row, min_col:max_col][flat_cells]
+                    if center_height > np.max(flat_original_values):
+                        geomorphon_classes[i, j] = 4  # Plateau
+                    else:
+                        geomorphon_classes[i, j] = 2  # Ridge/Peak (transition)
+                else:
+                    geomorphon_classes[i, j] = 2  # Ridge/Peak
             else:
-                geomorphon_classes[i, j] = 3  # Valley/Pit
+                geomorphon_classes[i, j] = 3  # Valley/Pit (Serration, teeth)
 
+    initial_classes = geomorphon_classes.copy()
+
+    # If a class 3 has a neighboring 1, update the neighbors to 1
+    search_matrix = geomorphon_classes.copy()  # Use a copy for neighborhood checks
+    updated_matrix = geomorphon_classes.copy()  # Matrix to apply changes
+
+    for i in range(rows):
+        for j in range(cols):
+            if search_matrix[i, j] == 1:  # Only consider class 1 cells for propagating changes
+                # Define a local neighborhood
+                min_row = max(i - 1, 0)
+                max_row = min(i + 2, rows)
+                min_col = max(j - 1, 0)
+                max_col = min(j + 2, cols)
+
+                # Update all class 3 neighbors to class 1 in the updated matrix
+                for ni in range(min_row, max_row):
+                    for nj in range(min_col, max_col):
+                        if search_matrix[ni, nj] == 3:
+                            updated_matrix[ni, nj] = 1
+
+    geomorphon_classes = updated_matrix
+    intermediate_classes = geomorphon_classes.copy()
+
+    # Post-process the geomorphon
+    # Reassign transition 
+    # - if there are 1's, then make the 2's into 1's as well
+    # - if there are no 1's, then make any 2's into 3's 
+    if np.any(geomorphon_classes == 1):  # If there are 1's, make all 2's into 1's
+        geomorphon_classes[geomorphon_classes == 2] = 1
+    else:  # If there are no 1's, make all 2's into 3's
+        geomorphon_classes[geomorphon_classes == 2] = 3
+
+    final_classes = geomorphon_classes.copy()
+
+
+    # Initialize summary with default counts of 0 for all classes
+    class_labels = {
+        0: "background",
+        1: "lobe",
+        2: "transition",
+        3: "teeth",
+    }
+    class_summary = {label: 0 for label in class_labels.values()}  # Initialize with labels as keys
+
+    # Get unique class counts
     unique, counts = np.unique(geomorphon_classes, return_counts=True)
-    class_summary = dict(zip(unique, counts))
+
+    # Map numeric classes to their labels and update the summary
+    for class_id, count in zip(unique, counts):
+        if class_id in class_labels:
+            class_summary[class_labels[class_id]] = count
+
+    class_summary["n_cells"] = n_cells
+    class_summary["n_cells_leaf"] = n_cells_leaf
+    class_summary["n_cells_bg"] = n_cells_bg
+
+    class_summary["fraction_teeth"] = class_summary["teeth"] / n_cells_leaf
+    class_summary["fraction_lobe"] = class_summary["lobe"] /  n_cells_leaf
+    class_summary["fraction_flat"] = (class_summary["background"] - n_cells_bg) / n_cells_leaf
+
+    class_summary["thresholded_matrix"] = matrix
+    class_summary["initial_classes"] = initial_classes
+    class_summary["post_transition_classes"] = intermediate_classes
+    class_summary["final_classes"] = final_classes
 
     return geomorphon_classes, class_summary
-def visualize_geomorphon(matrix_og, geom_classes, threshold=2):
-    matrix = np.where(matrix_og >= threshold, matrix_og, 0)
-    fig, ax = plt.subplots(1, 2, figsize=(12, 4))
 
-    # Original Height Map
-    ax[0].imshow(matrix, cmap="terrain")
-    ax[0].set_title("Original Height Map")
-    ax[0].axis("off")
+def visualize_geomorphon_stages(matrix_og, geom_classes_summary, do_visualize, path_geomorphon, name, leaf_data, dpi):
+    """
+    Visualize the geomorphon classification stages in a single figure with five subplots.
+    :param matrix_og: 2D numpy array of original height values.
+    :param thresholded_matrix: Thresholded height matrix used for classification.
+    :param initial_classes: Initial classification before postprocessing.
+    :param post_transition_classes: Classification after handling transitions.
+    :param final_classes: Final classification after neighbor merging.
+    """
+    matrix_og = matrix_og.T
+    thresholded_matrix = geom_classes_summary["thresholded_matrix"]
+    initial_classes = geom_classes_summary["initial_classes"]
+    post_transition_classes = geom_classes_summary["post_transition_classes"]
+    final_classes = geom_classes_summary["final_classes"]
+    if (do_visualize or path_geomorphon) and name is not None and leaf_data is not None:
+        # Define custom colors for each class
+        class_colors = {
+            0: "white",      # Background
+            1: "blue",       # Lobe
+            2: "orange",      # Transition
+            3: "green",        # Serrate
+            # 4: "yellow",     # Plateau
+            5: "black",       # Leaf Bounds
+        }
+        class_labels = {
+            0: "Background",
+            1: "Lobe",
+            2: "Transition",
+            3: "Serrate",
+            # 4: "Plateau",
+            5: "Leaf Bounds",
+        }
+        
 
-    # Geomorphon Classes
-    cmap = plt.cm.get_cmap("tab10", len(np.unique(geom_classes)))
-    im = ax[1].imshow(geom_classes, cmap=cmap)
-    ax[1].set_title("Geomorphon Classes")
-    ax[1].axis("off")
-    cbar = fig.colorbar(im, ax=ax[1], orientation="horizontal")
-    cbar.set_label("Geomorphon Class")
+        # Modify final_classes to include gray (class 5) for leaf bounds
+        leaf_bounds = np.where(matrix_og >= 1, 1, 0)  # Binary mask of leaf bounds
+        modified_initial_classes = initial_classes.copy()
+        modified_initial_classes[(initial_classes == 0) & (leaf_bounds == 1)] = 5
 
-    plt.tight_layout()
-    plt.show()
+        modified_post_transition_classes = post_transition_classes.copy()
+        modified_post_transition_classes[(post_transition_classes == 0) & (leaf_bounds == 1)] = 5
+
+        modified_final_classes = final_classes.copy()
+        modified_final_classes[(final_classes == 0) & (leaf_bounds == 1)] = 5
+
+
+        fig, axes = plt.subplots(2, 4, figsize=(20, 12))
+        fig.suptitle(f"{name} - Geomorphon Classification Stages", fontsize=16, fontweight='bold', y=0.95)
+
+        # Contour plot
+        axes[0, 0].plot(leaf_data[:, 0], leaf_data[:, 1], lw=3, color="black", alpha=0.5)
+        axes[0, 0].fill(leaf_data[:, 0], leaf_data[:, 1], lw=0, color="black", alpha=0.2)
+        axes[0, 0].set_title("Contour", fontsize=14, fontstyle="italic")
+        axes[0, 0].set_aspect('equal', adjustable='datalim')
+        # axes[0, 0].axis("off")
+
+        colormap = plt.cm.hot
+        normalize = matplotlib.colors.Normalize(vmin=0, vmax=np.max(matrix_og))
+        # Original Height Map
+        im_og = axes[0, 1].imshow(matrix_og, cmap=colormap, norm=normalize)
+        axes[0, 1].set_title("Original ECT Matrix")
+        axes[0, 1].axis("off")
+        # Add white overlay for leaf_bounds
+        overlay_og = np.zeros((*matrix_og.shape, 4))  # RGBA array
+        overlay_og[..., :3] = 0  # black color
+        overlay_og[..., 3] = (matrix_og == 0) & (leaf_bounds == 0)  # Alpha channel where condition is met
+        axes[0, 1].imshow(overlay_og)
+
+        # Thresholded Height Map
+        im_threshold = axes[0, 2].imshow(thresholded_matrix, cmap=colormap, norm=normalize)
+        axes[0, 2].set_title("Ignore Leaf Bounds ECT Matrix")
+        axes[0, 2].axis("off")
+        # Add white overlay for leaf_bounds
+        overlay_threshold = np.zeros((*thresholded_matrix.shape, 4))  # RGBA array
+        overlay_threshold[..., :3] = 0  # black color
+        overlay_threshold[..., 3] = (thresholded_matrix == 0) & (leaf_bounds == 0)  # Alpha channel where condition is met
+        axes[0,2].imshow(overlay_threshold)
+
+        # Add a colorbar for thresholded_matrix
+        cbar_ax = fig.add_axes([0.77, 0.55, 0.02, 0.3])  # Adjust position and size
+        cbar = fig.colorbar(im_threshold, cax=cbar_ax, orientation="vertical")
+        cbar_ax.set_title("ECT")
+        # Set integer ticks on the colorbar
+        cbar_ticks = np.arange(np.floor(thresholded_matrix.min()), np.ceil(thresholded_matrix.max()) + 1, 1)
+        cbar.set_ticks(cbar_ticks)
+        cbar.set_ticklabels(cbar_ticks.astype(int))
+        axes[0, 3].axis("off")
+
+
+        # Create a ListedColormap
+        cmap = mcolors.ListedColormap([class_colors[key] for key in sorted(class_colors.keys())])
+        norm = mcolors.BoundaryNorm(boundaries=np.arange(-0.5, len(class_colors) + 0.5), ncolors=len(class_colors))
+        # Initial Classification
+        axes[1, 0].imshow(modified_initial_classes, cmap=cmap, norm=norm)
+        axes[1, 0].set_title("Initial Classification")
+        axes[1, 0].axis("off")
+
+        # Post-Transition Classification
+        axes[1, 1].imshow(modified_post_transition_classes, cmap=cmap, norm=norm)
+        axes[1, 1].set_title("Post-Transition Classification")
+        axes[1, 1].axis("off")
+
+        # Final Classification with Leaf Bounds
+        axes[1, 2].imshow(modified_final_classes, cmap=cmap, norm=norm)
+        axes[1, 2].set_title("Final Classification")
+        axes[1, 2].axis("off")
+
+        # Legends placement
+        axes[1, 3].axis("off")  # Make the last subplot blank
+
+        # Legend for classes
+        handles = [plt.Line2D([0], [0], color=class_colors[key], lw=4, label=class_labels[key]) for key in class_colors]
+        legend1 = axes[1, 3].legend(handles=handles, loc="center left", title="Classes")
+
+        # Add the colorbar legend to the right of the classes legend
+        axes[1, 3].add_artist(legend1)
+
+        if do_visualize: 
+            plt.tight_layout()
+            plt.show()
+        if path_geomorphon:
+            # Save the image to the specified path with high DPI
+            plt.savefig(path_geomorphon, dpi=dpi, bbox_inches="tight")
+
 
 def define_leaf_bounds(matrix):
     rows, cols = matrix.shape
@@ -1018,27 +1206,23 @@ def define_leaf_bounds(matrix):
     n_cells_bg = n_cells - n_cells_leaf
     return n_cells, n_cells_leaf, n_cells_bg
 
-
-
 def analyze_connected_components(matrix_og, threshold):
     """
     Analyze connected components in a matrix for each unique integer value >= threshold.
-    Report sizes and solidity for each connected component.
+    Report solidity, convex hull area, and size for each connected component.
 
     Args:
         matrix_og (np.ndarray): Input matrix of integers.
         threshold (int): Minimum value to include in the analysis.
 
     Returns:
-        dict: Sizes of connected components by value.
-        dict: Solidities of connected components by value.
+        dict: A dictionary where each value contains a list of dictionaries with solidity, convex hull area, and size for each component.
     """
     # Filter matrix
     matrix = np.where(matrix_og >= threshold, matrix_og, 0)
 
-    # Initialize result dictionaries
-    component_sizes = {}
-    component_solidities = {}
+    # Initialize result dictionary
+    components_info = {}
 
     # Get the max value in the matrix
     max_val = int(np.max(matrix))
@@ -1050,9 +1234,8 @@ def analyze_connected_components(matrix_og, threshold):
         # Perform connected components analysis
         labeled_array, num_features = label(mask, structure=np.ones((3, 3)))  # 8-connectivity
 
-        # Initialize lists to store sizes and solidities for this value
-        sizes = []
-        solidities = []
+        # List to store component details for this value
+        components = []
 
         for component_idx in range(1, num_features + 1):
             # Extract the component
@@ -1060,38 +1243,49 @@ def analyze_connected_components(matrix_og, threshold):
 
             # Calculate size (number of pixels)
             size = np.sum(component_mask)
-            sizes.append(size)
 
-            # Calculate solidity (size / convex hull area)
+            # Calculate convex hull area using bounding box
             slice_x, slice_y = find_objects(component_mask)[0]  # Bounding box
             bounding_box = component_mask[slice_x, slice_y]
-            convex_hull_area = np.prod(bounding_box.shape)  # Simplified for rectangular hull
-            solidity = size / convex_hull_area
-            solidities.append(solidity)
 
-        # Save sizes and solidities for this value
-        component_sizes[val] = sizes
-        component_solidities[val] = solidities
+            # Use skimage regionprops_table to compute convex hull area
+            props = regionprops_table(bounding_box.astype(np.uint8), properties=["convex_area"])
+            convex_hull_area = props["convex_area"][0] if "convex_area" in props else 1  # Avoid division by zero
 
-    return component_sizes, component_solidities
+            # Calculate solidity
+            solidity = size / convex_hull_area if convex_hull_area > 0 else 0
 
-def plot_connected_components(component_sizes, component_solidities):
+            # Add component information to list
+            components.append({
+                "area": size,
+                "convex_hull_area": convex_hull_area,
+                "solidity": solidity
+            })
+
+        # Save components info for this value
+        components_info[val] = components
+
+    return components_info
+def plot_connected_components(components_info):
     """
-    Plot ranked sizes and solidities of connected components as line plots, sorted by size and colored by value.
+    Plot ranked sizes, solidities, and convex hull areas of connected components as line plots,
+    sorted by size and colored by value.
 
     Args:
-        component_sizes (dict): Sizes of connected components by value.
-        component_solidities (dict): Solidities of connected components by value.
+        components_info (dict): A dictionary where each key is a value, and each value is a list of dictionaries
+                                with 'area', 'convex_hull_area', and 'solidity' for each connected component.
     """
     # Define a colormap
-    colormap = plt.cm.get_cmap('tab10', len(component_sizes))
-    colors = {val: colormap(idx) for idx, val in enumerate(component_sizes.keys())}
+    colormap = plt.cm.get_cmap('tab10', len(components_info))
+    colors = {val: colormap(idx) for idx, val in enumerate(components_info.keys())}
 
     # Plot sizes
-    plt.figure(figsize=(12, 6))
-    for val, sizes in component_sizes.items():
-        ranked_sizes = sorted(sizes, reverse=True)
-        plt.plot(ranked_sizes, label=f"Value {val}", color=colors[val])
+    plt.figure(figsize=(6, 2))
+    for val, components in components_info.items():
+        # Extract sizes (areas) from components
+        sizes = [comp['area'] for comp in components]
+        # ranked_sizes = sorted(sizes, reverse=True)
+        plt.plot(sizes, label=f"Value {val}", color=colors[val])
     plt.xlabel("Rank", fontsize=12)
     plt.ylabel("Size", fontsize=12)
     plt.title("Ranked Sizes of Connected Components", fontsize=14)
@@ -1101,13 +1295,30 @@ def plot_connected_components(component_sizes, component_solidities):
     plt.show()
 
     # Plot solidities
-    plt.figure(figsize=(12, 6))
-    for val, solidities in component_solidities.items():
-        ranked_solidities = sorted(solidities, reverse=True)
-        plt.plot(ranked_solidities, label=f"Value {val}", color=colors[val])
+    plt.figure(figsize=(6, 2))
+    for val, components in components_info.items():
+        # Extract solidities from components
+        solidities = [comp['solidity'] for comp in components]
+        # ranked_solidities = sorted(solidities, reverse=True)
+        plt.plot(solidities, label=f"Value {val}", color=colors[val])
     plt.xlabel("Rank", fontsize=12)
     plt.ylabel("Solidity", fontsize=12)
     plt.title("Ranked Solidities of Connected Components", fontsize=14)
+    plt.legend(title="Value", fontsize=10)
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+    # Plot convex hull areas
+    plt.figure(figsize=(6, 2))
+    for val, components in components_info.items():
+        # Extract convex hull areas from components
+        convex_hull_areas = [comp['convex_hull_area'] for comp in components]
+        # ranked_convex_hull_areas = sorted(convex_hull_areas, reverse=True)
+        plt.plot(convex_hull_areas, label=f"Value {val}", color=colors[val])
+    plt.xlabel("Rank", fontsize=12)
+    plt.ylabel("Convex Hull Area", fontsize=12)
+    plt.title("Ranked Convex Hull Areas of Connected Components", fontsize=14)
     plt.legend(title="Value", fontsize=10)
     plt.grid(True)
     plt.tight_layout()
@@ -1270,8 +1481,10 @@ def compute_ect_summary_metrics(save_dir, LM2_measurements, ect_data, component_
         ddr = calculate_ddr(matrix)
         cdi = calculate_cdi(matrix)
         hsi = calculate_hsi(matrix)
+        geomorphon_classes, geomorphon_summary = classify_geomorphon(matrix, search_distance=4, flatness_threshold=1, threshold=2)
         weighted_avg_density = calculate_weighted_average_density(matrix)
 
+        #TODO need to make the geomorphon plot here since not keeping the geomorphon_summary
         # Store metrics in the summary dictionary under the label of each class
         metrics_summary_fullname[fullname]['DDR'].append(ddr)
         metrics_summary_fullname[fullname]['CDI'].append(cdi)
@@ -1308,6 +1521,12 @@ def compute_ect_summary_metrics(save_dir, LM2_measurements, ect_data, component_
             'HSI': hsi,
             'WAD': weighted_avg_density,
             'ECT_Density': ECT_Density,
+            'geomorphon_fraction_teeth': geomorphon_summary["fraction_teeth"],
+            'geomorphon_fraction_lobe': geomorphon_summary["fraction_lobe"],
+            'geomorphon_fraction_flat': geomorphon_summary["fraction_flat"],
+            'geomorphon_n_cells': geomorphon_summary["n_cells"],
+            'geomorphon_n_cells_leaf': geomorphon_summary["n_cells_leaf"],
+            'geomorphon_n_cells_bg': geomorphon_summary["n_cells_bg"],
             'AVG_ECT_Density_Family': ect_matrix_means_family[family]['mean'],
             'AVG_ECT_Density_Genus': ect_matrix_means_genus[genus]['mean'],
             'AVG_ECT_Density_Species': ect_matrix_means_fullname[fullname]['mean'],

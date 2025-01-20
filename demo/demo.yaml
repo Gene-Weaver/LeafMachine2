@@ -13,6 +13,8 @@ leafmachine:
 
     # Overall Project Input Settings
     project:
+        device: cuda
+        num_gpus: 1
         # Project Output Dir
         dir_output: ['demo', 'demo_output']
         run_name: 'test_run' #'images_short_TEST' #'images_short_landmark'
@@ -25,6 +27,8 @@ leafmachine:
         num_workers: 2 # int |DEFAULT| 4 # More is not always better. Most hardware loses performance after 4
         num_workers_ruler: 2
         num_workers_seg: 2
+        num_workers_overlay: 2
+        num_workers_cropping: 2
         # If *not* using local, set the following 4 to null
         # If providing occ and img, then a combined will be generated
         # If providing combined, then set images and occ to null
@@ -87,7 +91,7 @@ leafmachine:
         save_individual_efd_files: False
         include_darwin_core_data_from_combined_file: False
         do_apply_conversion_factor: True
-
+        do_apply_predicted_conversion_factor_as_backup: True
 
     overlay:
         save_overlay_to_pdf: True

@@ -235,7 +235,10 @@ class DocEnTR:
         # output_dir = dir_component
 
         # device = torch.device(f'cuda:{device}' if torch.cuda.is_available() else 'cpu')
-        device = f'cuda:{device_i}'
+        if torch.cuda.is_available():
+            device = f'cuda:{device_i}'
+        else:
+            device = 'cpu'
 
         SPLITSIZE = self.SPLITSIZE
         SETTING = self.SETTING

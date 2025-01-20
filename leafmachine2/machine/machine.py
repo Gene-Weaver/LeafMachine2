@@ -29,6 +29,7 @@ from leafmachine2.machine.utils_ruler import convert_rulers_testing #, parallel_
 from leafmachine2.machine.fetch_data import fetch_data
 from leafmachine2.machine.utils_detect_phenology import detect_phenology
 from leafmachine2.machine.utils_censor_components import censor_archival_components
+from leafmachine2.machine.email_updates import send_email
 
 # @profile
 def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
@@ -173,6 +174,7 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
         for batch, Batch_Names in enumerate(Batch_Data): #range(n_batches):
             if progress_report:
                 progress_report.update_batch(f"Starting Batch {batch+1} of {n_batches}")
+                send_email(f"LM2 Starting Batch --- {ProjectSQL.dir_images}", f"Starting Batch {batch+1} of {n_batches}", pc="pc")
 
             t_batch_start = perf_counter()
             print_main_info(f'Batch {batch+1} of {n_batches}')
@@ -253,6 +255,8 @@ def machine(cfg_file_path, dir_home, cfg_test, progress_report=None):
 
             if progress_report:
                 progress_report.reset_batch_part()
+            send_email(f"LM2 Finished Batch --- {ProjectSQL.dir_images}", f"Finished Batch {batch+1} of {n_batches}", pc="pc")
+            
 
         # Create CSV from the 'Data','Project','Batches' files
         merge_csv_files(Dirs, cfg)

@@ -833,54 +833,51 @@ class ImageCandidate:
             self.download_success = 'skip'
             return
 
-    async def iiif_parse(manifest_url):
-        parsed_url = urlparse(manifest_url)
-        domain = parsed_url.netloc  # Extract the domain (netloc)
+    # async def iiif_parse(manifest_url):
+    #     parsed_url = urlparse(manifest_url)
+    #     domain = parsed_url.netloc  # Extract the domain (netloc)
 
-        # Define custom headers with a random User-Agent
-        headers = {
-            'User-Agent': random.choice(USER_AGENTS),
-            'Accept': 'application/json, text/javascript, */*; q=0.01',
-            'Referer': 'https://www.google.com/',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'DNT': '1',  # Do Not Track
-            'Connection': 'keep-alive',
-        }
+    #     # Define custom headers with a random User-Agent
+    #     headers = {
+    #         'User-Agent': random.choice(USER_AGENTS),
+    #         'Accept': 'application/json, text/javascript, */*; q=0.01',
+    #         'Referer': 'https://www.google.com/',
+    #         'Accept-Language': 'en-US,en;q=0.9',
+    #         'DNT': '1',  # Do Not Track
+    #         'Connection': 'keep-alive',
+    #     }
 
-        """Parse the IIIF manifest to extract the associated image URL."""
-        try:
-            # Make the GET request with custom headers
-            response = requests.get(manifest_url, headers=headers)
-            if response.status_code == 200:
-                manifest_data = response.json()
+    #     """Parse the IIIF manifest to extract the associated image URL."""
+    #     try:
+    #         # Make the GET request with custom headers
+    #         response = requests.get(manifest_url, headers=headers)
+    #         if response.status_code == 200:
+    #             manifest_data = response.json()
 
-                # First check if this is the original structure with 'dwc:associatedMedia'
-                for item in manifest_data.get('metadata', []):
-                    if item['label'] == 'dwc:associatedMedia':
-                        associated_media_url = item['value']
-                        # Handle cases where the value might contain an anchor tag with a URL
-                        if 'href' in associated_media_url:
-                            associated_media_url = associated_media_url.split('"')[1]
-                        return associated_media_url
+    #             # First check if this is the original structure with 'dwc:associatedMedia'
+    #             for item in manifest_data.get('metadata', []):
+    #                 if item['label'] == 'dwc:associatedMedia':
+    #                     associated_media_url = item['value']
+    #                     # Handle cases where the value might contain an anchor tag with a URL
+    #                     if 'href' in associated_media_url:
+    #                         associated_media_url = associated_media_url.split('"')[1]
+    #                     return associated_media_url
 
-                # If no 'dwc:associatedMedia' was found, check the structure for the second case
-                if 'items' in manifest_data:
-                    for canvas in manifest_data['items']:
-                        for annotation_page in canvas.get('items', []):
-                            for annotation in annotation_page.get('items', []):
-                                if annotation.get('motivation') == 'painting' and 'body' in annotation:
-                                    image_url = annotation['body']['id']
-                                    return image_url
+    #             # If no 'dwc:associatedMedia' was found, check the structure for the second case
+    #             if 'items' in manifest_data:
+    #                 for canvas in manifest_data['items']:
+    #                     for annotation_page in canvas.get('items', []):
+    #                         for annotation in annotation_page.get('items', []):
+    #                             if annotation.get('motivation') == 'painting' and 'body' in annotation:
+    #                                 image_url = annotation['body']['id']
+    #                                 return image_url
 
-            else:
-                print(f"Failed to fetch manifest: {response.status_code} domain: {domain}")
-        except Exception as e:
-            print(f"Error parsing manifest: domain: {domain} error: {e}")
+    #         else:
+    #             print(f"Failed to fetch manifest: {response.status_code} domain: {domain}")
+    #     except Exception as e:
+    #         print(f"Error parsing manifest: domain: {domain} error: {e}")
         
-        return None
-
-
-
+    #     return None
 
     async def download_image(self, session: ClientSession, n_queue, logging_enabled=False, timeout=TIMEOUT) -> None:
         # SETTINGS

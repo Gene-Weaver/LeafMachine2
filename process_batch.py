@@ -43,13 +43,16 @@ def prep(dir_to_process):
                 cfg['leafmachine']['project']['dir_images_local'] = os.path.join(family_path, 'img')
                 cfg['leafmachine']['project']['dir_output'] = family_path
                 cfg['leafmachine']['project']['run_name'] = "LM2"
-                cfg['leafmachine']['project']['batch_size'] = 20000
+                cfg['leafmachine']['project']['batch_size'] = 10000
                 cfg['leafmachine']['project']['num_gpus'] = 2
                 cfg['leafmachine']['project']['num_workers'] = 32
                 cfg['leafmachine']['project']['num_workers_cropping'] = 32
                 cfg['leafmachine']['project']['num_workers_overlay'] = 32
                 cfg['leafmachine']['project']['num_workers_ruler'] = 32
                 cfg['leafmachine']['project']['num_workers_seg'] = 24
+                cfg['leafmachine']['plant_component_detector']['do_save_prediction_overlay_images'] = False
+                cfg['leafmachine']['archival_component_detector']['do_save_prediction_overlay_images'] = False
+                
 
                 try:
                     output_cfg_path = os.path.join(dir_home, "LeafMachine2.yaml")  # Save the modified config per family
