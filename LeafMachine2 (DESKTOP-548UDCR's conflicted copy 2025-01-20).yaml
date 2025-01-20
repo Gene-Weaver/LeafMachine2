@@ -157,9 +157,9 @@ leafmachine:
     censor_archival_components: true
     colorspace: raw
     device: cuda
-    dir_images_local: /media/nas/GBIF_Downloads/Magnoliopsida_By_Family/Capparaceae/img
+    dir_images_local: /media/nas/GBIF_Downloads/Magnoliopsida_By_Family/Cannabaceae/img
     dir_images_subset: ''
-    dir_output: /media/nas/GBIF_Downloads/Magnoliopsida_By_Family/Capparaceae
+    dir_output: /media/nas/GBIF_Downloads/Magnoliopsida_By_Family/Cannabaceae
     hide_archival_components:
     - ruler
     - barcode

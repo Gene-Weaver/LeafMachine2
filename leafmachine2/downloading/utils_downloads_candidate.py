@@ -57,23 +57,23 @@ from leafmachine2.machine.general_utils import bcolors, get_cfg_from_full_path
 try:
     # Attempt to load the private data file
     cfg_private = get_cfg_from_full_path(os.path.join(parentdir, 'PRIVATE_DATA.yaml'))
+    # List of available API keys
+    # SCRAPERAPI_KEYS = [
+    #     cfg_private['SCRAPERAPI_KEY1'],
+    #     cfg_private['SCRAPERAPI_KEY2'],
+    # ]
+    SCRAPERAPI_KEYS = [
+        cfg_private['SCRAPERAPI_KEY3'],
+    ]
 except FileNotFoundError:
-    # Raise an error if the file is not found
-    raise FileNotFoundError("The private data file 'PRIVATE_DATA.yaml' cannot be found. This file is required for scraperAPI to function.")
+    # Print an error message if the file is not found
+    print("Error: The private data file 'PRIVATE_DATA.yaml' cannot be found. This file is required for scraperAPI to function.")
+    SCRAPERAPI_KEYS = []  # Provide a default value or handle gracefully
 except Exception as e:
-    # Handle any other unexpected exceptions
-    raise RuntimeError(f"An unexpected error occurred while trying to load 'PRIVATE_DATA.yaml': {e}")
+    # Print any other unexpected exceptions
+    print(f"Error: An unexpected error occurred while trying to load 'PRIVATE_DATA.yaml': {e}")
+    SCRAPERAPI_KEYS = []  # Provide a default value or handle gracefully
     
-
-# List of available API keys
-# SCRAPERAPI_KEYS = [
-#     cfg_private['SCRAPERAPI_KEY1'],
-#     cfg_private['SCRAPERAPI_KEY2'],
-# ]
-SCRAPERAPI_KEYS = [
-    cfg_private['SCRAPERAPI_KEY3'],
-]
-
 BANNED = ['www.herbariumhamburgense.de', 'imagens4.jbrj.gov.br', 'imagens1.jbrj.gov.br', 
               'arbmis.arcosnetwork.org', '128.171.206.220', 'ia801503.us.archive.org', 'procyon.acadiau.ca',
               'www.inaturalist.org']

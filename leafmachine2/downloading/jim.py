@@ -60,10 +60,8 @@ if __name__ == '__main__':
 
     '''List of the paths to your Hackelia folders'''
     project_download_list = [
-        # "FULLPATHGOESHERE/Hackelia_GBIF/Boraginaceae_Hackelia_Opiz", 
-        # "FULLPATHGOESHERE/Hackelia_GBIF/Boraginaceae_Hackelia_Opiz_ex_Berchtold", 
-        # "D:/T_Downloads/Boraginaceae_Hackelia_Opiz", 
-        "D:/T_Downloads/Boraginaceae_Hackelia_Opiz_ex_Berchtold", 
+        "FULLPATHGOESHERE/Hackelia_GBIF/Boraginaceae_Hackelia_Opiz", 
+        "FULLPATHGOESHERE/Hackelia_GBIF/Boraginaceae_Hackelia_Opiz_ex_Berchtold", 
         ]
     failure_csv_path = "D:/T_Downloads/failed_downloads.csv"
 
