@@ -130,6 +130,7 @@ leafmachine:
     optional_warnings: true
     verbose: true
   project:
+    device: 'cuda'
     GBIF_mode: all
     accept_only_ideal_leaves: true
     batch_size: 200
