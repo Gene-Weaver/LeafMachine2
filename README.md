@@ -775,9 +775,6 @@ Components to Include in Crop
 - For the complete list of settings and their descriptions, refer to the `SpecimenCrop.yaml` config file.
 
 ## Downloading Images from GBIF
-
-### An interactive Streamlit GUI is in the works, stay tuned!
-
 ```yaml
 leafmachine:
     project:
