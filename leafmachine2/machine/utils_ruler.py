@@ -2203,7 +2203,11 @@ def find_minimal_change_in_binarization(img_gray, version):
 def detect_ruler(logger, show_all_logs, RulerCFG, ruler_cropped, ruler_name):
     minimum_confidence_threshold = RulerCFG.cfg['leafmachine']['ruler_detection']['minimum_confidence_threshold']
     net = RulerCFG.net_ruler
-    
+    try:
+        net.eval()
+    except Exception:
+        pass
+
     img = ClassifyRulerImage(ruler_cropped)
 
     # net = torch.jit.load(os.path.join(modelPath,modelName))
@@ -2212,23 +2216,47 @@ def detect_ruler(logger, show_all_logs, RulerCFG, ruler_cropped, ruler_name):
     with open(os.path.abspath(RulerCFG.path_to_class_names)) as f:
         classes = [line.strip() for line in f.readlines()]
 
+    # --- Ensure model and input are on the same device (TorchScript requires this) ---
+    x = img.img_tensor
+    device = x.device if hasattr(x, "device") else torch.device("cpu")
 
-    out = net(img.img_tensor)
+    # Move input tensor only if needed
+    try:
+        if hasattr(x, "device") and x.device != device:
+            x = x.to(device)
+    except Exception:
+        pass
+
+    # Move model only if needed
+    try:
+        model_device = next(net.parameters()).device
+        if model_device != device:
+            net = net.to(device)
+    except Exception:
+        # Scripted modules may not expose parameters cleanly
+        try:
+            net = net.to(device)
+        except Exception:
+            pass
+
+    with torch.no_grad():
+        out = net(x)
+
     _, indices = torch.sort(out, descending=True)
     percentage = torch.nn.functional.softmax(out, dim=1)[0] * 100
     [(classes[idx], percentage[idx].item()) for idx in indices[0][:5]]
 
     _, index = torch.max(out, 1)
     percentage1 = torch.nn.functional.softmax(out, dim=1)[0] * 100
-    percentage1 = round(percentage1[index[0]].item(),2)
+    percentage1 = round(percentage1[index[0]].item(), 2)
     pred_class1 = classes[index[0]]
+
     # Fix the 4thcm
     # if pred_class1 == 'tick_black_4thcm':
     #     self.Ruler.ruler_class = 'tick_black_cm_halfcm_4thcm'
     pred_class_orig = pred_class1
-    
 
-    if (percentage1 < minimum_confidence_threshold) or (percentage1 < (minimum_confidence_threshold*100)):
+    if (percentage1 < minimum_confidence_threshold) or (percentage1 < (minimum_confidence_threshold * 100)):
         pred_class_orig = pred_class1
         pred_class1 = f'fail_thresh_not_met__{pred_class_orig}'
 
@@ -2237,31 +2265,54 @@ def detect_ruler(logger, show_all_logs, RulerCFG, ruler_cropped, ruler_name):
     if percentage1 < minimum_confidence_threshold:
         addText1 = ''.join(["Class: ", str(pred_class1), '< thresh: ', str(pred_class_orig)])
 
-    addText2 = "Confidence: "+str(percentage1)
-    newName = '.'.join([ruler_name ,'jpg'])
+    addText2 = "Confidence: " + str(percentage1)
+    newName = '.'.join([ruler_name, 'jpg'])
     # newName = newName.split(".")[0] + "__overlay.jpg"
-    imgOverlay = cv2.putText(img=imgBG, text=addText1, org=(10, 20), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.6, color=(155, 155, 155),thickness=1)
-    imgOverlay = cv2.putText(img=imgOverlay, text=addText2, org=(10, 45), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.6, color=(155, 155, 155),thickness=1)
-    if RulerCFG.cfg['leafmachine']['ruler_detection']['save_ruler_validation']:
-        cv2.imwrite(os.path.join(RulerCFG.dir_ruler_validation,newName),imgOverlay)
 
-    summary_message = [[''.join(["Class: ", str(pred_class1)])],
-                        [''.join(["Confidence: ", str(percentage1), "%"])]]
+    imgOverlay = cv2.putText(
+        img=imgBG,
+        text=addText1,
+        org=(10, 20),
+        fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+        fontScale=0.6,
+        color=(155, 155, 155),
+        thickness=1
+    )
+    imgOverlay = cv2.putText(
+        img=imgOverlay,
+        text=addText2,
+        org=(10, 45),
+        fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+        fontScale=0.6,
+        color=(155, 155, 155),
+        thickness=1
+    )
+
+    if RulerCFG.cfg['leafmachine']['ruler_detection']['save_ruler_validation']:
+        cv2.imwrite(os.path.join(RulerCFG.dir_ruler_validation, newName), imgOverlay)
+
+    summary_message = [
+        [''.join(["Class: ", str(pred_class1)])],
+        [''.join(["Confidence: ", str(percentage1), "%"])]
+    ]
     message = ''.join(["Class: ", str(pred_class1), " Confidence: ", str(percentage1), "%"])
+
     # Print_Verbose(RulerCFG.cfg,1,message).green()
 
     if show_all_logs:
         logger.info(message)
-    try:
-        torch.cuda.empty_cache()
-    except:
-        pass
+
     return pred_class1, pred_class_orig, percentage1, imgOverlay, summary_message
+
 
 def detect_bi_sweep(RulerCFG, ruler_bi):
     minimum_confidence_threshold = RulerCFG.cfg['leafmachine']['ruler_detection']['minimum_confidence_threshold']
     net = RulerCFG.net_ruler_bi
-    
+    try:
+        net.eval()
+    except Exception:
+        pass
+
     img = ClassifyRulerImage(ruler_bi)
 
     # net = torch.jit.load(os.path.join(modelPath,modelName))
@@ -2270,31 +2321,45 @@ def detect_bi_sweep(RulerCFG, ruler_bi):
     with open(os.path.abspath(RulerCFG.path_to_class_names_bi)) as f:
         classes = [line.strip() for line in f.readlines()]
 
+    # --- Ensure model and input are on the same device (TorchScript requires this) ---
+    x = img.img_tensor
+    device = x.device if hasattr(x, "device") else torch.device("cpu")
 
-    out = net(img.img_tensor)
+    try:
+        if hasattr(x, "device") and x.device != device:
+            x = x.to(device)
+    except Exception:
+        pass
+
+    try:
+        model_device = next(net.parameters()).device
+        if model_device != device:
+            net = net.to(device)
+    except Exception:
+        try:
+            net = net.to(device)
+        except Exception:
+            pass
+
+    with torch.no_grad():
+        out = net(x)
+
     _, indices = torch.sort(out, descending=True)
     percentage = torch.nn.functional.softmax(out, dim=1)[0] * 100
     [(classes[idx], percentage[idx].item()) for idx in indices[0][:5]]
 
     _, index = torch.max(out, 1)
     percentage1 = torch.nn.functional.softmax(out, dim=1)[0] * 100
-    percentage1 = round(percentage1[index[0]].item(),2)
+    percentage1 = round(percentage1[index[0]].item(), 2)
     pred_class = classes[index[0]]
-    # Fix the 4thcm
-    # if pred_class1 == 'tick_black_4thcm':
-    #     self.Ruler.ruler_class = 'tick_black_cm_halfcm_4thcm'
     pred_class_orig = pred_class
-    
 
-    if (percentage1 < minimum_confidence_threshold) or (percentage1 < (minimum_confidence_threshold*100)):
+    if (percentage1 < minimum_confidence_threshold) or (percentage1 < (minimum_confidence_threshold * 100)):
         pred_class_orig = pred_class
         pred_class = f'fail_thresh_not_met__{pred_class_orig}'
 
-    try:
-        torch.cuda.empty_cache()
-    except:
-        pass
     return pred_class, pred_class_orig, percentage1
+
 
 class RulerConfig:
 
