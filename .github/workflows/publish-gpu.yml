@@ -1,0 +1,49 @@
+name: Publish GPU Docker image (GHCR)
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v-*"
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }} # Gene-Weaver/LeafMachine2
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # Produces: ghcr.io/Gene-Weaver/LeafMachine2:gpu-v-1 when you push tag v-1
+            type=ref,event=tag,prefix=gpu-
+            # Also produce a rolling tag for convenience:
+            type=raw,value=gpu-latest
+
+      - name: Build and push GPU image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.gpu
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

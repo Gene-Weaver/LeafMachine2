@@ -1,0 +1,142 @@
+# -------------------------
+# Private / secrets
+# -------------------------
+*PRIVATE*
+PRIVATE_DATA.yaml
+PRIVATE_LOGIN.yaml
+LeafMachine2_TRAINING_ONLY.yaml
+LeafMachine2 copy.yaml
+LeafMachine2 copy 2.yaml
+LeafMachine2 copy 3.yaml
+LeafMachine2 copy 4.yaml
+LeafMachine2_TEMPLATE.yaml
+LeafMachine2_WW.yaml
+
+# -------------------------
+# Data / outputs
+# -------------------------
+/data/
+/docs/
+Herbarium_Sheet_Corners/
+demo/demo_output/
+wandb/
+runs/
+KP_Test/
+KP_Test_DELETE/
+KP_2024/
+
+# -------------------------
+# Virtual environments
+# -------------------------
+venv*/
+.venv*/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# -------------------------
+# Tests / dev tools
+# -------------------------
+tests/
+.vscode/
+.ipynb_checkpoints
+.spyderproject
+.spyproject
+.ropeproject
+
+# -------------------------
+# Binary model weights
+# -------------------------
+yolov8x-pose.pt
+yolov8n.pt
+leafmachine2/component_detector/yolov5x6.pt
+
+leafmachine2/keypoint_detector/keypoint_models/**/weights/*
+leafmachine2/keypoint_detector/ultralytics/models/yolo/pose/trained_models/*
+leafmachine2/keypoint_detector/ultralytics/models/yolo/pose/datasets/*
+
+# -------------------------
+# LeafMachine2 internal artifacts
+# -------------------------
+leafmachine2/machine/ruler_classifier/
+leafmachine2/machine/wandb/
+leafmachine2/machine/DocEnTR/model_zoo/
+leafmachine2/machine/DocEnTR/git_images/
+leafmachine2/machine/DocEnTR/demo/
+leafmachine2/machine/DocEnTR/.git/
+leafmachine2/machine/DocEnTR/__pycache__
+
+leafmachine2/ect_methods/experiments/
+leafmachine2/release_manager/
+leafmachine2/transcription/
+leafmachine2/downloading/one_url_per_domain_test/
+
+leafmachine2/segmentation/wandb/
+leafmachine2/segmentation/detectron2/datasets/*
+leafmachine2/segmentation/detectron2/models
+leafmachine2/segmentation/detectron2/detectron2/model_zoo/configs
+leafmachine2/segmentation/detectron2/.gitignore
+
+leafmachine2/component_detector/datasets/
+leafmachine2/component_detector/wandb/
+leafmachine2/component_detector/runs/
+leafmachine2/component_detector/architecture/
+
+# -------------------------
+# Allow specific needed files back in
+# -------------------------
+!leafmachine2/segmentation/detectron2/detectron2/data/
+!leafmachine2/segmentation/models/*/cfg_output.yaml
+!leafmachine2/segmentation/models/*/metadata.json
+
+# -------------------------
+# Python build junk
+# -------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# -------------------------
+# Packaging
+# -------------------------
+build/
+dist/
+*.egg-info/
+.eggs/
+wheels/
+pip-wheel-metadata/
+.installed.cfg
+MANIFEST
+
+# -------------------------
+# Coverage / cache
+# -------------------------
+.cache
+.pytest_cache/
+.mypy_cache/
+.coverage*
+htmlcov/
+.tox/
+.nox/
+
+# -------------------------
+# Logs / DB
+# -------------------------
+*.log
+db.sqlite3
+db.sqlite3-journal
+
+# -------------------------
+# Git
+# -------------------------
+.git
+.gitignore
+
+# -------------------------
+# OS junk
+# -------------------------
+.DS_Store
+Thumbs.db
+img/icon.ico
