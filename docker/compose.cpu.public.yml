@@ -1,6 +1,6 @@
 services:
-  lm2-gpu:
-    image: ghcr.io/gene-weaver/leafmachine2:gpu-latest
+  lm2-cpu:
+    image: ghcr.io/gene-weaver/leafmachine2:cpu-latest
     # Keep the same volumes/working_dir/environment you already use:
     volumes:
       - ..:/app
@@ -15,8 +15,5 @@ services:
       TRANSFORMERS_CACHE: /tmp/hf/transformers
       TMPDIR: /tmp
       YOLO_CONFIG_DIR: /tmp/ultralytics
+    command: ["python3", "test_cpu_only.py"]
 
-    # GPU request (Compose-supported pattern)
-    gpus: all
-
-    command: ["python3", "test.py"]
