@@ -1,0 +1,79 @@
+# docker/Dockerfile.cpu
+# CPU-only image (works on Linux/Windows/macOS via Docker Desktop)
+FROM python:3.11-slim
+
+# Avoid interactive prompts during apt installs
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Python / pip ergonomics
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# System deps (opencv, pillow, etc.). Keep lean but practical.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    bash \
+    ca-certificates \
+    ffmpeg \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    libgl1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user (best practice)
+ARG USERNAME=lm2
+ARG USER_UID=1000
+ARG USER_GID=1000
+RUN groupadd --gid ${USER_GID} ${USERNAME} \
+ && useradd --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME}
+
+WORKDIR /app
+
+# -------------------------------------------------------------------
+# Dependency install (cache-friendly):
+#   1) Copy only requirements first so Docker can cache this layer
+#   2) Install uv + dependencies using uv's resolver (fast, robust)
+#   3) Then copy the full repo
+# -------------------------------------------------------------------
+
+# Copy requirements separately for better layer caching
+COPY requirements.txt /app/requirements.txt
+
+# Install uv + Python deps (system install inside container)
+# Notes:
+# - --system installs into the container's system Python (no venv).
+# - UV_LINK_MODE=copy avoids hardlink warnings in some Docker setups.
+ENV UV_LINK_MODE=copy
+RUN python -m pip install --no-cache-dir -U pip \
+ && pip install --no-cache-dir uv \
+ && uv pip install --system -r /app/requirements.txt \
+ && uv pip install --system "git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools" \
+ && uv pip install --system "pycocotools>=2.0.5" \
+ && uv pip install --system "opencv-contrib-python-headless==4.7.0.72" \
+ && uv pip install --system "vit-pytorch==0.37.1" \
+ && uv pip install --system torch torchvision torchaudio
+
+# Optional sanity check (uncomment if you want build-time verification)
+# RUN python -c "import cv2, torch; print('cv2', cv2.__version__); print('torch', torch.__version__)"
+
+# Now copy the rest of the repo into image
+COPY . /app
+
+# Runtime environment variables expected by LM2
+ENV LM2_MODELS_DIR=/models \
+    LM2_DATA_DIR=/data
+
+# Create default mount points
+RUN mkdir -p /data /models /output \
+ && chown -R ${USERNAME}:${USERNAME} /app /data /models /output
+
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+USER ${USERNAME}
+
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["python", "test_cpu_only.py"]

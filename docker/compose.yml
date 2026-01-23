@@ -1,0 +1,64 @@
+services:
+  lm2-cpu:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.cpu
+    image: leafmachine2:cpu
+
+    # Mount the repo root into /app so ALL repo-relative paths persist on host.
+    volumes:
+      - ..:/app
+      # Optional: if you still see lock icons, enable the next line so the container
+      # runs as your host user (Linux). Works when LM2_UID/LM2_GID are set.
+      # - /etc/passwd:/etc/passwd:ro
+      # - /etc/group:/etc/group:ro
+
+    working_dir: /app
+
+    # Make user-space config/cache writable and consistent
+    environment:
+      HOME: /tmp
+      MPLCONFIGDIR: /tmp/matplotlib
+      XDG_CACHE_HOME: /tmp/.cache
+      TORCHINDUCTOR_CACHE_DIR: /tmp/torchinductor
+      TORCH_HOME: /tmp/torch
+      HF_HOME: /tmp/hf
+      TRANSFORMERS_CACHE: /tmp/hf/transformers
+      TMPDIR: /tmp
+      YOLO_CONFIG_DIR: /tmp/ultralytics
+
+    # Default runs the CPU-only test; users can override command
+    command: ["python", "test_cpu_only.py"]
+
+  lm2-gpu:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.gpu
+    image: leafmachine2:gpu
+
+    volumes:
+      - ..:/app
+
+    working_dir: /app
+
+    environment:
+      HOME: /tmp
+      MPLCONFIGDIR: /tmp/matplotlib
+      XDG_CACHE_HOME: /tmp/.cache
+      TORCHINDUCTOR_CACHE_DIR: /tmp/torchinductor
+      TORCH_HOME: /tmp/torch
+      HF_HOME: /tmp/hf
+      TRANSFORMERS_CACHE: /tmp/hf/transformers
+      TMPDIR: /tmp
+      YOLO_CONFIG_DIR: /tmp/ultralytics
+
+    # GPU access (Compose v2 with NVIDIA Container Toolkit)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+    command: ["python3", "test.py"]
