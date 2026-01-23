@@ -1815,6 +1815,7 @@ class RulerInfo:
 
 
     def insert_scanline(self): 
+        
         imgBG = self.Ruler.img_copy
 
         if self.max_dim < 800:
@@ -1825,6 +1826,11 @@ class RulerInfo:
             sz = 3
         else:
             sz = 4
+
+        if self.conversion_mean is None or not np.isfinite(self.conversion_mean):
+            self.logger.debug("insert_scanline(): conversion_mean invalid; skipping marker guides")
+            self.Ruler.img_ruler_overlay = imgBG
+            return
 
         # Plot all points
         unit_tally = []
@@ -1904,6 +1910,14 @@ class RulerInfo:
 
 
     def add_unit_marker_guide(self, img_bg, distance, x_coords, factor, y_pt, color):
+        # Guard against NaN/None/arrays
+        try:
+            distance = float(distance)
+        except Exception:
+            return img_bg
+        if not np.isfinite(distance) or distance <= 0:
+            return img_bg
+    
         # shift_amount = - min(img_bg.shape[0], img_bg.shape[1]) / 10
         thickness = 4 if max(img_bg.shape[0], img_bg.shape[1]) > 1000 else 2
         x_coords.sort()
