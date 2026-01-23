@@ -53,8 +53,15 @@ ENV UV_LINK_MODE=copy
 RUN python3 -m pip install --no-cache-dir -U pip setuptools wheel \
  && python3 -m pip install --no-cache-dir uv
 
-# Install Python deps from requirements
-RUN uv pip install --system -r /app/requirements.txt
+# Install Python deps from requirements (reduce build-time disk usage)
+# - Cache mount prevents cache from being committed into the image layer
+# - Explicit cleanup reduces transient disk pressure and final image size
+ENV UV_CACHE_DIR=/root/.cache/uv
+
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system --no-cache-dir -r /app/requirements.txt && \
+    rm -rf /root/.cache/uv
+
 
 # Required explicit installs (kept per your requirement)
 RUN uv pip install --system \
