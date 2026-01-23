@@ -216,3 +216,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Allow Docker packaging files to be tracked
+!docker/
+!docker/**

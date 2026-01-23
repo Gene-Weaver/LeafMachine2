@@ -1,0 +1,22 @@
+services:
+  lm2-gpu:
+    image: ghcr.io/gene-weaver/leafmachine2:gpu-v-1
+    # Keep the same volumes/working_dir/environment you already use:
+    volumes:
+      - ..:/app
+    working_dir: /app
+    environment:
+      HOME: /tmp
+      MPLCONFIGDIR: /tmp/matplotlib
+      XDG_CACHE_HOME: /tmp/.cache
+      TORCHINDUCTOR_CACHE_DIR: /tmp/torchinductor
+      TORCH_HOME: /tmp/torch
+      HF_HOME: /tmp/hf
+      TRANSFORMERS_CACHE: /tmp/hf/transformers
+      TMPDIR: /tmp
+      YOLO_CONFIG_DIR: /tmp/ultralytics
+
+    # GPU request (Compose-supported pattern)
+    gpus: all
+
+    command: ["python3", "test.py"]
