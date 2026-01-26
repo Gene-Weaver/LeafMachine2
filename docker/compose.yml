@@ -1,3 +1,9 @@
+#####
+##### FOR REFERENCE ONLY. DON'T USE THIS COMPOSE
+#####
+##### use compose.gpu.public.yml or compose.cpu.public.yml
+#####
+
 services:
   lm2-cpu:
     build:

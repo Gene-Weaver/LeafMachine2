@@ -130,7 +130,7 @@ class LeafSkeleton:
         self.translate_measurements_to_full_image()
 
         self.show_QC_image()
-        self.show_final_image()
+        # self.show_final_image()
         # self.save_QC_image()
         # print('hi')
 
