@@ -433,15 +433,43 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
     chunk_size = max((num_files + num_workers - 1) // num_workers, 4)
 
     def worker(queue, device, worker_id):
+        wlogger, _ = start_worker_logging(worker_id, Dirs, log_name='worker_log_ruler')
+
+        # One-time per worker:
+        Labels = DocEnTR()
+        model, _ = Labels.load_DocEnTR_model(device)
+
+        poly_model = PolynomialModel()
+        poly_model.load_polynomial_model()
+
+        RulerCFG = RulerConfig(wlogger, dir_home, Dirs, cfg, device)  # if safe to reuse
+
         while True:
             filenames_chunk = queue.get()
-            if filenames_chunk is None:  # Stop signal
+            if filenames_chunk is None:
+                queue.task_done()
                 break
 
             for filename in filenames_chunk:
-                process_filename(worker_id, filename, cfg, show_all_logs, dir_home, Project, batch, Dirs, device, use_CF_predictor)
-
+                process_filename(
+                    wlogger=wlogger,
+                    filename=filename,
+                    cfg=cfg,
+                    show_all_logs=show_all_logs,
+                    dir_home=dir_home,
+                    Project=Project,
+                    batch=batch,
+                    Dirs=Dirs,
+                    device=device,
+                    use_CF_predictor=use_CF_predictor,
+                    Labels=Labels,
+                    model=model,
+                    poly_model=poly_model,
+                    RulerCFG=RulerCFG,
+                    worker_id=worker_id,
+                )
             queue.task_done()
+
 
     # Setup queue and start workers
     queue = Queue()
@@ -473,104 +501,158 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
     time_report['t_rulers'] = t_rulers
     return Project, time_report
 
-def process_filename(worker_id, filename, cfg, show_all_logs, dir_home, Project, batch, Dirs, device, use_CF_predictor):
-    wlogger, wlogger_path = start_worker_logging(worker_id, Dirs, log_name='worker_log_ruler')
-    analysis = Project.project_data_list[batch][filename]
-    RulerCFG = RulerConfig(wlogger, dir_home, Dirs, cfg, device)
-    Labels = DocEnTR()
-    model, __device = Labels.load_DocEnTR_model(device)
-    poly_model = PolynomialModel()
-    poly_model.load_polynomial_model()
+def process_filename(
+    wlogger,
+    worker_id,
+    filename,
+    cfg,
+    show_all_logs,
+    dir_home,
+    Project,
+    batch,
+    Dirs,
+    device,
+    use_CF_predictor,
+    Labels,
+    model,
+    poly_model,
+    RulerCFG,
+):
+    """
+    Per-file ruler processing using per-worker cached resources.
 
-    if len(analysis) != 0:
-        Project.project_data_list[batch][filename]['Ruler_Info'] = []
-        Project.project_data_list[batch][filename]['Ruler_Data'] = []
-        wlogger.debug(filename)
+    Assumes:
+      - wlogger created once per worker
+      - Labels/model loaded once per worker
+      - poly_model loaded once per worker
+      - RulerCFG created once per worker (or otherwise safe to share)
+    """
 
-        # Attempt to load the image
+    analysis = Project.project_data_list[batch].get(filename, {})
+    if not analysis:
+        return  # nothing to do
+
+    # Ensure keys exist
+    Project.project_data_list[batch][filename]['Ruler_Info'] = []
+    Project.project_data_list[batch][filename]['Ruler_Data'] = []
+
+    wlogger.debug(filename)
+
+    # --- Load image (cv2.imread returns None on failure; it does NOT raise FileNotFoundError) ---
+    img_path_jpg = os.path.join(Project.dir_images, f"{filename}.jpg")
+    img_path_jpeg = os.path.join(Project.dir_images, f"{filename}.jpeg")
+
+    full_image = cv2.imread(img_path_jpg)
+    if full_image is None:
+        full_image = cv2.imread(img_path_jpeg)
+
+    if full_image is None:
+        wlogger.error(f"Could not read image for {filename} (.jpg/.jpeg). Skipping.")
+        return
+
+    # --- Predict conversion factor ---
+    MP_value = calc_MP(full_image)
+    predicted_conversion_factor_cm = poly_model.predict_with_polynomial_single(MP_value)
+    wlogger.info(f"Predicted conversion mean for MP={MP_value}: {predicted_conversion_factor_cm}")
+
+    # --- Detect rulers from prior detections ---
+    archival = analysis.get('Detections_Archival_Components', [])
+    if not archival:
+        return
+
+    height = analysis.get('height', None)
+    width = analysis.get('width', None)
+    if height is None or width is None:
+        wlogger.error(f"Missing height/width in analysis for {filename}. Skipping.")
+        return
+
+    ruler_list = [row for row in archival if row[0] == 0]
+    if len(ruler_list) < 1:
+        wlogger.debug('No rulers detected')
+        return
+
+    for ruler in ruler_list:
         try:
-            full_image = cv2.imread(os.path.join(Project.dir_images, f"{filename}.jpg"))
-        except FileNotFoundError:
-            full_image = cv2.imread(os.path.join(Project.dir_images, f"{filename}.jpeg"))
+            ruler_location = yolo_to_position_ruler(ruler, height, width)
+            ruler_polygon = [
+                (ruler_location[1], ruler_location[2]),
+                (ruler_location[3], ruler_location[2]),
+                (ruler_location[3], ruler_location[4]),
+                (ruler_location[1], ruler_location[4]),
+            ]
+            x_coords, y_coords = zip(*ruler_polygon)
+            min_x, min_y = min(x_coords), min(y_coords)
+            max_x, max_y = max(x_coords), max(y_coords)
 
-        # Calculate MP value and predict conversion factor
-        MP_value = calc_MP(full_image)
-        predicted_conversion_factor_cm = poly_model.predict_with_polynomial_single(MP_value)
-        wlogger.info(f"Predicted conversion mean for MP={MP_value}: {predicted_conversion_factor_cm}")
+            # Clip bounds to image
+            h_img, w_img = full_image.shape[:2]
+            min_x = max(0, min_x); min_y = max(0, min_y)
+            max_x = min(w_img, max_x); max_y = min(h_img, max_y)
 
-        # Detect rulers
-        archival = analysis.get('Detections_Archival_Components', [])
-        has_rulers = len(archival) > 0
+            if max_x <= min_x or max_y <= min_y:
+                wlogger.warning(f"Invalid crop bounds for {filename}: {(min_x, min_y, max_x, max_y)}")
+                continue
 
-        if has_rulers:
-            height, width = analysis['height'], analysis['width']
-            ruler_list = [row for row in archival if row[0] == 0]
-            if len(ruler_list) < 1:
-                wlogger.debug('No rulers detected')
+            ruler_cropped = full_image[min_y:max_y, min_x:max_x]
+
+            loc = '-'.join(map(str, [min_x, min_y, max_x, max_y]))
+            ruler_crop_name = '__'.join([filename, 'R', loc])
+
+            # NOTE: use the passed-in cached Labels/model/RulerCFG
+            Ruler = setup_ruler(
+                Labels, model, device, cfg, Dirs, wlogger, show_all_logs,
+                RulerCFG, ruler_cropped, ruler_crop_name
+            )
+
+            Ruler_Info = convert_pixels_to_metric(
+                wlogger, show_all_logs, RulerCFG, Ruler, ruler_crop_name,
+                predicted_conversion_factor_cm, use_CF_predictor, Dirs
+            )
+
+            # Collect and log ruler data
+            if any(unit in Ruler_Info.conversion_data_all for unit in ['smallCM', 'halfCM', 'mm']):
+                units_save = Ruler_Info.conversion_data_all if Ruler_Info.conversion_data_all else 0
+                plot_points = Ruler_Info.data_list
             else:
-                for ruler in ruler_list:
-                    # Process each ruler found
-                    ruler_location = yolo_to_position_ruler(ruler, height, width)
-                    ruler_polygon = [
-                        (ruler_location[1], ruler_location[2]), 
-                        (ruler_location[3], ruler_location[2]), 
-                        (ruler_location[3], ruler_location[4]), 
-                        (ruler_location[1], ruler_location[4])
-                    ]
-                    x_coords, y_coords = zip(*ruler_polygon)
-                    min_x, min_y = min(x_coords), min(y_coords)
-                    max_x, max_y = max(x_coords), max(y_coords)
-                    ruler_cropped = full_image[min_y:max_y, min_x:max_x]
-                    loc = '-'.join(map(str, [min_x, min_y, max_x, max_y]))
-                    ruler_crop_name = '__'.join([filename, 'R', loc])
+                units_save = Ruler_Info.unit_list
+                plot_points = 0
 
-                    Ruler = setup_ruler(Labels, model, device, cfg, Dirs, wlogger, show_all_logs, RulerCFG, ruler_cropped, ruler_crop_name)
-                    Ruler_Info = convert_pixels_to_metric(wlogger, show_all_logs, RulerCFG, Ruler, ruler_crop_name, predicted_conversion_factor_cm, use_CF_predictor, Dirs)
+            Project.project_data_list[batch][filename]['Ruler_Info'].append({
+                'ruler_image_name': ruler_crop_name,
+                'success': Ruler_Info.conversion_successful,
+                'conversion_mean': Ruler_Info.conversion_mean,
+                'predicted_conversion_factor_cm': predicted_conversion_factor_cm,
+                'pooled_sd': Ruler_Info.pooled_sd,
+                'ruler_class': Ruler_Info.ruler_class,
+                'ruler_class_confidence': Ruler_Info.ruler_class_percentage,
+                'units': units_save,
+                'cross_validation_count': Ruler_Info.cross_validation_count,
+                'n_scanlines': Ruler_Info.conversion_mean_n,
+                'n_data_points_in_avg': Ruler_Info.conversion_mean_n_vals,
+                'avg_tick_width': Ruler_Info.avg_width,
+                'plot_points': plot_points,
+                'summary_img': Ruler_Info.summary_image,
+            })
 
-                    # Collect and log ruler data
-                    if any(unit in Ruler_Info.conversion_data_all for unit in ['smallCM', 'halfCM', 'mm']):
-                        units_save = Ruler_Info.conversion_data_all if Ruler_Info.conversion_data_all else 0
-                        plot_points = Ruler_Info.data_list
-                    else:
-                        units_save = Ruler_Info.unit_list
-                        plot_points = 0
+        except Exception as e:
+            wlogger.error(f"Failed ruler processing for {filename}: {e}", exc_info=True)
+            Project.project_data_list[batch][filename]['Ruler_Info'].append({
+                'ruler_image_name': locals().get('ruler_crop_name', f'{filename}__R__unknown'),
+                'success': False,
+                'conversion_mean': 0,
+                'predicted_conversion_factor_cm': predicted_conversion_factor_cm,
+                'pooled_sd': 0,
+                'ruler_class': 'fail',
+                'ruler_class_confidence': 0,
+                'units': 0,
+                'cross_validation_count': 0,
+                'n_scanlines': 0,
+                'n_data_points_in_avg': 0,
+                'avg_tick_width': 0,
+                'plot_points': 0,
+                'summary_img': locals().get('ruler_cropped', None),
+            })
 
-                    try:
-                        Project.project_data_list[batch][filename]['Ruler_Info'].append({
-                            'ruler_image_name': ruler_crop_name,
-                            'success': Ruler_Info.conversion_successful,
-                            'conversion_mean': Ruler_Info.conversion_mean,
-                            'predicted_conversion_factor_cm': predicted_conversion_factor_cm,
-                            'pooled_sd': Ruler_Info.pooled_sd,
-                            'ruler_class': Ruler_Info.ruler_class,
-                            'ruler_class_confidence': Ruler_Info.ruler_class_percentage,
-                            'units': units_save,
-                            'cross_validation_count': Ruler_Info.cross_validation_count,
-                            'n_scanlines': Ruler_Info.conversion_mean_n,
-                            'n_data_points_in_avg': Ruler_Info.conversion_mean_n_vals,
-                            'avg_tick_width': Ruler_Info.avg_width,
-                            'plot_points': plot_points,
-                            'summary_img': Ruler_Info.summary_image
-                        })
-                    except Exception as e:
-                        wlogger.error(f"Error while saving ruler info: {e}")
-                        Project.project_data_list[batch][filename]['Ruler_Info'].append({
-                            'ruler_image_name': ruler_crop_name,
-                            'success': False,
-                            'conversion_mean': 0,
-                            'predicted_conversion_factor_cm': predicted_conversion_factor_cm,
-                            'pooled_sd': 0,
-                            'ruler_class': 'fail',
-                            'ruler_class_confidence': 0,
-                            'units': 0,
-                            'cross_validation_count': 0,
-                            'n_scanlines': 0,
-                            'n_data_points_in_avg': 0,
-                            'avg_tick_width': 0,
-                            'plot_points': 0,
-                            'summary_img': ruler_cropped  # storing the cropped image in case of failure
-                        })
-                        wlogger.error(f"Failed to process ruler data for {filename}: {str(e)}")
 
 
 
@@ -2212,6 +2294,12 @@ def find_minimal_change_in_binarization(img_gray, version):
         return img_bi
 
 
+def _get_ruler_classes(RulerCFG):
+    # Cache on the config object
+    if getattr(RulerCFG, "_ruler_classes", None) is None:
+        with open(os.path.abspath(RulerCFG.path_to_class_names), "r", encoding="utf-8") as f:
+            RulerCFG._ruler_classes = [line.strip() for line in f if line.strip()]
+    return RulerCFG._ruler_classes
 
 
 def detect_ruler(logger, show_all_logs, RulerCFG, ruler_cropped, ruler_name):
@@ -2227,8 +2315,7 @@ def detect_ruler(logger, show_all_logs, RulerCFG, ruler_cropped, ruler_name):
     # net = torch.jit.load(os.path.join(modelPath,modelName))
     # net.eval()
 
-    with open(os.path.abspath(RulerCFG.path_to_class_names)) as f:
-        classes = [line.strip() for line in f.readlines()]
+    classes = _get_ruler_classes(RulerCFG)
 
     # --- Ensure model and input are on the same device (TorchScript requires this) ---
     x = img.img_tensor

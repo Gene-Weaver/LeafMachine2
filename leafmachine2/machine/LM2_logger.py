@@ -77,32 +77,43 @@ def start_logging(Dirs, cfg):
 
 
 def start_worker_logging(worker_id, Dirs, log_name):
-    # Create a unique log file for each worker
     worker_log_path = os.path.join(Dirs.path_log, f'{log_name}_{worker_id}.log')
 
-    # Create logger for the worker
-    worker_logger = logging.getLogger(f'Worker_{worker_id}')
+    logger_name = f'Worker_{worker_id}'
+    worker_logger = logging.getLogger(logger_name)
     worker_logger.setLevel(logging.DEBUG)
 
-    # Create file handler for worker log file
-    fh = logging.FileHandler(worker_log_path)
-    fh.setLevel(logging.DEBUG)
+    # Critical: prevent double-printing via root logger if you also configure root
+    worker_logger.propagate = False
 
-    # Create console handler (optional, can remove if console logging is not needed)
-    ch = logging.StreamHandler()
-    ch.setLevel(logging.DEBUG)
+    # If we've already configured this logger, reuse it
+    if worker_logger.handlers:
+        return worker_logger, worker_log_path
 
-    # Create formatter
+
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s')
 
-    # Add formatter to handlers
-    fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
+    # File handler (only add if not already present for this file)
+    has_file_handler = any(
+        isinstance(h, logging.FileHandler) and getattr(h, "baseFilename", None) == os.path.abspath(worker_log_path)
+        for h in worker_logger.handlers
+    )
+    if not has_file_handler:
+        fh = logging.FileHandler(worker_log_path, mode="a", encoding="utf-8")
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(formatter)
+        worker_logger.addHandler(fh)
 
-    # Add handlers to logger
-    worker_logger.addHandler(fh)
-    worker_logger.addHandler(ch)
+    # Console handler (optional) — add only once
+    has_stream_handler = any(isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler)
+                             for h in worker_logger.handlers)
+    if not has_stream_handler:
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.DEBUG)
+        ch.setFormatter(formatter)
+        worker_logger.addHandler(ch)
 
+    worker_logger._lm2_configured = True
     return worker_logger, worker_log_path
 
 def merge_worker_logs(Dirs, num_workers, main_log_name, log_name_stem):
