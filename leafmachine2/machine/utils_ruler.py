@@ -945,6 +945,9 @@ class RulerInfo:
         self.pooled_sd_list = []
         self.cross_validation_count = -999
         self.avg_width = -999
+
+        self.summary_image = Ruler.img_copy
+
         ### FIXES
         if self.ruler_class == 'tick_black_4thcm':
             self.ruler_class = 'tick_black_cm_halfcm_4thcm'
