@@ -53,22 +53,19 @@ ENV UV_LINK_MODE=copy
 RUN python3 -m pip install --no-cache-dir -U pip setuptools wheel \
  && python3 -m pip install --no-cache-dir uv
 
-# Install Python deps from requirements
-# Use BuildKit cache mount for uv to reduce downloads without baking cache into the layer.
+# Install Python deps from requirements (BuildKit cache mount for uv)
 ENV UV_CACHE_DIR=/root/.cache/uv
-
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --system --no-cache-dir -r /app/requirements.txt
 
-
-# Required explicit installs (kept per your requirement)
+# Required explicit installs
 RUN uv pip install --system \
       "git+https://github.com/waspinator/pycococreator.git@fba8f4098f3c7aaa05fe119dc93bbe4063afdab8#egg=pycococreatortools" \
  && uv pip install --system "pycocotools>=2.0.5" \
  && uv pip install --system "opencv-contrib-python-headless==4.7.0.72" \
  && uv pip install --system "vit-pytorch==0.37.1"
 
-# Torch CUDA build (pin to your documented recommended)
+# Torch CUDA build
 RUN uv pip install --system \
       "torch==2.3.1" "torchvision==0.18.1" "torchaudio==2.3.1" \
       --index-url https://download.pytorch.org/whl/cu121
@@ -78,10 +75,18 @@ COPY . /app
 
 # Runtime environment variables expected by LM2
 ENV LM2_MODELS_DIR=/models \
-    LM2_DATA_DIR=/data
+    LM2_DATA_DIR=/data \
+    YOLO_CONFIG_DIR=/tmp/ultralytics \
+    MPLCONFIGDIR=/tmp/matplotlib \
+    HF_HOME=/tmp/hf \
+    TORCH_HOME=/tmp/torch \
+    XDG_CACHE_HOME=/tmp/.cache
 
-# Create default mount points
+# Create mount points + runtime cache dirs and ensure they work with:
+#   docker compose run --user $(id -u):$(id -g) ...
 RUN mkdir -p /data /models /output \
+ && mkdir -p /tmp/ultralytics /tmp/matplotlib /tmp/.cache /tmp/torch /tmp/hf /tmp/torchinductor \
+ && chmod -R 777 /tmp/ultralytics /tmp/matplotlib /tmp/.cache /tmp/torch /tmp/hf /tmp/torchinductor \
  && chown -R ${USERNAME}:${USERNAME} /app /data /models /output
 
 COPY docker/entrypoint.sh /entrypoint.sh

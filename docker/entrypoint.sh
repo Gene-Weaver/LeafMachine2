@@ -20,6 +20,18 @@ mkdir -p \
   "$TRANSFORMERS_CACHE" \
   "$YOLO_CONFIG_DIR"
 
+# ---- Ensure dirs are writable even when running with --user ----
+# If we're not root and the dirs are root-owned, chmod will fail; ignore.
+chmod -R 777 \
+  "$MPLCONFIGDIR" \
+  "$XDG_CACHE_HOME" \
+  "$TORCHINDUCTOR_CACHE_DIR" \
+  "$TORCH_HOME" \
+  "$HF_HOME" \
+  "$TRANSFORMERS_CACHE" \
+  "$YOLO_CONFIG_DIR" \
+  2>/dev/null || true
+
 echo "LeafMachine2 container starting"
 echo "  Working dir: $(pwd)"
 echo "  Running as: $(id -u):$(id -g)"

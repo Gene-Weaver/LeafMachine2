@@ -60,8 +60,7 @@ RUN uv pip install --system \
  && uv pip install --system "opencv-contrib-python-headless==4.7.0.72" \
  && uv pip install --system "vit-pytorch==0.37.1"
 
-# Torch CPU build (more deterministic than letting it resolve implicitly)
-# If you prefer "latest compatible", you can remove the version pins.
+# Torch CPU build
 RUN uv pip install --system \
       "torch==2.3.1" "torchvision==0.18.1" "torchaudio==2.3.1" \
       --index-url https://download.pytorch.org/whl/cpu
@@ -72,13 +71,19 @@ COPY . /app
 # Runtime environment variables expected by LM2
 ENV LM2_MODELS_DIR=/models \
     LM2_DATA_DIR=/data \
+    YOLO_CONFIG_DIR=/tmp/ultralytics \
     MPLCONFIGDIR=/tmp/matplotlib \
-    YOLO_CONFIG_DIR=/tmp/ultralytics
+    HF_HOME=/tmp/hf \
+    TORCH_HOME=/tmp/torch \
+    XDG_CACHE_HOME=/tmp/.cache
 
-# Create default mount points
-# Keep ownership consistent for non-root execution.
-RUN mkdir -p /data /models /output /tmp/matplotlib /tmp/ultralytics \
- && chown -R ${USERNAME}:${USERNAME} /app /data /models /output /tmp/matplotlib /tmp/ultralytics
+# Create mount points + runtime cache dirs and ensure they work with:
+#   docker compose run --user $(id -u):$(id -g) ...
+# Key: /tmp/* must be writable for arbitrary UIDs (Ultralytics writes settings.yaml)
+RUN mkdir -p /data /models /output \
+ && mkdir -p /tmp/ultralytics /tmp/matplotlib /tmp/.cache /tmp/torch /tmp/hf /tmp/torchinductor \
+ && chmod -R 777 /tmp/ultralytics /tmp/matplotlib /tmp/.cache /tmp/torch /tmp/hf /tmp/torchinductor \
+ && chown -R ${USERNAME}:${USERNAME} /app /data /models /output
 
 # Entrypoint
 COPY docker/entrypoint.sh /entrypoint.sh
@@ -87,4 +92,4 @@ RUN chmod +x /entrypoint.sh
 USER ${USERNAME}
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["python", "test_cpu_only.py"]
+CMD ["python3", "test_cpu_only.py"]
