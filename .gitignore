@@ -17,6 +17,7 @@ yolov8n.pt
 /docs/
 Herbarium_Sheet_Corners/
 demo/demo_output/*
+!demo/demo_output/.gitkeep
 wandb/
 venv_LM2_linux/
 venv_LM2_l/
