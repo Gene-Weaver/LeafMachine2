@@ -548,6 +548,14 @@ def process_filename(
 
     if full_image is None:
         wlogger.error(f"Could not read image for {filename} (.jpg/.jpeg). Skipping.")
+        # Cannot calc prediction without image, append completely empty fail
+        Project.project_data_list[batch][filename]['Ruler_Info'].append({
+            'ruler_image_name': 'image_load_fail', 'success': False, 'conversion_mean': 0,
+            'predicted_conversion_factor_cm': 0, 'pooled_sd': 0, 'ruler_class': 'fail',
+            'ruler_class_confidence': 0, 'units': 0, 'cross_validation_count': 0,
+            'n_scanlines': 0, 'n_data_points_in_avg': 0, 'avg_tick_width': 0,
+            'plot_points': 0, 'summary_img': None
+        })
         return
 
     # --- Predict conversion factor ---
@@ -555,20 +563,42 @@ def process_filename(
     predicted_conversion_factor_cm = poly_model.predict_with_polynomial_single(MP_value)
     wlogger.info(f"Predicted conversion mean for MP={MP_value}: {predicted_conversion_factor_cm}")
 
+    # Helper to save prediction even when returning early
+    def _append_fail_info(reason):
+        Project.project_data_list[batch][filename]['Ruler_Info'].append({
+            'ruler_image_name': reason,
+            'success': False,
+            'conversion_mean': 0,
+            'predicted_conversion_factor_cm': predicted_conversion_factor_cm,
+            'pooled_sd': 0,
+            'ruler_class': 'fail',
+            'ruler_class_confidence': 0,
+            'units': 0,
+            'cross_validation_count': 0,
+            'n_scanlines': 0,
+            'n_data_points_in_avg': 0,
+            'avg_tick_width': 0,
+            'plot_points': 0,
+            'summary_img': None # No crop available
+        })
+
     # --- Detect rulers from prior detections ---
     archival = analysis.get('Detections_Archival_Components', [])
     if not archival:
+        _append_fail_info('no_archival_data')
         return
 
     height = analysis.get('height', None)
     width = analysis.get('width', None)
     if height is None or width is None:
         wlogger.error(f"Missing height/width in analysis for {filename}. Skipping.")
+        _append_fail_info('missing_dims')
         return
 
     ruler_list = [row for row in archival if row[0] == 0]
     if len(ruler_list) < 1:
         wlogger.debug('No rulers detected')
+        _append_fail_info('no_rulers_detected')
         return
 
     for ruler in ruler_list:

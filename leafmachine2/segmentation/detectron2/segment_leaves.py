@@ -178,38 +178,43 @@ def segment_images_parallel(logger, dir_home, dict_objects, leaf_type, dict_name
 
 def determine_conversion_factor(dict_objects, filename):
     """
-    Determine the conversion factor (CF) for the given filename based on the conversion_mean and predicted_conversion_factor_cm.
-    
-    Parameters:
-        dict_objects (dict): The dictionary containing ruler information.
-        filename (str): The filename key to look up in the dictionary.
-        
-    Returns:
-        float: The calculated conversion factor (CF).
+    Determine the conversion factor (CF) for the given filename based on the conversion_mean 
+    and predicted_conversion_factor_cm. Robust against missing keys and empty lists.
     """
-    # Get the list of Ruler_Info
-    ruler_info_list = dict_objects[filename]['Ruler_Info']
+    # 1. Safely retrieve the list. Default to empty list if key is missing.
+    ruler_info_list = dict_objects[filename].get('Ruler_Info', [])
     
-    # Determine the max_index dynamically based on the length of the list
+    # 2. Handle cases where the list is empty (e.g. no rulers detected/processed)
+    if not ruler_info_list:
+        # If possible, you could try to look for a top-level prediction here, 
+        # but based on your structure, we return 0 to prevent a crash.
+        return 0.0
+
     max_index = len(ruler_info_list) - 1
     
     conversion_means = []
-    predicted_conversion_factor_cm = None
+    predicted_conversion_factor_cm = 0
 
     # Iterate over the indices in the list
     for i in range(max_index + 1):
         ruler_info = ruler_info_list[i]
         
+        # Get actual mean
         conversion_mean = ruler_info.get('conversion_mean', 0)
-        predicted_conversion_factor_cm = ruler_info.get('predicted_conversion_factor_cm', 0)
         conversion_means.append(conversion_mean)
+
+        # Get predicted - ensure we capture it if it exists in any of the entries
+        pred = ruler_info.get('predicted_conversion_factor_cm', 0)
+        if pred and pred > 0:
+            predicted_conversion_factor_cm = pred
     
-    # Check if all conversion_mean values are 0
+    # Check if all conversion_mean values are 0 (failed conversions)
     if all(cm == 0 for cm in conversion_means):
-        if predicted_conversion_factor_cm:
+        # Fallback to predicted value
+        if predicted_conversion_factor_cm > 0:
             CF = predicted_conversion_factor_cm
         else:
-            CF = 0
+            CF = 0.0
     else:
         # Calculate the average of non-zero conversion_mean values
         non_zero_conversion_means = [cm for cm in conversion_means if cm > 0]
