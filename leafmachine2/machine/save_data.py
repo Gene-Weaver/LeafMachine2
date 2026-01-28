@@ -876,7 +876,6 @@ class Data_Vault():
                 'ruler_image_name': ['no_ruler'],
                 'ruler_location': ['NA'],
                 
-
                 'ruler_success': ['False'],
                 'conversion_mean': ['NA'],
                 'predicted_conversion_factor_cm': ['NA'],
@@ -890,10 +889,6 @@ class Data_Vault():
                 'n_scanlines': ['NA'],
                 'n_data_points_in_avg': ['NA'],
                 'avg_tick_width': ['NA'],
-
-                # 'specimen_record': self.specimen_record,
-                # 'detections_plant': self.detections_plant,
-                # 'detections_archival': self.detections_archival,
             }
             if not cfg['leafmachine']['data']['include_darwin_core_data_from_combined_file']:
                 self.ruler_dict_list.append(dict_ruler)
@@ -934,10 +929,6 @@ class Data_Vault():
 
                         'n_data_points_in_avg': ['NA'],
                         'avg_tick_width': ['NA'],
-
-                        # 'specimen_record': self.specimen_record,
-                        # 'detections_plant': self.detections_plant,
-                        # 'detections_archival': self.detections_archival,
                     }
                     if not cfg['leafmachine']['data']['include_darwin_core_data_from_combined_file']:
                         self.ruler_dict_list.append(dict_ruler)
@@ -953,10 +944,24 @@ class Data_Vault():
                 else:
                     ruler_info_dict = ruler_info[i]
                     ruler_image_name = ruler_info_dict['ruler_image_name']
-                    # ruler_class = ruler_info_dict.ruler_class
-                    # ruler_class_confidence = ruler_info_dict.ruler_class_percentage
-                    ruler_location = ruler_image_name.split('__')[-1]
-                    ruler_location = [int(ruler_location.split('-')[0]),int(ruler_location.split('-')[1]),int(ruler_location.split('-')[2]),int(ruler_location.split('-')[3])]
+                    
+                    # Safely handle ruler names that are failure tags (do not contain coordinates)
+                    if any(x in ruler_image_name for x in ['no_rulers', 'fail', 'missing', 'no_archival', 'no_ruler']) or '__R__' not in ruler_image_name:
+                        ruler_location = ['NA']
+                    else:
+                        try:
+                            # Standard format: filename__R__minx-miny-maxx-maxy
+                            ruler_location_str = ruler_image_name.split('__')[-1]
+                            ruler_location = [
+                                int(ruler_location_str.split('-')[0]),
+                                int(ruler_location_str.split('-')[1]),
+                                int(ruler_location_str.split('-')[2]),
+                                int(ruler_location_str.split('-')[3])
+                            ]
+                        except Exception:
+                            # Fallback if parsing fails
+                            ruler_location = ['NA']
+                    # --- FIXED LOGIC END ---
 
                     # Ruler Data
                     ruler_data_part = ruler_info[i]
