@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os, cv2, yaml, math, sys, inspect, imutils, random, copy
 import numpy as np
 from numpy import NAN, ndarray
@@ -20,7 +21,6 @@ from scipy.spatial.distance import cdist
 from time import perf_counter
 from binarize_image_ML import DocEnTR
 
-from __future__ import annotations
 import multiprocessing as mp
 
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
