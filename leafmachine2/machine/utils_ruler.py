@@ -6,18 +6,10 @@ from dataclasses import dataclass,field
 from scipy import ndimage,stats
 from scipy.signal import find_peaks
 from scipy.stats.mstats import gmean
-from scipy.spatial.distance import pdist, squareform
 from skimage.measure import label, regionprops_table
-from skimage.util import crop
-from concurrent.futures import ProcessPoolExecutor
-from functools import partial
-from multiprocessing import Manager
-import concurrent.futures
-from threading import Lock
 import torch
-import os, argparse, time, copy, cv2, wandb
-import torch
-from torchvision import *
+import copy, cv2
+from torchvision import warnings, transforms
 from sklearn.cluster import KMeans
 import statistics
 import csv
@@ -27,6 +19,9 @@ import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
 from time import perf_counter
 from binarize_image_ML import DocEnTR
+
+from __future__ import annotations
+import multiprocessing as mp
 
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
@@ -38,6 +33,12 @@ sys.path.append(currentdir)
 # from machine.general_utils import bcolors
 from leafmachine2.analysis.predict_pixel_to_metric_conversion_factor import PolynomialModel
 from leafmachine2.machine.LM2_logger import start_worker_logging, merge_worker_logs
+
+torch.set_num_threads(1)
+torch.set_num_interop_threads(1)
+cv2.setNumThreads(0)
+cv2.ocl.setUseOpenCL(False)
+
 
 def convert_rulers_testing(dir_rulers, cfg, time_report, logger, dir_home, Project, batch, Dirs):
     RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
@@ -408,98 +409,423 @@ def calc_MP(full_image):
 #     logger.info(f"Converting Rulers in batch {batch+1} --- elapsed time: {round(t1_stop - t1_start)} seconds")
 #     return Project
 def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num_workers=16):
+    """
+    Process-based ruler conversion.
+
+    - Uses spawn (safe with CUDA).
+    - Each worker loads its own models once.
+    - Workers RETURN results; parent merges into Project.
+    - If CUDA: recommend num_workers <= #GPUs (or modestly above if CPU-heavy).
+    """
     t1_start = perf_counter()
     logger.info(f"Converting Rulers in batch {batch+1}")
 
     show_all_logs = False
 
-    # device_list = [0] if cfg['leafmachine']['project']['device'] == 'cuda' else ['cpu']
-    device_list = [torch.device('cuda', i) for i in range(torch.cuda.device_count())] if cfg['leafmachine']['project']['device'] == 'cuda' else [torch.device('cpu')]
-
-    # Load shared resources outside the loop
-    # RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
-    # Labels = DocEnTR()
-    # model, _ = Labels.load_DocEnTR_model(logger)
-    # poly_model = PolynomialModel()
-    # poly_model.load_polynomial_model()
-
     use_CF_predictor = cfg['leafmachine']['project']['use_CF_predictor']
-    num_workers = cfg['leafmachine']['project']['num_workers_ruler']
-    
+    num_workers = int(cfg['leafmachine']['project']['num_workers_ruler'])
     logger.info(f"use_CF_predictor: {use_CF_predictor}")
+    logger.info(f"num_workers_ruler: {num_workers}")
 
     filenames = list(Project.project_data_list[batch].keys())
     num_files = len(filenames)
+    if num_files == 0:
+        logger.info("No files in batch; skipping ruler conversion.")
+        t1_stop = perf_counter()
+        t_rulers = f"[Converting Rulers elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
+        logger.info(t_rulers)
+        time_report['t_rulers'] = t_rulers
+        return Project, time_report
+
+    # Decide devices for workers
+    use_cuda = (cfg['leafmachine']['project']['device'] == 'cuda')
+    if use_cuda:
+        import torch
+        n_gpus = torch.cuda.device_count()
+        if n_gpus < 1:
+            logger.warning("cfg requests CUDA but torch sees 0 GPUs; falling back to CPU.")
+            use_cuda = False
+            n_gpus = 0
+        else:
+            logger.info(f"torch.cuda.device_count(): {n_gpus}")
+    else:
+        n_gpus = 0
+
+    # For CUDA, strongly consider capping workers to GPU count
+    if use_cuda and num_workers > n_gpus:
+        logger.warning(f"num_workers_ruler={num_workers} > n_gpus={n_gpus}. "
+                       f"Consider setting num_workers_ruler={n_gpus} to avoid GPU contention.")
+
+    # Chunking (same idea as your thread version)
     chunk_size = max((num_files + num_workers - 1) // num_workers, 4)
+    chunks = [filenames[i:i + chunk_size] for i in range(0, num_files, chunk_size)]
 
-    def worker(queue, device, worker_id):
-        wlogger, _ = start_worker_logging(worker_id, Dirs, log_name='worker_log_ruler')
+    # Prepare lightweight, picklable payload:
+    # - dir_images is needed by process_filename
+    # - per-file analysis dict is needed (copy only what each worker needs)
+    # IMPORTANT: keep payload as small as possible (avoid sending huge images).
+    dir_images = Project.dir_images
 
-        # One-time per worker:
-        Labels = DocEnTR()
-        model, _ = Labels.load_DocEnTR_model(device)
+    analysis_by_filename = {}
+    for fn in filenames:
+        analysis_by_filename[fn] = Project.project_data_list[batch].get(fn, {})
 
-        poly_model = PolynomialModel()
-        poly_model.load_polynomial_model()
+    ctx = mp.get_context("spawn")  # safest with torch + cuda
+    in_q = ctx.JoinableQueue(maxsize=max(2, len(chunks)))
+    out_q = ctx.Queue()
 
-        RulerCFG = RulerConfig(wlogger, dir_home, Dirs, cfg, device)  # if safe to reuse
-
-        while True:
-            filenames_chunk = queue.get()
-            if filenames_chunk is None:
-                queue.task_done()
-                break
-
-            for filename in filenames_chunk:
-                process_filename(
-                    wlogger=wlogger,
-                    filename=filename,
-                    cfg=cfg,
-                    show_all_logs=show_all_logs,
-                    dir_home=dir_home,
-                    Project=Project,
-                    batch=batch,
-                    Dirs=Dirs,
-                    device=device,
-                    use_CF_predictor=use_CF_predictor,
-                    Labels=Labels,
-                    model=model,
-                    poly_model=poly_model,
-                    RulerCFG=RulerCFG,
-                    worker_id=worker_id,
-                )
-            queue.task_done()
-
-
-    # Setup queue and start workers
-    queue = Queue()
     workers = []
     for worker_id in range(num_workers):
-        device = device_list[worker_id % len(device_list)] # Caused error
-        t = Thread(target=worker, args=(queue,device,worker_id,))
-        t.start()
-        workers.append(t)
+        # Assign one GPU per worker in round-robin, or None for CPU
+        gpu_id = (worker_id % n_gpus) if use_cuda and n_gpus > 0 else None
 
-    # Enqueue work
-    for i in range(0, num_files, chunk_size):
-        queue.put(filenames[i:i + chunk_size])
+        p = ctx.Process(
+            target=_ruler_worker_process,
+            args=(
+                in_q,
+                out_q,
+                worker_id,
+                gpu_id,
+                cfg,
+                dir_home,
+                Dirs,
+                dir_images,
+                analysis_by_filename,
+                batch,
+                show_all_logs,
+                use_CF_predictor,
+            ),
+            daemon=True,  # if parent dies, children die
+        )
+        p.start()
+        workers.append(p)
 
-    # Wait for all work to be done
-    queue.join()
+    # Enqueue chunks
+    for chunk in chunks:
+        in_q.put(chunk)
 
-    # Stop workers
-    for _ in range(num_workers):
-        queue.put(None)
-    for t in workers:
-        t.join()
+    # Sentinel stop messages
+    for _ in workers:
+        in_q.put(None)
 
-    # merge_worker_logs(Dirs, num_workers, main_log_name='ruler_logs', log_name_stem='worker_log_ruler')
+    # Wait for all chunks to be marked done
+    in_q.join()
+
+    # Collect results (one result per filename that was processed)
+    # Some files may be absent if a worker crashed before reporting; we guard.
+    received = 0
+    expected = num_files
+    while received < expected:
+        try:
+            msg = out_q.get_nowait()
+        except Exception:
+            break  # nothing immediately available
+
+        if not msg:
+            continue
+
+        filename = msg["filename"]
+        ruler_info = msg.get("Ruler_Info", [])
+        ruler_data = msg.get("Ruler_Data", [])
+        error = msg.get("error", None)
+
+        # Merge into Project (parent owns Project)
+        Project.project_data_list[batch][filename]['Ruler_Info'] = ruler_info
+        Project.project_data_list[batch][filename]['Ruler_Data'] = ruler_data
+
+        if error:
+            logger.error(f"[rulers mp] {filename}: worker reported error: {error}")
+
+        received += 1
+
+    # Ensure workers exit
+    for p in workers:
+        p.join(timeout=10)
+        if p.is_alive():
+            logger.error(f"Worker PID {p.pid} did not exit cleanly; terminating.")
+            p.terminate()
 
     t1_stop = perf_counter()
     t_rulers = f"[Converting Rulers elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
     logger.info(t_rulers)
     time_report['t_rulers'] = t_rulers
     return Project, time_report
+
+def _ruler_worker_process(
+    in_q,
+    out_q,
+    worker_id,
+    gpu_id,
+    cfg,
+    dir_home,
+    Dirs,
+    dir_images,
+    analysis_by_filename,
+    batch,
+    show_all_logs,
+    use_CF_predictor,
+):
+    """
+    One process = one torch/CUDA context (safe).
+    Loads DocEnTR + Polynomial model once, then processes filenames.
+    Returns results to parent via out_q.
+    """
+    # Local imports to avoid fork/spawn side-effects at module import time
+    import torch
+    import cv2
+
+    # Your “safety knobs” belong inside each process too
+    try:
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
+    except Exception:
+        pass
+
+    try:
+        cv2.setNumThreads(0)
+        cv2.ocl.setUseOpenCL(False)
+    except Exception:
+        pass
+
+    # Device
+    if gpu_id is None:
+        device = torch.device("cpu")
+    else:
+        # IMPORTANT: do NOT share a single GPU among many processes unless you mean to.
+        device = torch.device(f"cuda:{gpu_id}")
+        torch.cuda.set_device(device)
+
+    # Per-process logger + models
+    wlogger, _ = start_worker_logging(worker_id, Dirs, log_name='worker_log_ruler')
+
+    Labels = DocEnTR()
+    model, _ = Labels.load_DocEnTR_model(device)
+
+    poly_model = PolynomialModel()
+    poly_model.load_polynomial_model()
+
+    RulerCFG = RulerConfig(wlogger, dir_home, Dirs, cfg, device)
+
+    while True:
+        filenames_chunk = in_q.get()
+        try:
+            if filenames_chunk is None:
+                return
+
+            for filename in filenames_chunk:
+                try:
+                    analysis = analysis_by_filename.get(filename, {})
+                    ruler_info, ruler_data = process_filename_mp(
+                        wlogger=wlogger,
+                        worker_id=worker_id,
+                        filename=filename,
+                        cfg=cfg,
+                        show_all_logs=show_all_logs,
+                        dir_images=dir_images,
+                        analysis=analysis,
+                        Dirs=Dirs,
+                        device=device,
+                        use_CF_predictor=use_CF_predictor,
+                        Labels=Labels,
+                        model=model,
+                        poly_model=poly_model,
+                        RulerCFG=RulerCFG,
+                    )
+
+                    out_q.put({
+                        "filename": filename,
+                        "Ruler_Info": ruler_info,
+                        "Ruler_Data": ruler_data,
+                        "error": None,
+                    })
+
+                except Exception as e:
+                    wlogger.exception(f"[worker {worker_id}] Uncaught error processing {filename}")
+                    out_q.put({
+                        "filename": filename,
+                        "Ruler_Info": [],
+                        "Ruler_Data": [],
+                        "error": repr(e),
+                    })
+
+        finally:
+            # CRITICAL: always mark chunk done
+            in_q.task_done()
+
+def process_filename_mp(
+    wlogger,
+    worker_id,
+    filename,
+    cfg,
+    show_all_logs,
+    dir_images,
+    analysis,
+    Dirs,
+    device,
+    use_CF_predictor,
+    Labels,
+    model,
+    poly_model,
+    RulerCFG,
+):
+    """
+    Same ruler logic, but returns (ruler_info_list, ruler_data_list)
+    so the parent process can merge into Project safely.
+    """
+    import os
+    import cv2
+
+    ruler_info_list = []
+    ruler_data_list = []  # keep for parity; fill if you actually use it elsewhere
+
+    if not analysis:
+        return ruler_info_list, ruler_data_list
+
+    wlogger.debug(filename)
+
+    # --- Load image ---
+    img_path_jpg = os.path.join(dir_images, f"{filename}.jpg")
+    img_path_jpeg = os.path.join(dir_images, f"{filename}.jpeg")
+
+    full_image = cv2.imread(img_path_jpg)
+    if full_image is None:
+        full_image = cv2.imread(img_path_jpeg)
+
+    if full_image is None:
+        wlogger.error(f"Could not read image for {filename} (.jpg/.jpeg). Skipping.")
+        ruler_info_list.append({
+            'ruler_image_name': 'image_load_fail', 'success': False, 'conversion_mean': 0,
+            'predicted_conversion_factor_cm': 0, 'pooled_sd': 0, 'ruler_class': 'fail',
+            'ruler_class_confidence': 0, 'units': 0, 'cross_validation_count': 0,
+            'n_scanlines': 0, 'n_data_points_in_avg': 0, 'avg_tick_width': 0,
+            'plot_points': 0, 'summary_img': None
+        })
+        return ruler_info_list, ruler_data_list
+
+    # --- Predict conversion factor ---
+    MP_value = calc_MP(full_image)
+    predicted_conversion_factor_cm = poly_model.predict_with_polynomial_single(MP_value)
+    wlogger.info(f"Predicted conversion mean for MP={MP_value}: {predicted_conversion_factor_cm}")
+
+    def _append_fail_info(reason):
+        ruler_info_list.append({
+            'ruler_image_name': reason,
+            'success': False,
+            'conversion_mean': 0,
+            'predicted_conversion_factor_cm': predicted_conversion_factor_cm,
+            'pooled_sd': 0,
+            'ruler_class': 'fail',
+            'ruler_class_confidence': 0,
+            'units': 0,
+            'cross_validation_count': 0,
+            'n_scanlines': 0,
+            'n_data_points_in_avg': 0,
+            'avg_tick_width': 0,
+            'plot_points': 0,
+            'summary_img': None
+        })
+
+    # --- Detect rulers from prior detections ---
+    archival = analysis.get('Detections_Archival_Components', [])
+    if not archival:
+        _append_fail_info('no_archival_data')
+        return ruler_info_list, ruler_data_list
+
+    height = analysis.get('height', None)
+    width = analysis.get('width', None)
+    if height is None or width is None:
+        wlogger.error(f"Missing height/width in analysis for {filename}. Skipping.")
+        _append_fail_info('missing_dims')
+        return ruler_info_list, ruler_data_list
+
+    ruler_list = [row for row in archival if row[0] == 0]
+    if len(ruler_list) < 1:
+        wlogger.debug('No rulers detected')
+        _append_fail_info('no_rulers_detected')
+        return ruler_info_list, ruler_data_list
+
+    for ruler in ruler_list:
+        try:
+            ruler_location = yolo_to_position_ruler(ruler, height, width)
+            ruler_polygon = [
+                (ruler_location[1], ruler_location[2]),
+                (ruler_location[3], ruler_location[2]),
+                (ruler_location[3], ruler_location[4]),
+                (ruler_location[1], ruler_location[4]),
+            ]
+            x_coords, y_coords = zip(*ruler_polygon)
+            min_x, min_y = min(x_coords), min(y_coords)
+            max_x, max_y = max(x_coords), max(y_coords)
+
+            # Clip bounds to image
+            h_img, w_img = full_image.shape[:2]
+            min_x = max(0, min_x); min_y = max(0, min_y)
+            max_x = min(w_img, max_x); max_y = min(h_img, max_y)
+
+            if max_x <= min_x or max_y <= min_y:
+                wlogger.warning(f"Invalid crop bounds for {filename}: {(min_x, min_y, max_x, max_y)}")
+                continue
+
+            ruler_cropped = full_image[min_y:max_y, min_x:max_x]
+
+            loc = '-'.join(map(str, [min_x, min_y, max_x, max_y]))
+            ruler_crop_name = '__'.join([filename, 'R', loc])
+
+            Ruler = setup_ruler(
+                Labels, model, device, cfg, Dirs, wlogger, show_all_logs,
+                RulerCFG, ruler_cropped, ruler_crop_name
+            )
+
+            Ruler_Info = convert_pixels_to_metric(
+                wlogger, show_all_logs, RulerCFG, Ruler, ruler_crop_name,
+                predicted_conversion_factor_cm, use_CF_predictor, Dirs
+            )
+
+            if any(unit in Ruler_Info.conversion_data_all for unit in ['smallCM', 'halfCM', 'mm']):
+                units_save = Ruler_Info.conversion_data_all if Ruler_Info.conversion_data_all else 0
+                plot_points = Ruler_Info.data_list
+            else:
+                units_save = Ruler_Info.unit_list
+                plot_points = 0
+
+            ruler_info_list.append({
+                'ruler_image_name': ruler_crop_name,
+                'success': Ruler_Info.conversion_successful,
+                'conversion_mean': Ruler_Info.conversion_mean,
+                'predicted_conversion_factor_cm': predicted_conversion_factor_cm,
+                'pooled_sd': Ruler_Info.pooled_sd,
+                'ruler_class': Ruler_Info.ruler_class,
+                'ruler_class_confidence': Ruler_Info.ruler_class_percentage,
+                'units': units_save,
+                'cross_validation_count': Ruler_Info.cross_validation_count,
+                'n_scanlines': Ruler_Info.conversion_mean_n,
+                'n_data_points_in_avg': Ruler_Info.conversion_mean_n_vals,
+                'avg_tick_width': Ruler_Info.avg_width,
+                'plot_points': plot_points,
+                'summary_img': Ruler_Info.summary_image,
+            })
+
+        except Exception as e:
+            wlogger.error(f"Failed ruler processing for {filename}: {e}", exc_info=True)
+            ruler_info_list.append({
+                'ruler_image_name': locals().get('ruler_crop_name', f'{filename}__R__unknown'),
+                'success': False,
+                'conversion_mean': 0,
+                'predicted_conversion_factor_cm': predicted_conversion_factor_cm,
+                'pooled_sd': 0,
+                'ruler_class': 'fail',
+                'ruler_class_confidence': 0,
+                'units': 0,
+                'cross_validation_count': 0,
+                'n_scanlines': 0,
+                'n_data_points_in_avg': 0,
+                'avg_tick_width': 0,
+                'plot_points': 0,
+                'summary_img': locals().get('ruler_cropped', None),
+            })
+
+    return ruler_info_list, ruler_data_list
+
 
 def process_filename(
     wlogger,
