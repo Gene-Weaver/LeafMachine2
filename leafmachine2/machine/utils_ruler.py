@@ -35,11 +35,6 @@ sys.path.append(currentdir)
 from leafmachine2.analysis.predict_pixel_to_metric_conversion_factor import PolynomialModel
 from leafmachine2.machine.LM2_logger import start_worker_logging, merge_worker_logs
 
-torch.set_num_threads(1)
-torch.set_num_interop_threads(1)
-cv2.setNumThreads(0)
-cv2.ocl.setUseOpenCL(False)
-
 # ----------------------------
 # per-process globals (cached)
 # ----------------------------
@@ -58,6 +53,11 @@ _G = {
     "use_CF_predictor": False,
     "worker_log_name": "worker_log_ruler",
 }
+# ----------------------------
+# global counter for worker slots (spawn-safe)
+# ----------------------------
+_WORKER_SLOT_COUNTER = None  # set inside convert_rulers()
+
 
 def convert_rulers_testing(dir_rulers, cfg, time_report, logger, dir_home, Project, batch, Dirs):
     RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
@@ -428,10 +428,36 @@ def calc_MP(full_image):
 #     logger.info(f"Converting Rulers in batch {batch+1} --- elapsed time: {round(t1_stop - t1_start)} seconds")
 #     return Project
 
+def _init_wrapper_top_level(cfg, dir_home, Dirs, dir_images, show_all_logs, use_CF_predictor, use_cuda, n_gpus):
+    """
+    Top-level initializer wrapper (MUST be picklable).
+    Uses a spawn-created global mp.Value counter to assign worker_slot.
+    """
+    global _WORKER_SLOT_COUNTER
+    if _WORKER_SLOT_COUNTER is None:
+        # This should never happen if convert_rulers sets it.
+        # But keep it defensive.
+        import multiprocessing as mp
+        _WORKER_SLOT_COUNTER = mp.get_context("spawn").Value("i", 0)
+
+    with _WORKER_SLOT_COUNTER.get_lock():
+        worker_slot = _WORKER_SLOT_COUNTER.value
+        _WORKER_SLOT_COUNTER.value += 1
+
+    _pool_initializer(
+        worker_slot=worker_slot,
+        use_cuda=use_cuda,
+        cfg=cfg,
+        dir_home=dir_home,
+        Dirs=Dirs,
+        dir_images=dir_images,
+        show_all_logs=show_all_logs,
+        use_CF_predictor=use_CF_predictor,
+    )
+
 def _pool_initializer(
     *,
     worker_slot: int,
-    n_gpus_visible: int,
     use_cuda: bool,
     cfg,
     dir_home,
@@ -463,6 +489,9 @@ def _pool_initializer(
 
     # ---- set up per-process logger ----
     wlogger, _ = start_worker_logging(worker_slot, Dirs, log_name=_G["worker_log_name"])
+    wlogger.propagate = False
+    _G["logger_name"] = wlogger.name
+
 
     # ---- decide device (IMPORTANT: re-check inside child!) ----
     device = torch.device("cpu")
@@ -522,7 +551,10 @@ def _process_one_filename_task(payload: dict):
     # Create/get per-process logger (consistent name per worker_slot already used in initializer)
     # If you want filename-level logs, reuse same logger name:
     import logging
-    wlogger = logging.getLogger(f"Worker_{os.getpid()}")
+    wlogger = logging.getLogger(_G.get("logger_name", f"Worker_{os.getpid()}"))
+
+
+
 
     try:
         ruler_info, ruler_data = process_filename_mp(
@@ -553,15 +585,6 @@ def _process_one_filename_task(payload: dict):
 
 
 def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num_workers=16):
-    """
-    ProcessPoolExecutor-based ruler conversion.
-
-    - spawn-safe
-    - N processes per GPU supported (set num_workers_ruler accordingly)
-    - per-process model caching via initializer
-    - parent merges results into Project
-    - avoids join() deadlocks: futures either complete or raise, and we collect all
-    """
     t1_start = perf_counter()
     logger.info(f"Converting Rulers in batch {batch+1}")
 
@@ -586,7 +609,6 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
     use_cuda = (cfg["leafmachine"]["project"]["device"] == "cuda")
     n_gpus = 0
     if use_cuda:
-        import torch
         n_gpus = torch.cuda.device_count()
         logger.info(f"torch.cuda.device_count(): {n_gpus}")
         if n_gpus < 1:
@@ -594,60 +616,34 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
             use_cuda = False
             n_gpus = 0
 
-    # This is the knob you want: N processes per GPU
-    # Example: 2 GPUs and want 2 procs per GPU => num_workers_ruler=4
     if use_cuda and n_gpus > 0:
         procs_per_gpu = max(1, num_workers // n_gpus)
         logger.info(f"Using CUDA with ~{procs_per_gpu} processes per GPU (num_workers={num_workers}, n_gpus={n_gpus}).")
 
-    # ---- Build picklable payloads (minimal) ----
+    # ---- Build picklable payloads ----
     dir_images = Project.dir_images
     payloads = [{"filename": fn, "analysis": Project.project_data_list[batch].get(fn, {})} for fn in filenames]
 
-    # ---- Spawn context is critical with CUDA ----
+    # ---- Spawn context ----
     ctx = mp.get_context("spawn")
 
-    # IMPORTANT:
-    # ProcessPoolExecutor initializer args are constant per pool; to map "worker_slot"
-    # per process, we use an environment variable trick:
-    #
-    # We'll launch the pool with max_workers=num_workers and set a per-process
-    # worker_slot based on a counter in the initializer via a multiprocessing.Value.
-    #
-    # This avoids depending on PID for GPU mapping and is deterministic.
-    counter = ctx.Value("i", 0)
+    # IMPORTANT: make worker-slot counter available to the initializer
+    global _WORKER_SLOT_COUNTER
+    _WORKER_SLOT_COUNTER = ctx.Value("i", 0)
 
-    def init_wrapper(cfg, dir_home, Dirs, dir_images, show_all_logs, use_CF_predictor, use_cuda, n_gpus):
-        with counter.get_lock():
-            worker_slot = counter.value
-            counter.value += 1
-        _pool_initializer(
-            worker_slot=worker_slot,
-            n_gpus_visible=n_gpus,
-            use_cuda=use_cuda,
-            cfg=cfg,
-            dir_home=dir_home,
-            Dirs=Dirs,
-            dir_images=dir_images,
-            show_all_logs=show_all_logs,
-            use_CF_predictor=use_CF_predictor,
-        )
-
-    # ---- Run pool ----
-    # NOTE: pass mp_context=ctx so it truly uses spawn.
     results_received = 0
     errors = 0
 
     with ProcessPoolExecutor(
         max_workers=num_workers,
         mp_context=ctx,
-        initializer=init_wrapper,
+        initializer=_init_wrapper_top_level,  # <-- top-level, picklable
         initargs=(cfg, dir_home, Dirs, dir_images, show_all_logs, use_CF_predictor, use_cuda, n_gpus),
     ) as ex:
         futures = [ex.submit(_process_one_filename_task, p) for p in payloads]
 
         for fut in as_completed(futures):
-            msg = fut.result()  # if the process hard-crashes, this raises here
+            msg = fut.result()
             filename = msg["filename"]
             Project.project_data_list[batch][filename]["Ruler_Info"] = msg.get("Ruler_Info", [])
             Project.project_data_list[batch][filename]["Ruler_Data"] = msg.get("Ruler_Data", [])
@@ -665,6 +661,7 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
     logger.info(t_rulers)
     time_report["t_rulers"] = t_rulers
     return Project, time_report
+
 
 
 def process_filename_mp(
