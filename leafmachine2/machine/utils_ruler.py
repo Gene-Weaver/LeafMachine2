@@ -428,21 +428,14 @@ def calc_MP(full_image):
 #     logger.info(f"Converting Rulers in batch {batch+1} --- elapsed time: {round(t1_stop - t1_start)} seconds")
 #     return Project
 
-def _init_wrapper_top_level(cfg, dir_home, Dirs, dir_images, show_all_logs, use_CF_predictor, use_cuda, n_gpus):
+def _init_wrapper_top_level(cfg, dir_home, Dirs, dir_images, show_all_logs,
+                           use_CF_predictor, use_cuda, counter):
     """
-    Top-level initializer wrapper (MUST be picklable).
-    Uses a spawn-created global mp.Value counter to assign worker_slot.
+    counter is a ctx.Value("i", 0) created in the parent and shared to children.
     """
-    global _WORKER_SLOT_COUNTER
-    if _WORKER_SLOT_COUNTER is None:
-        # This should never happen if convert_rulers sets it.
-        # But keep it defensive.
-        import multiprocessing as mp
-        _WORKER_SLOT_COUNTER = mp.get_context("spawn").Value("i", 0)
-
-    with _WORKER_SLOT_COUNTER.get_lock():
-        worker_slot = _WORKER_SLOT_COUNTER.value
-        _WORKER_SLOT_COUNTER.value += 1
+    with counter.get_lock():
+        worker_slot = counter.value
+        counter.value += 1
 
     _pool_initializer(
         worker_slot=worker_slot,
@@ -454,6 +447,7 @@ def _init_wrapper_top_level(cfg, dir_home, Dirs, dir_images, show_all_logs, use_
         show_all_logs=show_all_logs,
         use_CF_predictor=use_CF_predictor,
     )
+
 
 def _pool_initializer(
     *,
@@ -626,6 +620,7 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
 
     # ---- Spawn context ----
     ctx = mp.get_context("spawn")
+    slot_counter = ctx.Value("i", 0)
 
     # IMPORTANT: make worker-slot counter available to the initializer
     global _WORKER_SLOT_COUNTER
@@ -637,8 +632,8 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
     with ProcessPoolExecutor(
         max_workers=num_workers,
         mp_context=ctx,
-        initializer=_init_wrapper_top_level,  # <-- top-level, picklable
-        initargs=(cfg, dir_home, Dirs, dir_images, show_all_logs, use_CF_predictor, use_cuda, n_gpus),
+        initializer=_init_wrapper_top_level,
+        initargs=(cfg, dir_home, Dirs, dir_images, show_all_logs, use_CF_predictor, use_cuda, slot_counter),
     ) as ex:
         futures = [ex.submit(_process_one_filename_task, p) for p in payloads]
 
