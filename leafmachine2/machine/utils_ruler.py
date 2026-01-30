@@ -21,6 +21,7 @@ from scipy.spatial.distance import cdist
 from time import perf_counter
 from binarize_image_ML import DocEnTR
 
+from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing as mp
 
 currentdir = os.path.dirname(os.path.dirname(inspect.getfile(inspect.currentframe())))
@@ -39,6 +40,24 @@ torch.set_num_interop_threads(1)
 cv2.setNumThreads(0)
 cv2.ocl.setUseOpenCL(False)
 
+# ----------------------------
+# per-process globals (cached)
+# ----------------------------
+_G = {
+    "initialized": False,
+    "device": None,
+    "Labels": None,
+    "model": None,
+    "poly_model": None,
+    "RulerCFG": None,
+    "cfg": None,
+    "dir_home": None,
+    "Dirs": None,
+    "dir_images": None,
+    "show_all_logs": False,
+    "use_CF_predictor": False,
+    "worker_log_name": "worker_log_ruler",
+}
 
 def convert_rulers_testing(dir_rulers, cfg, time_report, logger, dir_home, Project, batch, Dirs):
     RulerCFG = RulerConfig(logger, dir_home, Dirs, cfg)
@@ -408,22 +427,148 @@ def calc_MP(full_image):
 #     t1_stop = perf_counter()
 #     logger.info(f"Converting Rulers in batch {batch+1} --- elapsed time: {round(t1_stop - t1_start)} seconds")
 #     return Project
+
+def _pool_initializer(
+    *,
+    worker_slot: int,
+    n_gpus_visible: int,
+    use_cuda: bool,
+    cfg,
+    dir_home,
+    Dirs,
+    dir_images,
+    show_all_logs: bool,
+    use_CF_predictor: bool,
+):
+    """
+    Runs ONCE per process.
+    - Applies threading safety knobs
+    - Selects a GPU deterministically (supports N procs per GPU via modulo mapping)
+    - Loads DocEnTR + polynomial model + RulerCFG once per process
+    """
+    import torch
+    import cv2
+
+    # ---- safety knobs (per-process) ----
+    try:
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
+    except Exception:
+        pass
+    try:
+        cv2.setNumThreads(0)
+        cv2.ocl.setUseOpenCL(False)
+    except Exception:
+        pass
+
+    # ---- set up per-process logger ----
+    wlogger, _ = start_worker_logging(worker_slot, Dirs, log_name=_G["worker_log_name"])
+
+    # ---- decide device (IMPORTANT: re-check inside child!) ----
+    device = torch.device("cpu")
+    if use_cuda:
+        visible = torch.cuda.device_count()  # child-process truth
+        wlogger.info(f"[init] CUDA_VISIBLE_DEVICES={os.environ.get('CUDA_VISIBLE_DEVICES', '(not set)')}")
+        wlogger.info(f"[init] torch.cuda.device_count()={visible}")
+
+        if visible > 0:
+            # Map worker_slot -> gpu index (supports N procs per GPU)
+            gpu_id = int(worker_slot) % visible
+            torch.cuda.set_device(gpu_id)  # must be INT
+            device = torch.device("cuda", gpu_id)
+            wlogger.info(f"[init] worker_slot={worker_slot} mapped to device={device}")
+        else:
+            wlogger.warning("[init] use_cuda=True but no visible devices; falling back to CPU.")
+
+    # ---- load heavy models ONCE per process ----
+    Labels = DocEnTR()
+    model, _ = Labels.load_DocEnTR_model(device)
+
+    poly_model = PolynomialModel()
+    poly_model.load_polynomial_model()
+
+    RulerCFG = RulerConfig(wlogger, dir_home, Dirs, cfg, device)
+
+    # ---- cache globals ----
+    _G["initialized"] = True
+    _G["device"] = device
+    _G["Labels"] = Labels
+    _G["model"] = model
+    _G["poly_model"] = poly_model
+    _G["RulerCFG"] = RulerCFG
+    _G["cfg"] = cfg
+    _G["dir_home"] = dir_home
+    _G["Dirs"] = Dirs
+    _G["dir_images"] = dir_images
+    _G["show_all_logs"] = show_all_logs
+    _G["use_CF_predictor"] = use_CF_predictor
+
+    wlogger.info("[init] Ruler worker initialized successfully.")
+
+
+def _process_one_filename_task(payload: dict):
+    """
+    Runs in worker process.
+    Payload must be picklable:
+      { "filename": str, "analysis": dict }
+    Returns:
+      { "filename": str, "Ruler_Info": list, "Ruler_Data": list, "error": str|None }
+    """
+    assert _G["initialized"], "Worker globals not initialized; did pool initializer run?"
+
+    filename = payload["filename"]
+    analysis = payload.get("analysis", {})
+
+    # Create/get per-process logger (consistent name per worker_slot already used in initializer)
+    # If you want filename-level logs, reuse same logger name:
+    import logging
+    wlogger = logging.getLogger(f"Worker_{os.getpid()}")
+
+    try:
+        ruler_info, ruler_data = process_filename_mp(
+            wlogger=wlogger,
+            worker_id=os.getpid(),
+            filename=filename,
+            cfg=_G["cfg"],
+            show_all_logs=_G["show_all_logs"],
+            dir_images=_G["dir_images"],
+            analysis=analysis,
+            Dirs=_G["Dirs"],
+            device=_G["device"],
+            use_CF_predictor=_G["use_CF_predictor"],
+            Labels=_G["Labels"],
+            model=_G["model"],
+            poly_model=_G["poly_model"],
+            RulerCFG=_G["RulerCFG"],
+        )
+        return {"filename": filename, "Ruler_Info": ruler_info, "Ruler_Data": ruler_data, "error": None}
+
+    except Exception as e:
+        # Never let a task kill the whole process; report back.
+        try:
+            wlogger.exception(f"[task] Uncaught error processing {filename}")
+        except Exception:
+            pass
+        return {"filename": filename, "Ruler_Info": [], "Ruler_Data": [], "error": repr(e)}
+
+
 def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num_workers=16):
     """
-    Process-based ruler conversion.
+    ProcessPoolExecutor-based ruler conversion.
 
-    - Uses spawn (safe with CUDA).
-    - Each worker loads its own models once.
-    - Workers RETURN results; parent merges into Project.
-    - If CUDA: recommend num_workers <= #GPUs (or modestly above if CPU-heavy).
+    - spawn-safe
+    - N processes per GPU supported (set num_workers_ruler accordingly)
+    - per-process model caching via initializer
+    - parent merges results into Project
+    - avoids join() deadlocks: futures either complete or raise, and we collect all
     """
     t1_start = perf_counter()
     logger.info(f"Converting Rulers in batch {batch+1}")
 
     show_all_logs = False
+    use_CF_predictor = bool(cfg["leafmachine"]["project"]["use_CF_predictor"])
+    num_workers = int(cfg["leafmachine"]["project"]["num_workers_ruler"])
 
-    use_CF_predictor = cfg['leafmachine']['project']['use_CF_predictor']
-    num_workers = int(cfg['leafmachine']['project']['num_workers_ruler'])
     logger.info(f"use_CF_predictor: {use_CF_predictor}")
     logger.info(f"num_workers_ruler: {num_workers}")
 
@@ -434,223 +579,93 @@ def convert_rulers(cfg, time_report, logger, dir_home, Project, batch, Dirs, num
         t1_stop = perf_counter()
         t_rulers = f"[Converting Rulers elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
         logger.info(t_rulers)
-        time_report['t_rulers'] = t_rulers
+        time_report["t_rulers"] = t_rulers
         return Project, time_report
 
-    # Decide devices for workers
-    use_cuda = (cfg['leafmachine']['project']['device'] == 'cuda')
+    # ---- CUDA decision ----
+    use_cuda = (cfg["leafmachine"]["project"]["device"] == "cuda")
+    n_gpus = 0
     if use_cuda:
         import torch
         n_gpus = torch.cuda.device_count()
+        logger.info(f"torch.cuda.device_count(): {n_gpus}")
         if n_gpus < 1:
             logger.warning("cfg requests CUDA but torch sees 0 GPUs; falling back to CPU.")
             use_cuda = False
             n_gpus = 0
-        else:
-            logger.info(f"torch.cuda.device_count(): {n_gpus}")
-    else:
-        n_gpus = 0
 
-    # For CUDA, strongly consider capping workers to GPU count
-    if use_cuda and num_workers > n_gpus:
-        logger.warning(f"num_workers_ruler={num_workers} > n_gpus={n_gpus}. "
-                       f"Consider setting num_workers_ruler={n_gpus} to avoid GPU contention.")
+    # This is the knob you want: N processes per GPU
+    # Example: 2 GPUs and want 2 procs per GPU => num_workers_ruler=4
+    if use_cuda and n_gpus > 0:
+        procs_per_gpu = max(1, num_workers // n_gpus)
+        logger.info(f"Using CUDA with ~{procs_per_gpu} processes per GPU (num_workers={num_workers}, n_gpus={n_gpus}).")
 
-    # Chunking (same idea as your thread version)
-    chunk_size = max((num_files + num_workers - 1) // num_workers, 4)
-    chunks = [filenames[i:i + chunk_size] for i in range(0, num_files, chunk_size)]
-
-    # Prepare lightweight, picklable payload:
-    # - dir_images is needed by process_filename
-    # - per-file analysis dict is needed (copy only what each worker needs)
-    # IMPORTANT: keep payload as small as possible (avoid sending huge images).
+    # ---- Build picklable payloads (minimal) ----
     dir_images = Project.dir_images
+    payloads = [{"filename": fn, "analysis": Project.project_data_list[batch].get(fn, {})} for fn in filenames]
 
-    analysis_by_filename = {}
-    for fn in filenames:
-        analysis_by_filename[fn] = Project.project_data_list[batch].get(fn, {})
+    # ---- Spawn context is critical with CUDA ----
+    ctx = mp.get_context("spawn")
 
-    ctx = mp.get_context("spawn")  # safest with torch + cuda
-    in_q = ctx.JoinableQueue(maxsize=max(2, len(chunks)))
-    out_q = ctx.Queue()
+    # IMPORTANT:
+    # ProcessPoolExecutor initializer args are constant per pool; to map "worker_slot"
+    # per process, we use an environment variable trick:
+    #
+    # We'll launch the pool with max_workers=num_workers and set a per-process
+    # worker_slot based on a counter in the initializer via a multiprocessing.Value.
+    #
+    # This avoids depending on PID for GPU mapping and is deterministic.
+    counter = ctx.Value("i", 0)
 
-    workers = []
-    for worker_id in range(num_workers):
-        # Assign one GPU per worker in round-robin, or None for CPU
-        gpu_id = (worker_id % n_gpus) if use_cuda and n_gpus > 0 else None
-
-        p = ctx.Process(
-            target=_ruler_worker_process,
-            args=(
-                in_q,
-                out_q,
-                worker_id,
-                gpu_id,
-                cfg,
-                dir_home,
-                Dirs,
-                dir_images,
-                analysis_by_filename,
-                batch,
-                show_all_logs,
-                use_CF_predictor,
-            ),
-            daemon=True,  # if parent dies, children die
+    def init_wrapper(cfg, dir_home, Dirs, dir_images, show_all_logs, use_CF_predictor, use_cuda, n_gpus):
+        with counter.get_lock():
+            worker_slot = counter.value
+            counter.value += 1
+        _pool_initializer(
+            worker_slot=worker_slot,
+            n_gpus_visible=n_gpus,
+            use_cuda=use_cuda,
+            cfg=cfg,
+            dir_home=dir_home,
+            Dirs=Dirs,
+            dir_images=dir_images,
+            show_all_logs=show_all_logs,
+            use_CF_predictor=use_CF_predictor,
         )
-        p.start()
-        workers.append(p)
 
-    # Enqueue chunks
-    for chunk in chunks:
-        in_q.put(chunk)
+    # ---- Run pool ----
+    # NOTE: pass mp_context=ctx so it truly uses spawn.
+    results_received = 0
+    errors = 0
 
-    # Sentinel stop messages
-    for _ in workers:
-        in_q.put(None)
+    with ProcessPoolExecutor(
+        max_workers=num_workers,
+        mp_context=ctx,
+        initializer=init_wrapper,
+        initargs=(cfg, dir_home, Dirs, dir_images, show_all_logs, use_CF_predictor, use_cuda, n_gpus),
+    ) as ex:
+        futures = [ex.submit(_process_one_filename_task, p) for p in payloads]
 
-    # Wait for all chunks to be marked done
-    in_q.join()
+        for fut in as_completed(futures):
+            msg = fut.result()  # if the process hard-crashes, this raises here
+            filename = msg["filename"]
+            Project.project_data_list[batch][filename]["Ruler_Info"] = msg.get("Ruler_Info", [])
+            Project.project_data_list[batch][filename]["Ruler_Data"] = msg.get("Ruler_Data", [])
 
-    # Collect results (one result per filename that was processed)
-    # Some files may be absent if a worker crashed before reporting; we guard.
-    received = 0
-    expected = num_files
-    while received < expected:
-        try:
-            msg = out_q.get_nowait()
-        except Exception:
-            break  # nothing immediately available
+            if msg.get("error"):
+                errors += 1
+                logger.error(f"[rulers pool] {filename}: {msg['error']}")
 
-        if not msg:
-            continue
+            results_received += 1
 
-        filename = msg["filename"]
-        ruler_info = msg.get("Ruler_Info", [])
-        ruler_data = msg.get("Ruler_Data", [])
-        error = msg.get("error", None)
-
-        # Merge into Project (parent owns Project)
-        Project.project_data_list[batch][filename]['Ruler_Info'] = ruler_info
-        Project.project_data_list[batch][filename]['Ruler_Data'] = ruler_data
-
-        if error:
-            logger.error(f"[rulers mp] {filename}: worker reported error: {error}")
-
-        received += 1
-
-    # Ensure workers exit
-    for p in workers:
-        p.join(timeout=10)
-        if p.is_alive():
-            logger.error(f"Worker PID {p.pid} did not exit cleanly; terminating.")
-            p.terminate()
+    logger.info(f"[rulers pool] completed {results_received}/{num_files} files with {errors} errors reported.")
 
     t1_stop = perf_counter()
     t_rulers = f"[Converting Rulers elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
     logger.info(t_rulers)
-    time_report['t_rulers'] = t_rulers
+    time_report["t_rulers"] = t_rulers
     return Project, time_report
 
-def _ruler_worker_process(
-    in_q,
-    out_q,
-    worker_id,
-    gpu_id,
-    cfg,
-    dir_home,
-    Dirs,
-    dir_images,
-    analysis_by_filename,
-    batch,
-    show_all_logs,
-    use_CF_predictor,
-):
-    """
-    One process = one torch/CUDA context (safe).
-    Loads DocEnTR + Polynomial model once, then processes filenames.
-    Returns results to parent via out_q.
-    """
-    # Local imports to avoid fork/spawn side-effects at module import time
-    import torch
-    import cv2
-
-    # Your “safety knobs” belong inside each process too
-    try:
-        torch.set_num_threads(1)
-        torch.set_num_interop_threads(1)
-    except Exception:
-        pass
-
-    try:
-        cv2.setNumThreads(0)
-        cv2.ocl.setUseOpenCL(False)
-    except Exception:
-        pass
-
-    # Device
-    if gpu_id is None:
-        device = torch.device("cpu")
-    else:
-        # IMPORTANT: do NOT share a single GPU among many processes unless you mean to.
-        device = torch.device(f"cuda:{gpu_id}")
-        torch.cuda.set_device(device)
-
-    # Per-process logger + models
-    wlogger, _ = start_worker_logging(worker_id, Dirs, log_name='worker_log_ruler')
-
-    Labels = DocEnTR()
-    model, _ = Labels.load_DocEnTR_model(device)
-
-    poly_model = PolynomialModel()
-    poly_model.load_polynomial_model()
-
-    RulerCFG = RulerConfig(wlogger, dir_home, Dirs, cfg, device)
-
-    while True:
-        filenames_chunk = in_q.get()
-        try:
-            if filenames_chunk is None:
-                return
-
-            for filename in filenames_chunk:
-                try:
-                    analysis = analysis_by_filename.get(filename, {})
-                    ruler_info, ruler_data = process_filename_mp(
-                        wlogger=wlogger,
-                        worker_id=worker_id,
-                        filename=filename,
-                        cfg=cfg,
-                        show_all_logs=show_all_logs,
-                        dir_images=dir_images,
-                        analysis=analysis,
-                        Dirs=Dirs,
-                        device=device,
-                        use_CF_predictor=use_CF_predictor,
-                        Labels=Labels,
-                        model=model,
-                        poly_model=poly_model,
-                        RulerCFG=RulerCFG,
-                    )
-
-                    out_q.put({
-                        "filename": filename,
-                        "Ruler_Info": ruler_info,
-                        "Ruler_Data": ruler_data,
-                        "error": None,
-                    })
-
-                except Exception as e:
-                    wlogger.exception(f"[worker {worker_id}] Uncaught error processing {filename}")
-                    out_q.put({
-                        "filename": filename,
-                        "Ruler_Info": [],
-                        "Ruler_Data": [],
-                        "error": repr(e),
-                    })
-
-        finally:
-            # CRITICAL: always mark chunk done
-            in_q.task_done()
 
 def process_filename_mp(
     wlogger,
