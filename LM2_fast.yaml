@@ -132,6 +132,7 @@ leafmachine:
   project:
     GBIF_mode: all
     accept_only_ideal_leaves: true
+    treat_leaflet_as_leaf_whole: false
     batch_size: 200
     censor_archival_components: false
     dir_images_local: /media/nas/GBIF_Downloads/Cornales/Nyssaceae/img

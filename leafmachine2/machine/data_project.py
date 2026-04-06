@@ -149,8 +149,8 @@ class Project_Info():
             else:
                 # Print_Verbose(cfg, 2, ''.join(['Combined CSV --> ',self.path_csv_combined])).green()
                 logger.info(''.join(['Combined CSV --> ',self.path_csv_combined]))
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"CSV import failed: {e}. Proceeding without record data.")
 
         # Print_Verbose(cfg, 2, ''.join(['Image Directory --> ',self.dir_images])).green()
         logger.info(''.join(['Image Directory --> ',self.dir_images]))
@@ -276,10 +276,14 @@ class Project_Info():
         converted_dir = None
         contains_non_jpg = False
 
-        # Check if any non-JPG files are present
+        # Check if any non-JPG image files are present (treat .jpeg as equivalent to .jpg)
+        jpg_equivalents = {'.jpg', '.jpeg'}
         for img in os.listdir(self.dir_images):
+            full_path = os.path.join(self.dir_images, img)
+            if not os.path.isfile(full_path):
+                continue
             img_split, ext = os.path.splitext(img)
-            if ext.lower() not in ['.jpg',]:
+            if ext.lower() not in jpg_equivalents and ext.lower() in [e.lower() for e in self.valid_extensions]:
                 contains_non_jpg = True
                 break
 

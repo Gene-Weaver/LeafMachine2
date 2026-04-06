@@ -119,7 +119,10 @@ def detect_plant_components(cfg, time_report, logger, dir_home, Project, Dirs):
             # A = create_dictionary_from_txt_parallel(logger, cfg, os.path.join(Dirs.path_plant_components, 'labels'), 'Detections_Plant_Components', Project)
     
     # dict_to_json(Project.project_data, Dirs.path_plant_components, 'Detections_Plant_Components.json')
-    
+
+    if cfg['leafmachine']['project'].get('treat_leaflet_as_leaf_whole', False):
+        remap_leaflet_to_leaf_whole(logger, Project)
+
     t1_stop = perf_counter()
     t_pcd = f"[Processing plant components elapsed time] {round(t1_stop - t1_start)} seconds ({round((t1_stop - t1_start)/60)} minutes)"
     logger.info(t_pcd)
@@ -315,10 +318,11 @@ def detect_armature_components(cfg, logger, dir_home, Project, Dirs):
 
 ''' RUN IN PARALLEL'''
 def distribute_workloads(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, ignore_objects_for_overlay, mode, LOGGER, num_workers, device_list):
-    num_files = len(os.listdir(source))
+    VALID_IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.tif', '.tiff', '.bmp')
+    files = [os.path.join(source, f) for f in os.listdir(source) if f.lower().endswith(VALID_IMG_EXTENSIONS)]
+    num_files = len(files)
     LOGGER.info(f"The number of worker threads: ({num_workers}), number of files ({num_files}).")
 
-    files = [os.path.join(source, f) for f in os.listdir(source) if f.lower().endswith('.jpg')]
     chunk_size = (num_files + num_workers - 1) // num_workers  # Ensuring each worker has something to do, ceiling division
 
     queue = Queue()
@@ -334,9 +338,10 @@ def distribute_workloads(weights, source, project, name, imgsz, nosave, anno_typ
     # Enqueue sublists of files
     for i in range(num_workers):
         start = i * chunk_size
-        end = min(start + chunk_size, num_files)
+        end = min(start + chunk_size, len(files))
         sub_source = files[start:end]
-        queue.put(sub_source)
+        if sub_source:
+            queue.put(sub_source)
 
     # Block until all tasks are done
     queue.join()
@@ -366,20 +371,24 @@ def worker_object_detector(queue, weights, project, name, imgsz, nosave, anno_ty
                 device=device,
                 LOGGER=LOGGER)
         except Exception as e:
-            LOGGER.error(f'Error in processing: {e}')
+            LOGGER.error(f'Error processing batch of {len(sub_source)} images: {e}')
+            for img_path in sub_source:
+                LOGGER.error(f'  Affected image: {os.path.basename(img_path)}')
         queue.task_done()
 
 
 
 def run_in_parallel(weights, source, project, name, imgsz, nosave, anno_type, conf_thres, line_thickness, ignore_objects_for_overlay, mode, LOGGER, show_all_logs, chunk, n_workers, device):
-    num_files = len(os.listdir(source))
+    VALID_IMG_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.tif', '.tiff', '.bmp')
+    files = [os.path.join(source, f) for f in os.listdir(source) if f.lower().endswith(VALID_IMG_EXTENSIONS)]
+    num_files = len(files)
     LOGGER.info(f"The number of worker threads: ({n_workers}), number of files ({num_files}).")
 
-    chunk_size = len(os.listdir(source)) // n_workers
+    chunk_size = num_files // n_workers
     start = chunk * chunk_size
-    end = start + chunk_size if chunk < (n_workers-1) else len(os.listdir(source))
+    end = start + chunk_size if chunk < (n_workers-1) else num_files
 
-    sub_source = [os.path.join(source, f) for f in os.listdir(source)[start:end] if f.lower().endswith('.jpg')]
+    sub_source = files[start:end]
 
     run(weights=weights,
         source=sub_source,
@@ -553,7 +562,15 @@ def create_dictionary_from_txt_parallel(logger, cfg, dir_components, component, 
 ######
 
 
-
+def remap_leaflet_to_leaf_whole(logger, Project):
+    count = 0
+    for image_name, data in Project.project_data.items():
+        if 'Detections_Plant_Components' in data:
+            for detection in data['Detections_Plant_Components']:
+                if detection[0] == 2:
+                    detection[0] = 0
+                    count += 1
+    logger.info(f"Remapped {count} leaflet detection(s) to leaf_whole")
 
 
 # Single threaded for non-SQL Project

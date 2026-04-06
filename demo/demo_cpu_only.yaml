@@ -48,6 +48,7 @@ leafmachine:
 
         minimum_total_reproductive_counts: 0
         accept_only_ideal_leaves: True
+        treat_leaflet_as_leaf_whole: False
 
         hide_archival_components:
         - ruler

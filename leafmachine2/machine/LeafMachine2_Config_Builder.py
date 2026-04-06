@@ -78,6 +78,7 @@ def build_LM2_config():
 
         # Thresholds for counting and reporting
         'accept_only_ideal_leaves': True, # For the 'has_leaves' variable, this restricts the counts to only whole/ideal leaves
+        'treat_leaflet_as_leaf_whole': False, # Remap YOLO leaflet detections (class 2) to leaf_whole (class 0) before downstream processing
         'minimum_total_reproductive_counts': 0, # If you get false positives, increase this to set a minimum threshold for the is_fertile designation 
 
         'use_CF_predictor': True,

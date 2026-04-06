@@ -30,6 +30,7 @@ from detector import Detector_LM2
 from leafmachine2.keypoint_detector.ultralytics.models.yolo.pose.predict_direct import PosePredictor
 from leafmachine2.component_detector.component_detector import unpack_class_from_components#, crop_images_to_bbox
 from leafmachine2.segmentation.detectron2.segment_utils import get_largest_polygon, keep_rows, get_string_indices
+from leafmachine2.machine.general_utils import find_image_path
 
 def segment_leaves(cfg, time_report, logger, dir_home, Project, batch, n_batches, Dirs): 
     start_t = perf_counter()
@@ -51,6 +52,18 @@ def segment_leaves(cfg, time_report, logger, dir_home, Project, batch, n_batches
     # See convert_index_to_class(ind) for list of ind -> cls
     Project.project_data_list[batch] = unpack_class_from_components(Project.project_data_list[batch], 0, 'Whole_Leaf_BBoxes_YOLO', 'Whole_Leaf_BBoxes', Project)
     Project.project_data_list[batch] = unpack_class_from_components(Project.project_data_list[batch], 1, 'Partial_Leaf_BBoxes_YOLO', 'Partial_Leaf_BBoxes', Project)
+
+    # Log detection summary (Bug 5: zero feedback when images have no detections)
+    total_images = len(Project.project_data_list[batch])
+    images_with_detections = sum(1 for v in Project.project_data_list[batch].values() if "Detections_Plant_Components" in v)
+    images_without_detections = total_images - images_with_detections
+    if images_without_detections > 0:
+        logger.warning(f"Batch {batch+1}: {images_without_detections}/{total_images} images had NO plant component detections")
+        for fname, val in Project.project_data_list[batch].items():
+            if "Detections_Plant_Components" not in val:
+                logger.warning(f"  No detections: {fname}")
+    else:
+        logger.info(f"Batch {batch+1}: All {total_images} images had plant component detections")
 
     # Crop the images to bboxes
     Project.project_data_list[batch] = crop_images_to_bbox(Project.project_data_list[batch], 0, 'Whole_Leaf_Cropped', "Whole_Leaf_BBoxes", Project)
@@ -290,12 +303,15 @@ def segment_images(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dic
         seg_overlay[filename] = []
         # seg_overlay_data[filename] = []
 
-        try:
-            # full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename,'jpg'])))
-            full_image = cv2.cvtColor(cv2.imread(os.path.join(Project.dir_images, '.'.join([filename,'jpg']))), cv2.COLOR_BGR2RGB)
-        except:
-            # full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename,'jpeg'])))
-            full_image = cv2.cvtColor(cv2.imread(os.path.join(Project.dir_images, '.'.join([filename,'jpeg']))), cv2.COLOR_BGR2RGB)
+        img_path = find_image_path(Project.dir_images, filename)
+        if img_path is None:
+            logger.warning(f"Could not find image file for '{filename}', skipping")
+            continue
+        img_raw = cv2.imread(img_path)
+        if img_raw is None:
+            logger.warning(f"cv2.imread returned None for '{img_path}', skipping")
+            continue
+        full_image = cv2.cvtColor(img_raw, cv2.COLOR_BGR2RGB)
 
         CF = determine_conversion_factor(dict_objects, filename)
 
@@ -306,7 +322,7 @@ def segment_images(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dic
         else: 
             full_mask = []
 
-        if value[dict_from] is not []:
+        if value[dict_from]:
             for cropped in value[dict_from]: # Individual leaf
                 for seg_name, img_cropped in cropped.items():
                     with lock:
@@ -323,8 +339,14 @@ def segment_images(logger, dir_home, dict_objects, leaf_type, dict_name_seg, dic
                         # fig, out_polygons, out_bboxes, out_labels, out_color = Instance_Detector.segment(img_cropped, generate_overlay, overlay_dpi, bg_color)
                         # try:
                         out_polygons, out_bboxes, out_labels, out_color = Instance_Detector.segment(img_cropped, generate_overlay, overlay_dpi, bg_color)
-                        keypoint_data = Pose_Predictor.process_images(img_cropped, filename=seg_name)
-                        # print(keypoint_data)
+                        try:
+                            keypoint_data = Pose_Predictor.process_images(img_cropped, filename=seg_name)
+                        except Exception as e:
+                            logger.warning(f"Keypoint detection failed for {seg_name}: {e}")
+                            keypoint_data = {}
+                        if not keypoint_data or seg_name not in keypoint_data:
+                            logger.debug(f"No keypoint data for {seg_name}")
+                            keypoint_data = {}
 
                         # except:
                         #     detected_components = []
@@ -397,7 +419,12 @@ def save_rgb_cropped(save_rgb_cropped_images, seg_name, img_cropped, leaf_type, 
 
 ##### For mask saving
 def rotate_mask_using_keypoint_data(dir_out, seg_name, save_oriented_images, keypoint_data, img):
-    # Handle rotation 
+    # Validate keypoint data before use
+    if not keypoint_data or seg_name not in keypoint_data or any(
+        keypoint_data[seg_name].get(k) is None for k in ('tip', 'base', 'angle')
+    ):
+        return None, 0
+    # Handle rotation
     img_cv2 = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
     angle = keypoint_data[seg_name]['angle']
     oriented_mask = rotate_image(-angle, img_cv2, save_oriented_images)
@@ -630,6 +657,10 @@ def create_perimeter_normalize(mask_leaf, keypoint_data, seg_name):
     height, width = mask_leaf_np.shape[:2]
     tip_base_img = np.zeros((height, width, 3), dtype=np.uint8)
     # Assign colors to tip (red) and base (blue)
+    if not keypoint_data or seg_name not in keypoint_data or any(
+        keypoint_data[seg_name].get(k) is None for k in ('tip', 'base', 'angle')
+    ):
+        return [(999, 999)], [(999, 999)], 999, 999, 999, np.array([999,999]), np.array([999,999]), np.array([999,999]), np.array([999,999])
     tip_raw = np.array(keypoint_data[seg_name]['tip'], dtype=np.int32)
     base_raw = np.array(keypoint_data[seg_name]['base'], dtype=np.int32)
     angle = keypoint_data[seg_name]['angle']
@@ -1199,12 +1230,12 @@ def crop_images_to_bbox(dict, cls, dict_name_cropped, dict_from, Project):
                 m = str(''.join(['No objects for class ', convert_index_to_class(0), ' were found']))
                 # Print_Verbose(cfg, 3, m).plain()
             else:
-                try:
-                    img = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename,'jpg'])))
-                    # img = cv2.imread(os.path.join(Project, '.'.join([filename,'jpg']))) # Testing
-                except:
-                    img = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename,'jpeg'])))
-                    # img = cv2.imread(os.path.join(Project, '.'.join([filename,'jpeg']))) # Testing
+                img_path = find_image_path(Project.dir_images, filename)
+                if img_path is None:
+                    continue
+                img = cv2.imread(img_path)
+                if img is None:
+                    continue
                 
                 for d in bboxes_whole_leaves:
                     # img_crop = img.crop((d[1], d[2], d[3], d[4])) # PIL

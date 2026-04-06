@@ -133,11 +133,12 @@ leafmachine:
     device: 'cuda'
     GBIF_mode: all
     accept_only_ideal_leaves: true
+    treat_leaflet_as_leaf_whole: false
     batch_size: 200
     censor_archival_components: false
-    dir_images_local: /media/nas/GBIF_Downloads/Cornales/Nyssaceae/img
+    dir_images_local: /datac/LM2/
     dir_images_subset: ''
-    dir_output: /media/nas/GBIF_Downloads/Cornales/Nyssaceae/LM2
+    dir_output: /datac/LM2/OUT
     hide_archival_components:
     - ruler
     - barcode

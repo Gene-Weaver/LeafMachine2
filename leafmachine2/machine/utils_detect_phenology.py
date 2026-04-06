@@ -34,6 +34,8 @@ class PhenologyDetector:
             with open(file_path, 'r') as file:
                 for line in file:
                     class_index = int(line.split()[0])
+                    if self.cfg['leafmachine']['project'].get('treat_leaflet_as_leaf_whole', False) and class_index == 2:
+                        class_index = 0
                     class_name = self.class_names.get(class_index)
                     if class_name:
                         self.file_counts[file_name][class_name] += 1

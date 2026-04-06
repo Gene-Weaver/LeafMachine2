@@ -29,6 +29,20 @@ https://helpx.adobe.com/content/dam/help/en/photoshop/pdf/dng_commandline.pdf
 
 # https://stackoverflow.com/questions/287871/how-do-i-print-colored-text-to-the-terminal
 
+VALID_IMAGE_EXTENSIONS = ('.jpg', '.jpeg', '.png', '.tif', '.tiff', '.bmp')
+
+def find_image_path(dir_images, filename):
+    """Find the actual image file for a given stem, handling extension variants and case."""
+    for ext in VALID_IMAGE_EXTENSIONS:
+        path = os.path.join(dir_images, filename + ext)
+        if os.path.exists(path):
+            return path
+        # Also check uppercase extension (for case-sensitive filesystems)
+        path_upper = os.path.join(dir_images, filename + ext.upper())
+        if os.path.exists(path_upper):
+            return path_upper
+    return None
+
 def validate_dir(dir):
     if not os.path.exists(dir):
         os.makedirs(dir, exist_ok=True)
@@ -192,20 +206,30 @@ n_corrupt_lock = threading.Lock()
 
 def process_image_vertical(image_path, dir_images_unprocessed, rotate_lock, corrupt_lock):
     global n_rotate, n_corrupt
+    full_path = os.path.join(dir_images_unprocessed, image_path)
 
     try:
-        image = cv2.imread(os.path.join(dir_images_unprocessed, image_path))
+        image = cv2.imread(full_path)
+        if image is None:
+            raise ValueError(f"cv2.imread returned None for {image_path}")
         h, w, img_c = image.shape
         image, img_h, img_w, did_rotate = make_image_vertical(image, h, w, do_rotate_180=False)
         if did_rotate:
             with rotate_lock:
                 n_rotate += 1
-        os.remove(os.path.join(dir_images_unprocessed, image_path))
-        cv2.imwrite(os.path.join(dir_images_unprocessed, image_path), image)
-    except:
+        os.remove(full_path)
+        cv2.imwrite(full_path, image)
+    except Exception as e:
+        print(f"WARNING: Failed to process image {image_path}: {e}")
         with corrupt_lock:
             n_corrupt += 1
-        os.remove(os.path.join(dir_images_unprocessed, image_path))
+        # Move to quarantine instead of deleting
+        quarantine_dir = os.path.join(os.path.dirname(dir_images_unprocessed), 'QUARANTINE')
+        os.makedirs(quarantine_dir, exist_ok=True)
+        try:
+            shutil.move(full_path, os.path.join(quarantine_dir, image_path))
+        except Exception:
+            pass  # If move fails too, at least don't delete the original
 
 def make_images_in_dir_vertical(dir_images_unprocessed, cfg, N_THREADS=16):
     global n_rotate, n_corrupt
@@ -653,10 +677,10 @@ def crop_detections_from_images(cfg, dir_home, Project, Dirs):
     for p in processes:
         p.join()'''
 def crop_detections_from_images_worker_SpecimenCrop(filename, analysis, Project, Dirs, cfg, save_list, original_img_dir):
-    try:
-        full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpg'])))
-    except:
-        full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpeg'])))
+    img_path = find_image_path(Project.dir_images, filename)
+    if img_path is None:
+        return
+    full_image = cv2.imread(img_path)
 
     try:
         archival = analysis['Detections_Archival_Components']
@@ -676,10 +700,10 @@ def crop_detections_from_images_worker_SpecimenCrop(filename, analysis, Project,
         crop_component_from_yolo_coords_SpecimenCrop(Dirs, cfg, analysis, has_archival, has_plant, archival, plant, full_image, filename, save_list, original_img_dir)
 
 def crop_detections_from_images_worker_VV(filename, analysis, Project, Dirs, save_per_image, save_per_class, save_list, binarize_labels):
-    try:
-        full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpg'])))
-    except:
-        full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpeg'])))
+    img_path = find_image_path(Project.dir_images, filename)
+    if img_path is None:
+        return
+    full_image = cv2.imread(img_path)
 
     try:
         archival = analysis['Detections_Archival_Components']
@@ -699,10 +723,10 @@ def crop_detections_from_images_worker_VV(filename, analysis, Project, Dirs, sav
 
 #Works with Project, not SQL
 def crop_detections_from_images_worker(filename, analysis, Project, Dirs, save_per_image, save_per_class, save_list, binarize_labels):
-    try:
-        full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpg'])))
-    except:
-        full_image = cv2.imread(os.path.join(Project.dir_images, '.'.join([filename, 'jpeg'])))
+    img_path = find_image_path(Project.dir_images, filename)
+    if img_path is None:
+        return
+    full_image = cv2.imread(img_path)
 
     try:
         archival = analysis['Detections_Archival_Components']
